@@ -3,7 +3,7 @@
 import { authHeaders } from "./ai";
 import { MANDATS_PATRIM } from "./seed";
 import { cloudEnabled } from "./supabase";
-import { bulkCreate, create, getAll, update } from "./store";
+import { bulkCreate, create, getAll, remove, update } from "./store";
 import type { Bien, BienType } from "./types";
 
 /* Import et mise à jour des mandats.
@@ -62,7 +62,38 @@ async function photosAnnonce(url?: string): Promise<string[]> {
   }
 }
 
-type AnnonceSite = { ref: string; url: string; titre?: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
+type AnnonceSite = {
+  ref: string; url: string; titre?: string; type: string; ville: string; quartier?: string; surface?: number; prix?: number; netVendeur?: number;
+  pieces?: number; chambres?: number; etage?: number; ascenseur?: boolean; dpe?: string; ges?: string; description?: string; photos: string[];
+};
+
+const CLASSES = "ABCDEFG";
+/** Infos de l'annonce (prix, texte, DPE…) reprises dans la fiche du bien. */
+function infosAnnonce(a: AnnonceSite): Partial<Bien> {
+  const classe = (c?: string) => (c && CLASSES.includes(c) ? (c as Bien["dpe"]) : undefined);
+  return {
+    prix: a.prix,
+    netVendeur: a.netVendeur,
+    quartier: a.quartier,
+    description: a.description,
+    pieces: a.pieces ?? (Number(a.titre?.match(/(\d+)\s*pi[eè]ce/i)?.[1]) || undefined),
+    chambres: a.chambres,
+    etage: a.etage,
+    ascenseur: a.ascenseur,
+    dpe: classe(a.dpe),
+    ges: classe(a.ges),
+  };
+}
+
+const vide = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length);
+/** Champs de `infos` à reporter sur `bien` : seulement là où rien n'est encore saisi. */
+function aCompleter(bien: Partial<Bien>, infos: Partial<Bien>) {
+  const patch: Partial<Bien> = {};
+  for (const [k, v] of Object.entries(infos) as [keyof Bien, unknown][]) if (!vide(v) && vide(bien[k])) (patch as Record<string, unknown>)[k] = v;
+  return patch;
+}
+
+const MARQUEUR = "Ajouté depuis le site patrim.fr : propriétaire, adresse et détails à compléter.";
 
 /** Toutes les annonces de vente en ligne sur patrim.fr (lues par le serveur). */
 async function annoncesSite(): Promise<AnnonceSite[]> {
@@ -95,21 +126,21 @@ const TYPES: BienType[] = ["appartement", "maison", "terrain", "local", "immeubl
 /** Bien créé à partir d'une annonce du site qui n'a pas encore de fiche dans l'appli. */
 function bienDepuisAnnonce(a: AnnonceSite & { titre?: string }): Partial<Bien> {
   const type = TYPES.find((t) => a.type.startsWith(t.slice(0, 4))) ?? "appartement";
-  const pieces = Number(a.titre?.match(/(\d+)\s*pi[eè]ce/i)?.[1]) || undefined;
+  const infos = infosAnnonce(a);
+  const pieces = infos.pieces;
   const nom = type === "appartement" ? "Appartement" : type === "maison" ? "Maison" : type[0].toUpperCase() + type.slice(1);
   return {
+    ...infos,
     ref: a.ref,
     titre: [nom, pieces && `${pieces} pièces`, a.surface && `${a.surface} m²`].filter(Boolean).join(" "),
     type,
     adresse: "[À compléter]",
     ville: a.ville || "Toulouse",
-    prix: a.prix,
     surface: a.surface,
-    pieces,
     photos: a.photos,
     annonceUrl: a.url,
     statut: "en_vente",
-    notes: "Ajouté depuis le site patrim.fr : propriétaire, adresse et détails à compléter.",
+    notes: MARQUEUR,
   };
 }
 
@@ -146,21 +177,28 @@ export async function importerMandats() {
       utilisees.add(annonce.ref);
       data.ref ??= annonce.ref;
       data.annonceUrl = annonce.url;
-      data.prix ??= annonce.prix;
+      Object.assign(data, aCompleter(data, infosAnnonce(annonce)));
     }
     const enLigne = annonce?.photos.length ? annonce.photos : await photosAnnonce(data.annonceUrl);
     if (enLigne.length) data.photos = enLigne;
 
     const rue = (a?: string) => norm(a?.split(",")[0]);
     const existant = getAll("biens").find((b) => (f.ref && b.ref === f.ref) || (f.adresse && rue(b.adresse) === rue(f.adresse)));
+    // Doublon créé plus tôt depuis le site pour cette même annonce : retiré s'il n'a pas été modifié
+    if (annonce) {
+      for (const b of getAll("biens")) {
+        if (b.id !== existant?.id && (b.ref === annonce.ref || b.annonceUrl === annonce.url) && b.notes === MARQUEUR && !b.vendeurIds?.length) {
+          remove("biens", b.id);
+          maj++;
+        }
+      }
+    }
     if (existant) {
       // On complète sans écraser ce que Quentin a déjà saisi (photos, statut, notes modifiées…)
       const patch: Partial<Bien> = {};
       for (const [k, v] of Object.entries(data) as [keyof Bien, unknown][]) {
         if (v === undefined || v === null || v === "") continue;
-        const actuel = existant[k];
-        const vide = actuel === undefined || actuel === null || actuel === "" || (Array.isArray(actuel) && !actuel.length);
-        if (vide || k === "titre" || k === "vendeurIds") (patch as Record<string, unknown>)[k] = v;
+        if (vide(existant[k]) || k === "titre" || k === "vendeurIds") (patch as Record<string, unknown>)[k] = v;
       }
       // Photos : la liste complète du site remplace celles venues du site, jamais celles ajoutées depuis le téléphone
       const actuelles = existant.photos ?? [];
@@ -181,9 +219,11 @@ export async function importerMandats() {
     if (utilisees.has(a.ref)) continue;
     const existant = getAll("biens").find((b) => b.ref === a.ref || b.annonceUrl === a.url);
     if (existant) {
+      const patch = aCompleter(existant, { ...infosAnnonce(a), annonceUrl: a.url, ref: a.ref });
       const actuelles = existant.photos ?? [];
-      if (a.photos.length && actuelles.every(duSite) && actuelles.join() !== a.photos.join()) {
-        update("biens", existant.id, { photos: a.photos, annonceUrl: existant.annonceUrl ?? a.url });
+      if (a.photos.length && actuelles.every(duSite) && actuelles.join() !== a.photos.join()) patch.photos = a.photos;
+      if (Object.keys(patch).length) {
+        update("biens", existant.id, patch);
         maj++;
       }
     } else {

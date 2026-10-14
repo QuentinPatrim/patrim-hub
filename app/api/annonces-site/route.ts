@@ -9,7 +9,15 @@ import { photosDansPage } from "@/lib/patrim-site";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export type AnnonceSite = { ref: string; url: string; titre: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
+export type AnnonceSite = {
+  ref: string; url: string; titre: string; type: string; ville: string; quartier?: string; surface?: number; prix?: number; netVendeur?: number;
+  pieces?: number; chambres?: number; etage?: number; ascenseur?: boolean; dpe?: string; ges?: string; description?: string; photos: string[];
+};
+
+const ENTITES: Record<string, string> = { "&eacute;": "é", "&egrave;": "è", "&ecirc;": "ê", "&agrave;": "à", "&acirc;": "â", "&ccedil;": "ç", "&ocirc;": "ô", "&ucirc;": "û", "&icirc;": "î", "&euro;": "€", "&rsquo;": "'", "&#039;": "'", "&quot;": '"', "&laquo;": "«", "&raquo;": "»", "&sup2;": "²" };
+const decoder = (t: string) => t.replace(/&[a-z#0-9]+;/gi, (e) => ENTITES[e] ?? (e.startsWith("&#") ? String.fromCharCode(Number(e.slice(2, -1))) : " "));
+const texteDe = (html: string) => decoder(html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ")).replace(/[ \t\u00a0\u202f]+/g, " ");
+const meta = (html: string, nom: string) => html.match(new RegExp(`<meta[^>]+(?:name|property)=["']${nom}["'][^>]*content=["']([^"']*)`, "i"))?.[1];
 
 const PLAGES: [string, number, number][] = [
   ["TAPP", 99800, 99999],
@@ -28,7 +36,15 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
     const titre = html.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim() ?? "";
     if (!titre.includes(ref)) return null;
     const m = titre.match(/^(\S+).*?de\s+([\d.,]+)\s*m.*?\sà\s+(.+?)\s+propos/i);
-    const prix = html.match(/([\d][\d\s .]*)\s*€\s*-\s*Ref/i)?.[1];
+    const texte = texteDe(html);
+    const prix = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*-\s*Ref/i)?.[1] ?? texte.match(/Prix\s*:?\s*(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
+    const net = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*net vendeur/i)?.[1] ?? texte.match(/net vendeur[^\d]{0,20}(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
+    const metas = [meta(html, "description"), meta(html, "og:description")].filter(Boolean).map((d) => decoder(d!));
+    const para = texte.split(/\n+/).map((l) => l.trim()).filter((l) => /^[^:]{3,60}:\s/.test(l) && l.length > 120).sort((a, b) => b.length - a.length)[0];
+    const description = [para, ...metas].filter(Boolean).sort((a, b) => b!.length - a!.length)[0];
+    const quartier = description?.match(/^([^:]{3,60}?)\s*:/)?.[1]?.trim();
+    const dpe = html.match(/dpe-([A-G])-\d+-([A-G])/i);
+    const nb = (re: RegExp) => Number(texte.match(re)?.[1]) || undefined;
     const photos = photosDansPage(html);
     if (!photos.length) {
       const i = html.search(/photo/i);
@@ -42,6 +58,15 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
       ville: m?.[3] ?? "",
       surface: nombre(m?.[2]),
       prix: nombre(prix),
+      netVendeur: nombre(net),
+      quartier,
+      description,
+      pieces: nb(/(\d+)\s*pi[eè]ces?/i),
+      chambres: nb(/chambres?\s*:?\s*(\d+)/i) ?? nb(/(\d+)\s*chambres?/i),
+      etage: nb(/[ée]tage\s*:?\s*(\d+)/i),
+      ascenseur: /ascenseur\s*:?\s*oui/i.test(texte) || undefined,
+      dpe: dpe?.[1]?.toUpperCase(),
+      ges: dpe?.[2]?.toUpperCase(),
       photos,
     };
   } catch {
