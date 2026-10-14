@@ -59,7 +59,16 @@ export async function importerMandats() {
   for (const f of liste) {
     const { proprietaire, ddt, driveFolderId, aVerifier, sources: _sources, ...champs } = f;
     void _sources;
-    const notes = [champs.notes, ddt && `DDT : ${ddt}`, aVerifier?.length ? `À vérifier : ${aVerifier.join(" ; ")}` : ""].filter(Boolean).join("\n");
+    // Champs saisis en texte dans les dossiers (lots, année approximative) : gardés dans les notes
+    const texte: string[] = [];
+    for (const k of ["lotsCopro", "anneeConstruction", "etage", "nbEtages", "surfaceTerrain"] as const) {
+      const v = (champs as Record<string, unknown>)[k];
+      if (typeof v === "string") {
+        texte.push(`${k === "lotsCopro" ? "Lots" : k === "anneeConstruction" ? "Construction" : k} : ${v}`);
+        delete (champs as Record<string, unknown>)[k];
+      }
+    }
+    const notes = [champs.notes, ...texte, ddt && `DDT : ${ddt}`, aVerifier?.length ? `À vérifier : ${aVerifier.join(" ; ")}` : ""].filter(Boolean).join("\n");
     const data: Partial<Bien> = {
       ...champs,
       notes: notes || undefined,
@@ -67,7 +76,8 @@ export async function importerMandats() {
     };
     if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
 
-    const existant = getAll("biens").find((b) => (f.ref && b.ref === f.ref) || (f.adresse && norm(b.adresse) === norm(f.adresse)));
+    const rue = (a?: string) => norm(a?.split(",")[0]);
+    const existant = getAll("biens").find((b) => (f.ref && b.ref === f.ref) || (f.adresse && rue(b.adresse) === rue(f.adresse)));
     if (existant) {
       // On complète sans écraser ce que Quentin a déjà saisi (photos, statut, notes modifiées…)
       const patch: Partial<Bien> = {};
@@ -77,6 +87,8 @@ export async function importerMandats() {
         const vide = actuel === undefined || actuel === null || actuel === "" || (Array.isArray(actuel) && !actuel.length);
         if (vide || k === "titre" || k === "vendeurIds") (patch as Record<string, unknown>)[k] = v;
       }
+      // Les points à vérifier et le DDT s'ajoutent aux notes existantes, une seule fois
+      if (existant.notes && data.notes && !existant.notes.includes(data.notes)) patch.notes = `${existant.notes}\n${data.notes}`;
       if (Object.keys(patch).length) {
         update("biens", existant.id, patch);
         maj++;
