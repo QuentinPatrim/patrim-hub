@@ -56,6 +56,7 @@ export default function EstimationsPage() {
         }
       />
 
+      {items.length > 0 && (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-fade-up">
         <Stat label="À présenter" value={counts.a_faire} icon={<ClipboardList size={16} />} tone="warn" hint="Avis à remettre" />
         <Stat label="Avis remis" value={counts.envoyee} icon={<Send size={16} />} hint="En attente de décision" />
@@ -67,6 +68,7 @@ export default function EstimationsPage() {
           hint={remises ? `${counts.mandat} mandat${counts.mandat > 1 ? "s" : ""} sur ${remises} avis remis` : "Dès le premier avis remis"}
         />
       </div>
+      )}
 
       {items.length > 0 && (
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -88,7 +90,7 @@ export default function EstimationsPage() {
         </p>
       )}
 
-      <div className="mt-4">
+      <div className={items.length ? "mt-4" : ""}>
         {items.length === 0 ? (
           <div className="card">
             <Empty
@@ -114,7 +116,7 @@ export default function EstimationsPage() {
               const prix = e.prixConseille ?? e.resultat?.median;
               return (
                 <li key={e.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
-                  <Link href={`/estimations/${e.id}`} className="card card-pad group flex gap-4 transition hover:shadow-glow hover:-translate-y-px">
+                  <Link href={`/estimations/${e.id}`} className="card card-pad card-hover group flex gap-4 min-w-0">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <Badge tone={STATUT_ESTIM[e.statut].tone}>{STATUT_ESTIM[e.statut].label}</Badge>

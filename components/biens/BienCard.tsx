@@ -16,14 +16,15 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
   return (
     <Link
       href={`/biens/${b.id}`}
-      className="group card overflow-hidden flex flex-col transition hover:-translate-y-0.5 hover:shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 animate-fade-up"
+      className="group card card-hover overflow-hidden flex flex-col min-w-0 active:scale-[.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 animate-fade-up"
       style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
     >
       <div className="relative aspect-[16/10] overflow-hidden">
-        <BienCover photo={b.photos?.[0]} type={b.type} alt={b.titre} className="h-full w-full transition duration-500 group-hover:scale-[1.03]" />
-        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />
+        <BienCover photo={b.photos?.[0]} type={b.type} alt={b.titre} compact className="h-full w-full transition duration-700 ease-out group-hover:scale-[1.04]" />
+        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
         <div className="absolute left-3 top-3 flex items-center gap-1.5">
-          <span className="rounded-full bg-surface/95 shadow-sm">
+          <span className="rounded-full bg-surface shadow-[0_2px_8px_rgba(0,0,0,.18)]">
             <Badge tone={st.tone}>{st.label}</Badge>
           </span>
           {b.mandat?.type === "exclusif" && <span className="rounded-full bg-ink/80 px-2 h-[22px] inline-flex items-center text-[10px] font-semibold uppercase tracking-wider text-white">Exclusif</span>}
@@ -33,29 +34,33 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
             <DpeBadge value={b.dpe} />
           </div>
         )}
-        {(b.photos?.length ?? 0) > 1 && (
-          <span className="absolute right-3 bottom-3 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 h-6 text-[11px] font-medium text-white backdrop-blur">
-            <Camera size={12} /> {b.photos!.length}
-          </span>
-        )}
-        {actif && matches > 0 && (
-          <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 h-6 text-[11px] font-semibold text-white shadow">
-            <Users size={12} /> {matches} acquéreur{matches > 1 ? "s" : ""}
-          </span>
-        )}
+        <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+          <div className="min-w-0 text-white drop-shadow-[0_1px_8px_rgba(0,0,0,.35)]">
+            <div className="font-serif text-[26px] font-semibold tracking-tight leading-none tabular-nums">{b.prix ? eur(b.prix) : <span className="font-sans text-sm font-medium text-white/85">Prix à définir</span>}</div>
+            {pm2 && <div className="mt-1 text-[11px] font-medium text-white/75 tabular-nums">{eur(pm2)}/m²</div>}
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {actif && matches > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 h-6 text-[11px] font-semibold text-white shadow ring-1 ring-white/15">
+                <Users size={12} /> {matches} acquéreur{matches > 1 ? "s" : ""}
+              </span>
+            )}
+            {(b.photos?.length ?? 0) > 1 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2 h-6 text-[11px] font-medium text-white backdrop-blur">
+                <Camera size={12} /> {b.photos!.length}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="font-serif text-[22px] font-semibold tracking-tight leading-none">{b.prix ? eur(b.prix) : <span className="text-muted text-base font-sans font-normal">Prix à définir</span>}</div>
-          {pm2 && <div className="text-xs text-muted whitespace-nowrap">{eur(pm2)}/m²</div>}
-        </div>
-        <h3 className="mt-2 font-medium leading-snug line-clamp-1">{b.titre || "Bien sans titre"}</h3>
+        <h3 className="font-semibold leading-snug line-clamp-1">{b.titre || "Bien sans titre"}</h3>
         <p className="mt-0.5 text-sm text-muted line-clamp-1">
           {[b.quartier, b.adresse, b.ville].filter(Boolean).join(" · ") || "Adresse à compléter"}
         </p>
 
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 mb-3 flex flex-wrap gap-1.5">
           {b.surface != null && (
             <span className="chip">
               <Ruler size={12} /> {m2(b.surface)}
@@ -79,7 +84,7 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
           )}
         </div>
 
-        <div className="mt-auto pt-3 flex items-center justify-between text-xs text-muted">
+        <div className="mt-auto pt-3 border-t border-line/60 flex items-center justify-between text-xs text-muted">
           <span className="inline-flex items-center gap-1">
             <Clock size={12} />
             {jours != null ? (actif ? `En vente depuis ${jours} j` : `Mis en vente il y a ${jours} j`) : `Ajouté le ${new Date(b.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
@@ -94,9 +99,9 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
 export function BienCardSkeleton() {
   return (
     <div className="card overflow-hidden">
-      <div className="skeleton aspect-[16/10] rounded-none" />
-      <div className="p-4 space-y-2">
-        <div className="skeleton h-6 w-32" />
+      <div className="skeleton aspect-[16/10] !rounded-none" />
+      <div className="p-4 space-y-2.5">
+        <div className="skeleton h-5 w-2/3" />
         <div className="skeleton h-4 w-3/4" />
         <div className="skeleton h-4 w-1/2" />
       </div>

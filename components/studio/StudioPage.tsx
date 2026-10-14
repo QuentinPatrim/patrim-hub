@@ -76,14 +76,14 @@ export function StudioPage() {
       <div className="space-y-4">
         {/* Onglets */}
         <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar">
-          <div className="inline-flex min-w-full sm:min-w-0 gap-1 rounded-2xl bg-surface-2 p-1">
+          <div className="inline-flex min-w-full sm:min-w-0 gap-1 rounded-full border border-line/70 bg-surface-2/80 p-1">
             {ONGLETS.map((o) => (
               <button
                 key={o.value}
                 onClick={() => changerOnglet(o.value)}
                 className={cx(
-                  "flex flex-1 sm:flex-none items-center justify-center gap-2 h-10 px-3.5 rounded-xl text-[13px] font-medium whitespace-nowrap transition",
-                  onglet === o.value ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg"
+                  "flex flex-1 sm:flex-none items-center justify-center gap-2 h-10 px-4 rounded-full text-[13px] font-semibold whitespace-nowrap transition duration-200",
+                  onglet === o.value ? "bg-surface text-fg ring-1 ring-line/70 shadow-[0_1px_2px_rgb(var(--shadow)/0.08),0_2px_8px_-2px_rgb(var(--shadow)/0.1)]" : "text-muted hover:text-fg"
                 )}
               >
                 <span className={cx(onglet === o.value && "text-accent")}>{o.icon}</span>

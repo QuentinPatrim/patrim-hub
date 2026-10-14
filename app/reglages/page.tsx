@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud, CloudOff, Database, Download, KeyRound, LogOut, Upload, Building2 } from "lucide-react";
+import { Cloud, CloudOff, Database, Download, KeyRound, LogOut, Upload, Building2, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { MANDATS_PATRIM } from "@/lib/seed";
@@ -9,6 +9,7 @@ import { cloudEnabled, supabase } from "@/lib/supabase";
 import type { Kind } from "@/lib/types";
 
 const KINDS: Kind[] = ["biens", "contacts", "rdvs", "estimations", "taches", "contenus", "briefings"];
+const NOMS: Record<Kind, string> = { biens: "Biens", contacts: "Contacts", rdvs: "Rendez-vous", estimations: "Estimations", taches: "Tâches", contenus: "Contenus", briefings: "Briefings" } as Record<Kind, string>;
 
 export default function Reglages() {
   const [email, setEmail] = useState<string | null>(null);
@@ -63,7 +64,7 @@ export default function Reglages() {
       <Card title="Compte">
         {cloudEnabled ? (
           <div className="flex items-center gap-3">
-            <span className="grid place-items-center size-10 rounded-xl bg-ok/10 text-ok"><Cloud size={18} /></span>
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-ok/10 text-ok ring-1 ring-inset ring-ok/20"><Cloud size={19} /></span>
             <div className="flex-1 text-sm">
               <div className="font-medium">Synchronisé</div>
               <div className="text-xs text-muted">{email ?? "…"} · vos données sont sur tous vos appareils</div>
@@ -72,7 +73,7 @@ export default function Reglages() {
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <span className="grid place-items-center size-10 rounded-xl bg-warn/10 text-warn"><CloudOff size={18} /></span>
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-warn/10 text-warn ring-1 ring-inset ring-warn/20"><CloudOff size={19} /></span>
             <div className="flex-1 text-sm">
               <div className="font-medium">Mode local</div>
               <div className="text-xs text-muted">Les données restent sur cet appareil. Faites une sauvegarde régulière.</div>
@@ -85,9 +86,9 @@ export default function Reglages() {
         <Card title="Code d'accès à l'assistant">
           <Field label="Code" hint="Le même que la variable APP_PASSCODE de l'hébergement, s'il y en a une.">
             <div className="flex gap-2">
-              <input className="input" type="password" value={code} onChange={(e) => setCode(e.target.value)} />
+              <input className="input min-w-0" type="password" value={code} onChange={(e) => setCode(e.target.value)} />
               <button
-                className="btn-primary"
+                className="btn-primary shrink-0"
                 onClick={() => {
                   try {
                     localStorage.setItem("patrim-hub:passcode", code);
@@ -103,30 +104,51 @@ export default function Reglages() {
       )}
 
       <Card title="Données">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <button onClick={importerMandats} className="btn-secondary h-auto py-3 flex-col">
-            <Building2 size={18} /> Importer mes mandats
+        <div className="-mx-2 space-y-1">
+          <button onClick={importerMandats} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-accent/[0.05] ring-1 ring-inset ring-accent/15 hover:bg-accent/[0.08] transition">
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-gradient-to-b from-brand-light to-brand text-white shadow-btn"><Building2 size={19} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Importer mes mandats</span>
+              <span className="block text-xs text-muted">Ajoute les biens PATRIM qui ne sont pas encore dans l&apos;appli.</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
           </button>
-          <button onClick={exporter} className="btn-secondary h-auto py-3 flex-col">
-            <Download size={18} /> Sauvegarder
+          <button onClick={exporter} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><Download size={19} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Sauvegarder</span>
+              <span className="block text-xs text-muted">Télécharge une copie de toutes vos données.</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
           </button>
-          <label className="btn-secondary h-auto py-3 flex-col cursor-pointer">
-            <Upload size={18} /> Restaurer
+          <label className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition cursor-pointer">
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><Upload size={19} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Restaurer</span>
+              <span className="block text-xs text-muted">Recharge une sauvegarde, sans créer de doublons.</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
             <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && importer(e.target.files[0])} />
           </label>
         </div>
-        <div className="mt-4 grid grid-cols-3 sm:grid-cols-7 gap-2 text-center">
-          {KINDS.map((k) => (
-            <div key={k} className="rounded-xl bg-surface-2 py-2">
-              <div className="font-semibold tabular-nums">{mounted ? getAll(k).length : "–"}</div>
-              <div className="text-[10px] text-muted capitalize">{k}</div>
-            </div>
-          ))}
+        {msg && <p className="mt-3 rounded-xl bg-accent/[0.06] px-3 py-2.5 text-sm text-accent flex items-center gap-2"><Database size={15} className="shrink-0" /> {msg}</p>}
+        <div className="mt-4 pt-4 border-t border-line/70">
+          <div className="eyebrow mb-2.5">Contenu de l&apos;appli</div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {KINDS.map((k) => (
+              <div key={k} className="min-w-0 rounded-xl bg-surface-2/70 ring-1 ring-inset ring-line/60 px-3 py-2.5">
+                <div className="font-serif text-xl font-semibold leading-none tabular-nums">{mounted ? getAll(k).length : "–"}</div>
+                <div className="mt-1 text-[11px] text-muted truncate">{NOMS[k] ?? k}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        {msg && <p className="mt-3 text-sm text-accent flex items-center gap-2"><Database size={14} /> {msg}</p>}
       </Card>
 
-      <p className="text-center text-xs text-muted pt-4">PATRIM Hub · conçu pour l&apos;agence PATRIM, Toulouse</p>
+      <div className="flex flex-col items-center gap-2 pt-6 text-xs text-muted">
+        <span className="h-[3px] w-6 rounded-full bg-coral" />
+        PATRIM Hub · conçu pour l&apos;agence PATRIM, Toulouse
+      </div>
     </div>
   );
 }

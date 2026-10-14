@@ -194,8 +194,8 @@ export function Chat() {
       {/* En-tête */}
       <div className="flex items-center gap-3 pb-3">
         <div className="min-w-0 flex-1">
-          <h1 className="font-serif text-2xl sm:text-3xl font-semibold tracking-tight">Assistant</h1>
-          <p className="text-xs text-muted truncate">Connaît vos biens, contacts, agenda et estimations</p>
+          <h1 className="h-title">Assistant</h1>
+          <p className="mt-0.5 text-xs text-muted line-clamp-2">Connaît vos biens, contacts, agenda et estimations</p>
         </div>
         <button
           onClick={() => {

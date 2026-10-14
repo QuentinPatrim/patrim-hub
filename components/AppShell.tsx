@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import {
+  ArrowRight,
   Building2,
   CalendarDays,
   Calculator,
@@ -57,78 +58,103 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (path.startsWith("/connexion") || path.startsWith("/imprimer")) return <>{children}</>;
 
+  const moreItems = [...NAV.filter((n) => !MOBILE.includes(n.href)), { href: "/reglages", label: "Réglages", icon: Settings }];
+  const moreActive = moreItems.some((n) => active(n.href));
+
   return (
-    <div className="min-h-dvh lg:pl-64">
+    <div className="min-h-dvh lg:pl-[264px]">
       {/* Barre latérale (ordinateur / tablette) */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col bg-ink text-white/90 no-print">
-        <div className="px-5 pt-6 pb-5">
+      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[264px] flex-col overflow-hidden bg-ink text-white/90 no-print">
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_40%_at_0%_0%,rgba(108,25,30,.55),transparent_70%)]" />
+        <div aria-hidden className="arcades pointer-events-none absolute inset-x-0 bottom-16 h-24 opacity-[0.05]" />
+        <div className="relative px-5 pt-6 pb-6">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/emblem.png" alt="" width={40} height={40} className="rounded-lg" />
+            <Image src="/emblem.png" alt="" width={40} height={40} className="rounded-xl ring-1 ring-white/10 shadow-lg" />
             <div>
-              <div className="font-semibold tracking-[0.2em] text-[15px]">PATRIM</div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-white/45">Espace vente</div>
+              <div className="font-semibold tracking-[0.24em] text-[15px] text-white">PATRIM</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/45">
+                <span className="h-px w-3 bg-coral" /> Espace vente
+              </div>
             </div>
           </Link>
         </div>
-        <button onClick={() => setSearch(true)} className="mx-4 mb-4 flex items-center gap-2 h-9 rounded-xl bg-white/5 px-3 text-xs text-white/50 hover:bg-white/10">
-          <Search size={14} /> Rechercher <span className="ml-auto rounded border border-white/15 px-1.5 text-[10px]">⌘K</span>
+        <button onClick={() => setSearch(true)} className="relative mx-4 mb-5 flex items-center gap-2 h-10 rounded-xl bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] px-3 text-[13px] text-white/50 hover:bg-white/10 hover:text-white/70 transition">
+          <Search size={15} /> Rechercher <span className="ml-auto rounded-md border border-white/15 px-1.5 py-px text-[10px] font-medium">⌘K</span>
         </button>
-        <nav className="flex-1 px-3 space-y-0.5">
-          {NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                "flex items-center gap-3 h-10 px-3 rounded-xl text-sm transition",
-                active(href) ? "bg-brand text-white shadow-[0_8px_20px_-10px_rgba(108,25,30,.9)]" : "text-white/65 hover:text-white hover:bg-white/5"
-              )}
-            >
-              <Icon size={18} strokeWidth={1.8} />
-              {label}
-            </Link>
-          ))}
+        <div className="relative px-6 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Menu</div>
+        <nav className="relative flex-1 px-3 space-y-0.5">
+          {NAV.map(({ href, label, icon: Icon }) => {
+            const on = active(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={on ? "page" : undefined}
+                className={clsx(
+                  "relative flex items-center gap-3 h-10 px-3 rounded-xl text-sm font-medium transition duration-200",
+                  on ? "bg-white/[0.09] text-white ring-1 ring-inset ring-white/[0.08]" : "text-white/60 hover:text-white hover:bg-white/[0.05]"
+                )}
+              >
+                {on && <span aria-hidden className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-coral" />}
+                <span className={clsx("grid place-items-center size-7 rounded-lg transition", on ? "bg-brand text-white shadow-[0_4px_12px_-4px_rgba(108,25,30,.9)]" : "text-white/70")}>
+                  <Icon size={17} strokeWidth={on ? 2 : 1.8} />
+                </span>
+                {label}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="p-3 border-t border-white/10 flex items-center gap-1">
-          <Link href="/reglages" className={clsx("flex-1 flex items-center gap-3 h-10 px-3 rounded-xl text-sm", active("/reglages") ? "bg-white/10 text-white" : "text-white/60 hover:text-white hover:bg-white/5")}>
-            <Settings size={18} strokeWidth={1.8} /> Réglages
+        <div className="relative p-3 border-t border-white/[0.08] flex items-center gap-1">
+          <Link href="/reglages" className={clsx("flex-1 flex items-center gap-3 h-10 px-3 rounded-xl text-sm font-medium transition", active("/reglages") ? "bg-white/[0.09] text-white" : "text-white/60 hover:text-white hover:bg-white/[0.05]")}>
+            <Settings size={17} strokeWidth={1.8} /> Réglages
           </Link>
-          <button onClick={toggle} className="grid place-items-center size-10 rounded-xl text-white/60 hover:text-white hover:bg-white/5" aria-label="Changer de thème">
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          <button onClick={toggle} className="grid place-items-center size-10 rounded-xl text-white/60 hover:text-white hover:bg-white/[0.05] transition" aria-label="Changer de thème">
+            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
           </button>
         </div>
       </aside>
 
       {/* En-tête mobile */}
-      <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/85 backdrop-blur-xl border-b border-line no-print">
+      <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/80 backdrop-blur-xl backdrop-saturate-150 border-b border-line/60 no-print">
         <div className="flex items-center gap-3 h-14 px-4">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/emblem.png" alt="" width={30} height={30} className="rounded-md" />
-            <span className="font-semibold tracking-[0.18em] text-sm">PATRIM</span>
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil PATRIM">
+            <Image src="/emblem.png" alt="" width={30} height={30} className="rounded-lg shadow-xs" />
+            <span className="leading-none">
+              <span className="block font-semibold tracking-[0.22em] text-[13px]">PATRIM</span>
+              <span className="mt-1 block h-[2px] w-6 rounded-full bg-coral" />
+            </span>
           </Link>
           <div className="ml-auto flex items-center gap-1">
-            <button onClick={() => setSearch(true)} className="btn-ghost !px-2.5" aria-label="Rechercher">
+            <button onClick={() => setSearch(true)} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Rechercher">
               <Search size={19} />
             </button>
-            <button onClick={toggle} className="btn-ghost !px-2.5" aria-label="Changer de thème">
+            <button onClick={toggle} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Changer de thème">
               {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-10 py-5 sm:py-8 pb-28 lg:pb-12">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-14 min-w-0">{children}</main>
 
       {/* Barre d'onglets mobile */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-xl border-t border-line safe-bottom no-print">
-        <div className="grid grid-cols-5 h-16">
-          {NAV.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={clsx("flex flex-col items-center justify-center gap-1 text-[10px] font-medium", active(href) ? "text-accent" : "text-muted")}>
-              <Icon size={22} strokeWidth={active(href) ? 2.2 : 1.7} />
-              {label}
-            </Link>
-          ))}
-          <button onClick={() => setMore(true)} className={clsx("flex flex-col items-center justify-center gap-1 text-[10px] font-medium", more ? "text-accent" : "text-muted")}>
-            <LayoutGrid size={22} strokeWidth={1.7} />
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
+        <div className="grid grid-cols-5 h-[62px] px-1">
+          {NAV.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => {
+            const on = active(href);
+            return (
+              <Link key={href} href={href} aria-current={on ? "page" : undefined} className={clsx("group flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors", on ? "text-accent" : "text-muted")}>
+                <span className={clsx("grid place-items-center h-7 w-12 rounded-full transition-all duration-300", on ? "bg-accent/10" : "group-active:bg-fg/[0.05]")}>
+                  <Icon size={21} strokeWidth={on ? 2.2 : 1.8} />
+                </span>
+                {label}
+              </Link>
+            );
+          })}
+          <button onClick={() => setMore(true)} className={clsx("group flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors", more || moreActive ? "text-accent" : "text-muted")}>
+            <span className={clsx("grid place-items-center h-7 w-12 rounded-full transition-all duration-300", more || moreActive ? "bg-accent/10" : "group-active:bg-fg/[0.05]")}>
+              <LayoutGrid size={21} strokeWidth={more || moreActive ? 2.2 : 1.8} />
+            </span>
             Plus
           </button>
         </div>
@@ -136,16 +162,22 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {more && (
         <div className="lg:hidden fixed inset-0 z-50" onClick={() => setMore(false)}>
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="absolute bottom-0 inset-x-0 rounded-t-3xl bg-surface p-5 pb-8 safe-bottom animate-fade-up" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 bg-ink/45 backdrop-blur-[3px] animate-fade-in" />
+          <div className="absolute bottom-0 inset-x-0 rounded-t-[28px] border-t border-line/70 bg-surface px-5 pt-3 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
-            <div className="grid grid-cols-3 gap-3">
-              {[...NAV.filter((n) => !MOBILE.includes(n.href)), { href: "/reglages", label: "Réglages", icon: Settings }].map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} className="flex flex-col items-center gap-2 rounded-2xl border border-line bg-surface-2 py-4 text-xs font-medium">
-                  <span className="grid place-items-center size-10 rounded-xl bg-brand text-white">
-                    <Icon size={20} />
+            <div className="mb-3 flex items-center justify-between">
+              <div className="font-serif text-lg font-semibold">Plus d&apos;outils</div>
+              <button onClick={() => setMore(false)} className="grid place-items-center size-9 rounded-full bg-surface-2 text-muted" aria-label="Fermer">
+                <X size={17} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {moreItems.map(({ href, label, icon: Icon }) => (
+                <Link key={href} href={href} className={clsx("flex items-center gap-3 rounded-2xl border p-3 text-sm font-semibold transition active:scale-[.98]", active(href) ? "border-accent/30 bg-accent/[0.06]" : "border-line/80 bg-surface-2/60")}>
+                  <span className="grid place-items-center size-10 shrink-0 rounded-xl bg-gradient-to-b from-brand-light to-brand text-white shadow-btn">
+                    <Icon size={19} />
                   </span>
-                  {label}
+                  <span className="min-w-0 truncate">{label}</span>
                 </Link>
               ))}
             </div>
@@ -176,8 +208,8 @@ function SearchPalette({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[12vh]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg card overflow-hidden animate-fade-up" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute inset-0 bg-ink/45 backdrop-blur-[3px] animate-fade-in" />
+      <div className="relative w-full max-w-lg card !shadow-2xl overflow-hidden animate-fade-up" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 px-4 border-b border-line">
           <Search size={18} className="text-muted" />
           <input
@@ -193,16 +225,19 @@ function SearchPalette({ onClose }: { onClose: () => void }) {
             placeholder="Un bien, un client, une adresse…"
             className="flex-1 h-14 bg-transparent outline-none text-[15px]"
           />
-          <button onClick={onClose} className="btn-ghost btn-sm !px-2">
-            <X size={16} />
+          <button onClick={onClose} className="grid place-items-center size-8 rounded-full bg-surface-2 text-muted hover:text-fg" aria-label="Fermer">
+            <X size={15} />
           </button>
         </div>
         <ul className="max-h-[50vh] overflow-y-auto p-2">
           {results.map((r) => (
             <li key={r.href + r.title}>
-              <Link href={r.href} onClick={onClose} className="block rounded-xl px-3 py-2.5 hover:bg-surface-2">
-                <div className="text-sm font-medium">{r.title}</div>
-                <div className="text-xs text-muted truncate">{r.sub}</div>
+              <Link href={r.href} onClick={onClose} className="group flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-surface-2 transition">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{r.title}</div>
+                  <div className="text-xs text-muted truncate">{r.sub}</div>
+                </div>
+                <ArrowRight size={15} className="shrink-0 text-muted opacity-0 -translate-x-1 transition group-hover:opacity-100 group-hover:translate-x-0" />
               </Link>
             </li>
           ))}

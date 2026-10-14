@@ -106,7 +106,7 @@ export default function BiensPage() {
       />
 
       {biens.length > 0 && (
-        <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3 animate-fade-up">
+        <div className="mb-5 card grid grid-cols-3 divide-x divide-line/70 animate-fade-up">
           <MiniStat label="En vente" value={String(enVente.length)} />
           <MiniStat label="Valeur affichée" value={eurK(valeur)} />
           <MiniStat label="Honoraires en jeu" value={eurK(honoraires)} accent />
@@ -116,7 +116,7 @@ export default function BiensPage() {
       {biens.length > 0 && (
         <div className="mb-5 space-y-3">
           <div className="flex gap-2">
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-0">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Titre, adresse, quartier, référence…" className="input !h-11 pl-9 pr-9" type="search" enterKeyHint="search" />
               {q && (
@@ -197,9 +197,9 @@ export default function BiensPage() {
 
 function MiniStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={accent ? "rounded-2xl bg-brand text-white px-3 py-3 sm:px-4 shadow-card" : "card px-3 py-3 sm:px-4"}>
-      <div className={accent ? "text-[11px] text-white/70" : "text-[11px] text-muted"}>{label}</div>
-      <div className="mt-0.5 font-serif text-lg sm:text-2xl font-semibold tracking-tight truncate">{value}</div>
+    <div className="min-w-0 px-3 py-3.5 sm:px-5 sm:py-4">
+      <div className="text-[11px] font-medium text-muted truncate">{label}</div>
+      <div className={"mt-1 font-serif text-xl sm:text-[26px] leading-none font-semibold tracking-tight tabular-nums truncate" + (accent ? " text-accent" : "")}>{value}</div>
     </div>
   );
 }
