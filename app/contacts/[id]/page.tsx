@@ -34,7 +34,10 @@ import { ETAPES, HISTO_LABEL, type HistoType, relanceEnRetard, ROLES, SOURCES, t
 import { MessageAssistant, type Objectif } from "@/components/contacts/MessageAssistant";
 import { Avatar, Badge, Card, cx, Empty, Field, Sheet } from "@/components/ui";
 import { addDays, dateCourte, dateLongue, ETAPE, eur, heure, ilya, initiales, m2, nomComplet, RDV_TYPE, ROLE, SOURCE, STATUT_BIEN, today, TYPE_BIEN } from "@/lib/format";
-import { BIEN_DISPONIBLE, matchScore, topMatches } from "@/lib/matching";
+import { BIEN_DISPONIBLE, matchScore, niveauMatch, topMatches } from "@/lib/matching";
+import { BrouillonMail } from "@/components/matching/BrouillonMail";
+import { marquerPropose } from "@/components/biens/AcquereursCompatibles";
+import { texteProposition } from "@/components/biens/utils";
 import { useCollection, useDoc } from "@/lib/store";
 import type { Bien, Contact, ContactRole, Criteres, EtapeAcquereur, Rdv, Source } from "@/lib/types";
 
@@ -111,6 +114,7 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
   const [edit, setEdit] = useState(false);
   const [msg, setMsg] = useState<{ objectif?: Objectif; bienId?: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [brouillonBien, setBrouillonBien] = useState<Bien | null>(null);
   const [composerType, setComposerType] = useState<HistoType>("note");
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -274,8 +278,10 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
                         b={m.item}
                         score={m.score}
                         raisons={m.raisons}
+                        ecarts={m.ecarts}
                         dejaPropose={(c.biensProposes ?? []).includes(m.item.id)}
                         onPropose={() => setMsg({ objectif: "proposition", bienId: m.item.id })}
+                        onMail={() => setBrouillonBien(m.item)}
                       />
                     ))}
                   </ul>
@@ -389,6 +395,18 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
       </div>
 
       <EditSheet open={edit} onClose={() => setEdit(false)} c={c} update={update} />
+      {brouillonBien && (
+        <BrouillonMail
+          open
+          onClose={() => setBrouillonBien(null)}
+          titre="Proposer ce bien"
+          to={c.email}
+          tel={c.tel}
+          sujet={`Un bien pour vous : ${brouillonBien.titre}`}
+          corps={texteProposition(brouillonBien, c)}
+          onPrepare={() => marquerPropose(brouillonBien, c)}
+        />
+      )}
       <MessageAssistant open={!!msg} onClose={() => setMsg(null)} contact={c} compatibles={matches.map((m) => m.item)} biens={biens} visites={visites} initial={msg ?? undefined} />
 
       {toast && (
@@ -630,45 +648,56 @@ function NotesCard({ c, update }: { c: Contact; update: (p: Partial<Contact>) =>
 
 /* ---------- Biens ---------- */
 
-function BienRow({ b, score, raisons, dejaPropose, onPropose }: { b: Bien; score: number; raisons: string[]; dejaPropose: boolean; onPropose: () => void }) {
+function BienRow({ b, score, raisons, ecarts, dejaPropose, onPropose, onMail }: { b: Bien; score: number; raisons: string[]; ecarts?: string[]; dejaPropose: boolean; onPropose: () => void; onMail: () => void }) {
   const photo = b.photos?.[0];
   return (
-    <li className="flex gap-3 rounded-xl border border-line p-2.5 hover:border-accent/30 transition">
-      <Link href={`/biens/${b.id}`} className="relative shrink-0 size-[72px] rounded-lg overflow-hidden bg-surface-2 grid place-items-center">
-        {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt="" className="size-full object-cover" loading="lazy" />
-        ) : (
-          <Home size={20} className="text-muted" />
-        )}
-        <span className={cx("absolute bottom-1 left-1 rounded-md px-1.5 text-[10px] font-bold text-white", score >= 80 ? "bg-ok" : score >= 65 ? "bg-brand" : "bg-slate-patrim")}>{score}%</span>
-      </Link>
-      <div className="min-w-0 flex-1">
-        <Link href={`/biens/${b.id}`} className="block">
-          <div className="truncate text-sm font-semibold">{b.titre || b.adresse}</div>
-          <div className="text-xs text-muted truncate">
-            {[TYPE_BIEN[b.type], b.surface && m2(b.surface), b.pieces && `${b.pieces} p.`, b.quartier || b.ville].filter(Boolean).join(" · ")}
-          </div>
-          <div className="mt-0.5 text-sm font-semibold">{eur(b.prix)}</div>
+    <li className="rounded-xl border border-line p-2.5 hover:border-accent/30 transition">
+      <div className="flex gap-3">
+        <Link href={`/biens/${b.id}`} className="relative shrink-0 size-[72px] rounded-lg overflow-hidden bg-surface-2 grid place-items-center">
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo} alt="" className="size-full object-cover" loading="lazy" />
+          ) : (
+            <Home size={20} className="text-muted" />
+          )}
+          <span className={cx("absolute bottom-1 left-1 rounded-md px-1.5 text-[10px] font-bold text-white", score >= 80 ? "bg-ok" : score >= 65 ? "bg-brand" : "bg-slate-patrim")}>{score}%</span>
         </Link>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          {raisons.slice(0, 3).map((r) => (
-            <span key={r} className="chip !h-5 !text-[10px]">
-              <Check size={10} className="text-ok" /> {r}
-            </span>
-          ))}
+        <div className="min-w-0 flex-1">
+          <Link href={`/biens/${b.id}`} className="block">
+            <div className="truncate text-sm font-semibold">{b.titre || b.adresse}</div>
+            <div className="text-xs text-muted truncate">
+              {[TYPE_BIEN[b.type], b.surface && m2(b.surface), b.pieces && `${b.pieces} p.`, b.quartier || b.ville].filter(Boolean).join(" · ")}
+            </div>
+            <div className="mt-0.5 text-sm font-semibold">
+              {eur(b.prix)} <span className="ml-1 text-[11px] font-medium text-muted">{niveauMatch(score)}</span>
+            </div>
+          </Link>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            {raisons.slice(0, 3).map((r) => (
+              <span key={r} className="chip !h-5 !text-[10px]">
+                <Check size={10} className="text-ok" /> {r}
+              </span>
+            ))}
+            {ecarts?.slice(0, 2).map((r) => (
+              <span key={r} className="chip !h-5 !text-[10px] text-warn">
+                {r}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="flex flex-col justify-center">
-        {dejaPropose ? (
-          <span className="text-[11px] text-ok font-medium flex items-center gap-1">
-            <Check size={13} /> Proposé
+      <div className="mt-2 flex items-center justify-end gap-1.5">
+        {dejaPropose && (
+          <span className="mr-auto text-[11px] text-ok font-medium flex items-center gap-1">
+            <Check size={13} /> Déjà proposé
           </span>
-        ) : (
-          <button className="btn-secondary btn-sm !h-9" onClick={onPropose}>
-            <Send size={13} /> <span className="hidden sm:inline">Proposer</span>
-          </button>
         )}
+        <button className="btn-ghost btn-sm !h-10" onClick={onPropose}>
+          <Sparkles size={13} /> Message IA
+        </button>
+        <button className="btn-secondary btn-sm !h-10" onClick={onMail}>
+          <Mail size={13} /> Préparer un mail
+        </button>
       </div>
     </li>
   );

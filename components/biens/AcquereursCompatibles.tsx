@@ -9,19 +9,22 @@ import { ETAPE, eurK, initiales, nomComplet } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
 import type { Match } from "@/lib/matching";
 import { mailHref, telHref, texteProposition, waHref } from "./utils";
+import { BrouillonMail } from "@/components/matching/BrouillonMail";
 
-export function proposerBien(b: Bien, c: Contact) {
-  const deja = (c.biensProposes ?? []).includes(b.id);
+/** Note le bien comme proposé dans la fiche de l'acquéreur (une seule fois). */
+export function marquerPropose(b: Bien, c: Contact) {
+  if ((c.biensProposes ?? []).includes(b.id)) return;
+  const now = new Date().toISOString();
   update("contacts", c.id, {
-    biensProposes: deja ? c.biensProposes : [...(c.biensProposes ?? []), b.id],
-    historique: [...(c.historique ?? []), { date: new Date().toISOString(), type: "mail", texte: `Bien proposé : ${b.titre}` }],
-    dernierContact: new Date().toISOString(),
+    biensProposes: [...(c.biensProposes ?? []), b.id],
+    historique: [{ date: now, type: "mail", texte: `Bien proposé : ${b.titre}` }, ...(c.historique ?? [])],
+    dernierContact: now,
   });
-  window.location.href = mailHref(c.email, `Un bien pour vous : ${b.titre}`, texteProposition(b, c));
 }
 
 export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: (Match & { item: Contact })[] }) {
   const [all, setAll] = useState(false);
+  const [brouillon, setBrouillon] = useState<Contact | null>(null);
   const shown = all ? matches : matches.slice(0, 5);
   return (
     <Card
@@ -37,7 +40,7 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
         <Empty icon={<Users size={20} />} title="Aucun acquéreur compatible pour l'instant" text="Dès qu'un acquéreur aux critères proches sera enregistré, il apparaîtra ici." />
       ) : (
         <ul className="divide-y divide-line">
-          {shown.map(({ item: c, score, raisons }) => {
+          {shown.map(({ item: c, score, raisons, ecarts }) => {
             const propose = (c.biensProposes ?? []).includes(bien.id);
             const etape = c.etape ? ETAPE[c.etape] : undefined;
             return (
@@ -59,10 +62,15 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
                       {c.criteres?.budgetMax ? `Budget ${eurK(c.criteres.budgetMax)}` : "Budget non précisé"}
                       {c.financement?.accordBanque ? " · accord bancaire" : ""}
                     </div>
-                    {raisons.length > 0 && (
+                    {(raisons.length > 0 || !!ecarts?.length) && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {raisons.map((r) => (
                           <span key={r} className="chip !h-5 !text-[10px]">
+                            <Check size={10} className="text-ok" /> {r}
+                          </span>
+                        ))}
+                        {ecarts?.map((r) => (
+                          <span key={r} className="chip !h-5 !text-[10px] text-warn">
                             {r}
                           </span>
                         ))}
@@ -86,9 +94,9 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
                       <MessageCircle size={14} />
                     </a>
                   )}
-                  <button onClick={() => proposerBien(bien, c)} className={cx("btn-sm btn ml-auto", propose ? "btn-ghost text-ok" : "btn-primary")}>
+                  <button onClick={() => setBrouillon(c)} className={cx("btn-sm btn ml-auto", propose ? "btn-ghost text-ok" : "btn-primary")}>
                     {propose ? <Check size={14} /> : <Send size={14} />}
-                    {propose ? "Proposé" : "Proposer"}
+                    {propose ? "Proposé" : "Préparer un mail"}
                   </button>
                 </div>
               </li>
@@ -102,6 +110,18 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
             {all ? "Réduire" : `Voir les ${matches.length} acquéreurs`}
           </button>
         </div>
+      )}
+      {brouillon && (
+        <BrouillonMail
+          open
+          onClose={() => setBrouillon(null)}
+          titre={`Proposer à ${nomComplet(brouillon)}`}
+          to={brouillon.email}
+          tel={brouillon.tel}
+          sujet={`Un bien pour vous : ${bien.titre}`}
+          corps={texteProposition(bien, brouillon)}
+          onPrepare={() => marquerPropose(bien, brouillon)}
+        />
       )}
     </Card>
   );
