@@ -90,6 +90,8 @@ export interface Contact extends Doc {
   financement?: { apport?: number; accordBanque?: boolean; courtier?: string; aVendre?: boolean };
   chaleur?: 1 | 2 | 3;          // 1 froid, 2 tiède, 3 chaud
   optinTel?: boolean;           // accord préalable au démarchage téléphonique (loi 2026)
+  optinTelDate?: string;        // date de l'accord (preuve)
+  adresse?: string;             // utile pour les vendeurs
   biensProposes?: string[];     // ids de biens
   bienOrigineId?: string;       // bien du lead entrant
   prochaineAction?: string;
