@@ -3,7 +3,7 @@
 import { Cloud, CloudOff, Database, Download, KeyRound, LogOut, Upload, Building2, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, Field, PageHeader } from "@/components/ui";
-import { MANDATS_PATRIM } from "@/lib/seed";
+import { importerMandats as importerMandatsComplets } from "@/lib/mandats";
 import { bulkCreate, getAll } from "@/lib/store";
 import { cloudEnabled, supabase } from "@/lib/supabase";
 import type { Kind } from "@/lib/types";
@@ -26,10 +26,8 @@ export default function Reglages() {
   }, []);
 
   async function importerMandats() {
-    const existants = new Set(getAll("biens").map((b) => b.adresse.toLowerCase()));
-    const nouveaux = MANDATS_PATRIM.filter((b) => !existants.has(b.adresse.toLowerCase()));
-    await bulkCreate("biens", nouveaux.map((b) => ({ ...b, dateMiseEnVente: undefined })));
-    setMsg(nouveaux.length ? `${nouveaux.length} mandats importés. Pensez à relier les vendeurs et ajouter les photos.` : "Vos mandats sont déjà dans l'appli.");
+    const { crees, maj } = await importerMandatsComplets();
+    setMsg(crees || maj ? `${crees} mandat${crees > 1 ? "s" : ""} ajouté${crees > 1 ? "s" : ""}, ${maj} complété${maj > 1 ? "s" : ""}.` : "Vos mandats sont déjà à jour.");
   }
 
   function exporter() {
