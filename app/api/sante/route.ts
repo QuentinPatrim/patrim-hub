@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cleClaude, cleServiceSupabase } from "@/lib/env";
+import { cleClaude, cleServiceSupabase, secretSynchro } from "@/lib/env";
 
 /* GET /api/sante : vérifie que la base et les clés sont en place (aucune donnée renvoyée). */
 export const dynamic = "force-dynamic";
@@ -20,5 +20,6 @@ export async function GET() {
     base,
     cleClaude: !!cleClaude(),
     agentDeNuit: !!cleServiceSupabase() && !!process.env.CRON_SECRET,
+    synchroGmail: !!secretSynchro() && !!cleServiceSupabase(),
   });
 }
