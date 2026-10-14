@@ -198,19 +198,20 @@ export default function BienPage() {
       </header>
 
       {/* Actions */}
-      <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto no-scrollbar animate-fade-up">
-        <button className="btn-primary shrink-0" onClick={() => setRdvForm({ bienId: b.id, type: "visite", jour: today() })}>
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 animate-fade-up [&>*]:min-w-0">
+        <button className="btn-primary shrink-0 col-span-2" onClick={() => setRdvForm({ bienId: b.id, type: "visite", jour: today() })}>
           <CalendarPlus size={16} /> Planifier une visite
         </button>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />
         </button>
-        <Link href={`/studio?bien=${b.id}`} className="btn-secondary shrink-0">
-          <Wand2 size={16} /> Créer les contenus marketing
-        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setRapport(true)}>
           <FileText size={16} /> Rapport vendeur
         </button>
+        <Link href={`/studio?bien=${b.id}`} className="btn-secondary shrink-0">
+          <Wand2 size={16} /> <span className="sm:hidden">Marketing</span>
+          <span className="hidden sm:inline">Créer les contenus marketing</span>
+        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setEditing("")}>
           <Pencil size={16} /> Modifier
         </button>

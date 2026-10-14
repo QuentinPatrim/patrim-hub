@@ -411,7 +411,7 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
       <MessageAssistant open={!!msg} onClose={() => setMsg(null)} contact={c} compatibles={matches.map((m) => m.item)} biens={biens} visites={visites} initial={msg ?? undefined} />
 
       {toast && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 lg:bottom-8 z-50 rounded-full bg-ink text-white text-sm px-4 py-2.5 shadow-2xl animate-fade-up flex items-center gap-2 max-w-[90vw]">
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-8 z-50 rounded-full bg-ink text-white text-sm px-4 py-2.5 shadow-2xl animate-fade-up flex items-center gap-2 max-w-[90vw]">
           <NotebookPen size={15} /> {toast}
         </div>
       )}

@@ -130,7 +130,7 @@ export function Aujourdhui({ biens, contacts, rdvs, estimations }: { biens: Bien
         extra={
           <label className="flex items-center gap-1 text-[11px] text-muted">
             Sans nouvelles depuis
-            <select className="h-8 rounded-lg border border-line bg-surface px-1.5 text-[11px] text-fg" value={delai} onChange={(e) => choisirDelai(Number(e.target.value))}>
+            <select className="h-10 rounded-lg border border-line bg-surface px-1.5 text-[11px] text-fg" value={delai} onChange={(e) => choisirDelai(Number(e.target.value))}>
               {DELAIS.map((d) => (
                 <option key={d} value={d}>
                   {d} j
