@@ -268,7 +268,7 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-[88px_1fr] gap-3">
+          <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3">
             <Field label="Civilité">
               <select className="input" value={d.civilite} onChange={(e) => set({ civilite: e.target.value as Draft["civilite"] })}>
                 <option value="">—</option>

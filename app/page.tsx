@@ -108,11 +108,11 @@ export default function Accueil() {
           { href: "/estimations/nouvelle", label: "Estimer", icon: Calculator },
           { href: "/studio", label: "Studio", icon: Wand2 },
         ].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="card flex flex-col items-center gap-2 py-3.5 text-xs font-medium hover:shadow-glow transition">
+          <Link key={href} href={href} className="card min-w-0 flex flex-col items-center gap-2 py-3.5 text-[11px] sm:text-xs font-medium hover:shadow-glow transition">
             <span className="grid place-items-center size-10 rounded-xl bg-brand text-white">
               <Icon size={19} />
             </span>
-            <span className="flex items-center gap-0.5"><Plus size={11} />{label}</span>
+            <span className="flex items-center gap-0.5 truncate"><Plus size={11} className="hidden sm:block" />{label}</span>
           </Link>
         ))}
       </div>
@@ -122,11 +122,11 @@ export default function Accueil() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Biens en vente" value={enVente.length} hint={valeur ? `${eurK(valeur)} en portefeuille` : "Aucun mandat actif"} icon={<Building2 size={16} />} />
         <Stat label="Honoraires potentiels" value={eurK(honoraires)} hint="Mandats actifs, offres et compromis" icon={<Euro size={16} />} tone="ok" />
-        <Stat label="Acquéreurs actifs" value={acquereurs.length} hint={`${acquereurs.filter((c) => c.chaleur === 3).length} chauds`} icon={<Users size={16} />} />
-        <Stat label="Rendez-vous à 7 jours" value={semaine.length} hint={`${semaine.filter((r) => r.type === "visite").length} visites`} icon={<CalendarDays size={16} />} tone="warn" />
+        <Stat label="Acquéreurs actifs" value={acquereurs.length} hint={(() => { const n = acquereurs.filter((c) => c.chaleur === 3).length; return `${n} chaud${n > 1 ? "s" : ""}`; })()} icon={<Users size={16} />} />
+        <Stat label="Rendez-vous à 7 jours" value={semaine.length} hint={(() => { const n = semaine.filter((r) => r.type === "visite").length; return `${n} visite${n > 1 ? "s" : ""}`; })()} icon={<CalendarDays size={16} />} tone="warn" />
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 space-y-4">
           <Card title="Aujourd'hui" action={<Link href="/agenda" className="text-xs text-accent font-medium">Agenda</Link>}>
             {rdvJour.length ? (

@@ -5,7 +5,7 @@
 import { eur, m2 } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 import { AGENCE, lieuPublic } from "./shared";
-import { brandBackground, C, drawCover, drawDpe, drawLogo, fit, font, PALETTES, rgba, roundRect, spaced, vGradient, wrap, type Palette } from "./canvas";
+import { brandBackground, C, dpeWidth, drawCover, drawDpe, drawLogo, fit, font, PALETTES, rgba, roundRect, spaced, vGradient, wrap, type Palette } from "./canvas";
 
 export type Modele = "nouveaute" | "visite" | "baisse" | "sous_offre" | "vendu" | "carrousel";
 export type Format = "post" | "story" | "carre";
@@ -201,10 +201,11 @@ function editorial(ctx: Ctx, o: RenderOpts, W: number, H: number, tag: string) {
 
   drawLogo(ctx, o.emblem, M, s.top, 74, C.cream);
   if (d.dpe) {
-    roundRect(ctx, W - M - 168, s.top + 8, 168, 60, 30);
+    const dw = dpeWidth(ctx, 50) + 40;
+    roundRect(ctx, W - M - dw, s.top + 6, dw, 66, 33);
     ctx.fillStyle = "rgba(13,20,32,.45)";
     ctx.fill();
-    drawDpe(ctx, d.dpe, W - M - 146, s.top + 16, 44, C.cream);
+    drawDpe(ctx, d.dpe, W - M - dw + 22, s.top + 14, 50, C.cream);
   }
 
   const maxW = W - 2 * M;
@@ -312,7 +313,7 @@ function visite(ctx: Ctx, o: RenderOpts, W: number, H: number) {
     ctx.fillStyle = p.sub;
     ctx.fillText("Honoraires inclus", M, bottom + 4);
   }
-  if (d.dpe) drawDpe(ctx, d.dpe, W - M - 130, bottom - 84, 64, p.sub);
+  if (d.dpe) drawDpe(ctx, d.dpe, W - M - dpeWidth(ctx, 64), bottom - 84, 64, p.sub);
 }
 
 /* ---------- Sous offre ---------- */
@@ -370,14 +371,15 @@ function sousOffre(ctx: Ctx, o: RenderOpts, W: number, H: number) {
 }
 
 /* ---------- Vendu : sceau circulaire ---------- */
-function circleText(ctx: Ctx, text: string, cx: number, cy: number, r: number, spacing: number) {
+function circleText(ctx: Ctx, text: string, cx: number, cy: number, r: number) {
   const chars = [...text];
   const widths = chars.map((c) => ctx.measureText(c).width);
-  const total = widths.reduce((a, b) => a + b, 0) + spacing * chars.length;
-  let a = -Math.PI / 2 - total / r / 2;
+  const sum = widths.reduce((a, b) => a + b, 0);
+  const spacing = Math.max(2, (2 * Math.PI * r - sum) / chars.length);
+  let a = -Math.PI / 2;
   chars.forEach((c, i) => {
     const cw = widths[i];
-    a += (cw / 2) / r;
+    a += cw / 2 / r;
     ctx.save();
     ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
     ctx.rotate(a + Math.PI / 2);
@@ -422,7 +424,7 @@ function vendu(ctx: Ctx, o: RenderOpts, W: number, H: number) {
   font(ctx, "sans", 30, 600);
   ctx.fillStyle = C.cream;
   ctx.textBaseline = "middle";
-  circleText(ctx, "PATRIM · TOULOUSE · TRANSACTION · ", cx, cy, r - 36, 7);
+  circleText(ctx, "PATRIM · TRANSACTION · TOULOUSE · VENDU · ", cx, cy, r - 36);
   ctx.textAlign = "center";
   font(ctx, "serif", r * 0.46, 700);
   ctx.fillText("Vendu", cx, cy - 4);
@@ -535,7 +537,7 @@ function carrousel(ctx: Ctx, o: RenderOpts, W: number, H: number, sk: { kind: st
       ctx.fillStyle = p.sub;
       ctx.fillText("Honoraires inclus", M, bottom);
     }
-    if (d.dpe) drawDpe(ctx, d.dpe, W - M - 140, bottom - 100, 70, p.sub);
+    if (d.dpe) drawDpe(ctx, d.dpe, W - M - dpeWidth(ctx, 70), bottom - 100, 70, p.sub);
     return;
   }
 

@@ -4,7 +4,7 @@
    écran de fin PATRIM. Une seule fonction pure dessine l'image à l'instant t. */
 
 import { AGENCE } from "./shared";
-import { brandBackground, C, clamp01, drawCover, drawDpe, drawLogo, easeInOut, easeOut, fit, font, lerp, rgba, roundRect, spaced, vGradient } from "./canvas";
+import { brandBackground, C, clamp01, dpeWidth, drawCover, drawDpe, drawLogo, easeInOut, easeOut, fit, font, lerp, rgba, roundRect, spaced, vGradient } from "./canvas";
 
 export const RW = 1080;
 export const RH = 1920;
@@ -238,7 +238,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, plan: ReelPlan, o: Overlay, 
       ctx.fillStyle = C.anthracite;
       ctx.fillText(c.sub, RW / 2, y0 + 30 + f.size * (1.05 + f.lines.length * 1.12) + 26);
     }
-    if (o.kind === "prix" && plan.texts.dpe) drawDpe(ctx, plan.texts.dpe, RW / 2 - 70, y0 + 30 + f.size * (1.05 + f.lines.length * 1.12) + 62, 60, C.anthracite);
+    if (o.kind === "prix" && plan.texts.dpe) drawDpe(ctx, plan.texts.dpe, RW / 2 - dpeWidth(ctx, 60) / 2, y0 + 30 + f.size * (1.05 + f.lines.length * 1.12) + 62, 60, C.anthracite);
     ctx.restore();
     return;
   }
@@ -299,7 +299,7 @@ function drawOverlay(ctx: CanvasRenderingContext2D, plan: ReelPlan, o: Overlay, 
     ctx.fillStyle = "rgba(246,241,231,.85)";
     ctx.fillText(c.sub, M, y + 6);
   }
-  if (o.kind === "prix" && plan.texts.dpe) drawDpe(ctx, plan.texts.dpe, RW - M - 150, 1560 - 120 + rise, 72, C.cream);
+  if (o.kind === "prix" && plan.texts.dpe) drawDpe(ctx, plan.texts.dpe, RW - M - dpeWidth(ctx, 72), 1560 - 120 + rise, 72, C.cream);
   ctx.restore();
 }
 

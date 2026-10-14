@@ -241,7 +241,7 @@ Renvoie un objet JSON avec ces clés :
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Points positifs">
             <textarea className="input min-h-[72px]" value={d.positifs ?? ""} onChange={(e) => set("positifs", e.target.value)} placeholder="Luminosité, séjour, quartier…" />
           </Field>

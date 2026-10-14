@@ -14,8 +14,10 @@ export default function Reglages() {
   const [email, setEmail] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     supabase?.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
     try {
       setCode(localStorage.getItem("patrim-hub:passcode") ?? "");
@@ -101,7 +103,7 @@ export default function Reglages() {
       )}
 
       <Card title="Données">
-        <div className="grid sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <button onClick={importerMandats} className="btn-secondary h-auto py-3 flex-col">
             <Building2 size={18} /> Importer mes mandats
           </button>
@@ -116,7 +118,7 @@ export default function Reglages() {
         <div className="mt-4 grid grid-cols-3 sm:grid-cols-7 gap-2 text-center">
           {KINDS.map((k) => (
             <div key={k} className="rounded-xl bg-surface-2 py-2">
-              <div className="font-semibold tabular-nums">{getAll(k).length}</div>
+              <div className="font-semibold tabular-nums">{mounted ? getAll(k).length : "–"}</div>
               <div className="text-[10px] text-muted capitalize">{k}</div>
             </div>
           ))}

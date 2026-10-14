@@ -336,7 +336,7 @@ export function Video({ bien }: { bien: Bien }) {
               {aiBusy ? <Spinner /> : <Sparkles size={14} />} Proposer
             </button>
           </div>
-          <div className="grid grid-cols-[110px_1fr] gap-3">
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-3">
             <Field label="Accroche">
               <input className="input" value={texts.accroche} onChange={(e) => set("accroche", e.target.value)} />
             </Field>

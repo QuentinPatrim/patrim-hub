@@ -29,6 +29,7 @@ export interface Bien extends Doc {
   prix?: number;              // prix affiché FAI
   netVendeur?: number;
   honoraires?: number;        // en euros
+  honorairesCharge?: "acquereur" | "vendeur";
   surface?: number;           // m² (Carrez si copro)
   surfaceTerrain?: number;
   pieces?: number;

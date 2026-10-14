@@ -112,7 +112,7 @@ export function BienForm({ initial, onSubmit, onCancel, submitLabel = "Enregistr
   };
 
   return (
-    <div className="lg:grid lg:grid-cols-[200px_1fr] lg:gap-8">
+    <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8">
       {/* Sommaire (ordinateur) / navigation horizontale (mobile) */}
       <nav className="lg:sticky lg:top-8 lg:self-start mb-4 lg:mb-0 -mx-4 px-4 sm:mx-0 sm:px-0 flex lg:flex-col gap-1.5 overflow-x-auto no-scrollbar">
         {SECTIONS.map(({ id, label, icon: Icon }) => (
@@ -182,7 +182,7 @@ export function BienForm({ initial, onSubmit, onCancel, submitLabel = "Enregistr
           <Field label="Adresse *">
             <input className="input" value={d.adresse ?? ""} onChange={(e) => set("adresse", e.target.value)} placeholder="12 rue des Filatiers" autoComplete="street-address" />
           </Field>
-          <div className="grid grid-cols-[110px_1fr] gap-3">
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-3">
             <Field label="Code postal">
               <input className="input" value={d.codePostal ?? ""} onChange={(e) => set("codePostal", e.target.value || undefined)} inputMode="numeric" placeholder="31000" maxLength={5} />
             </Field>
@@ -334,7 +334,7 @@ export function BienForm({ initial, onSubmit, onCancel, submitLabel = "Enregistr
           <Field label="Description" hint="Le Studio peut ensuite en tirer l'annonce et les posts.">
             <textarea className="input min-h-[140px]" value={d.description ?? ""} onChange={(e) => set("description", e.target.value || undefined)} placeholder="Ce qui fait le charme du bien, l'état, l'environnement…" />
           </Field>
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Dossier Drive">
               <input className="input" value={d.driveUrl ?? ""} onChange={(e) => set("driveUrl", e.target.value || undefined)} placeholder="https://drive.google.com/…" inputMode="url" />
             </Field>

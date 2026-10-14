@@ -259,7 +259,7 @@ export function drawLogo(ctx: Ctx, emblem: HTMLImageElement | null, x: number, y
 /* ---------- Pastille DPE ---------- */
 export function drawDpe(ctx: Ctx, cls: string | undefined, x: number, y: number, s: number, labelColor: string) {
   if (!cls) return 0;
-  font(ctx, "sans", s * 0.3, 600);
+  font(ctx, "sans", s * 0.42, 600);
   ctx.fillStyle = labelColor;
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
@@ -277,6 +277,11 @@ export function drawDpe(ctx: Ctx, cls: string | undefined, x: number, y: number,
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   return lw + s * 0.25 + s;
+}
+
+export function dpeWidth(ctx: Ctx, s: number) {
+  font(ctx, "sans", s * 0.42, 600);
+  return ctx.measureText("DPE").width + s * 0.25 + s;
 }
 
 /* ---------- Animation ---------- */

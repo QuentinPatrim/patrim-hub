@@ -224,7 +224,7 @@ function Timeline({ items, render, now, showNow }: { items: RdvExt[]; render: (r
       {items.map((r, i) => (
         <li key={r.id} className="relative">
           {showNow && i === idxNow && i > 0 && <NowMarker />}
-          <div className="grid grid-cols-[48px_1fr] sm:grid-cols-[64px_1fr] gap-2 sm:gap-3 pb-3 animate-fade-up" style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
+          <div className="grid grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)] gap-2 sm:gap-3 pb-3 animate-fade-up" style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
             <div className="relative pt-3.5 text-right">
               <div className={cx("text-sm font-semibold tabular-nums", r.statut === "annule" && "line-through text-muted")}>{heure(r.debut)}</div>
               <div className="text-[11px] text-muted tabular-nums">{heure(finDe(r).toISOString())}</div>
@@ -244,7 +244,7 @@ function Timeline({ items, render, now, showNow }: { items: RdvExt[]; render: (r
 
 function NowMarker() {
   return (
-    <div className="grid grid-cols-[48px_1fr] sm:grid-cols-[64px_1fr] gap-2 sm:gap-3 items-center pb-3">
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)] gap-2 sm:gap-3 items-center pb-3">
       <div className="text-right text-[11px] font-semibold text-coral tabular-nums">{heure(new Date().toISOString())}</div>
       <div className="relative h-px bg-coral/70">
         <span className="absolute -left-[4px] -top-[4px] size-[9px] rounded-full bg-coral" />

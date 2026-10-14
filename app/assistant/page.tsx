@@ -1,5 +1,7 @@
-import { PageHeader } from "@/components/ui";
+"use client";
+
+import { Chat } from "@/components/assistant/Chat";
 
 export default function Page() {
-  return <PageHeader title="assistant" subtitle="En construction" />;
+  return <Chat />;
 }
