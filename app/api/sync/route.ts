@@ -134,6 +134,7 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
       : [l.typeBien, l.pieces && `${l.pieces} p.`, l.surface && `${l.surface} m²`, l.ville, l.prix && `${l.prix.toLocaleString("fr-FR")} €`, l.reference && `réf. ${l.reference}`].filter(Boolean).join(", ");
   const texte = `Lead ${portail} : ${quoi}${l.sousOffre ? " (bien sous offre)" : ""}${l.message ? `\n« ${l.message.slice(0, 600)} »` : ""}`;
   const entree = { date, type: "mail" as const, texte };
+  const recent = Date.now() - new Date(date).getTime() < 3 * 86400000; // les anciens leads importés ne deviennent pas des relances du jour
 
   const existant = parEmail(s, l.email);
   if (existant) {
@@ -141,8 +142,7 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
     s.maj(existant.id, {
       historique: [...(existant.historique ?? []), entree],
       dernierContact: date,
-      dateRelance: jour(),
-      prochaineAction: `Rappeler : nouveau lead ${portail}`,
+      ...(recent ? { dateRelance: jour(), prochaineAction: `Rappeler : nouveau lead ${portail}` } : {}),
       bienOrigineId: existant.bienOrigineId ?? bien?.id,
       tel: existant.tel || l.telephone,
       synchro: "gmail",
@@ -167,8 +167,8 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
     criteres: { types: t ? [t] : undefined, budgetMax: budget, piecesMin: pieces, remarques: l.type === "projet" ? Object.entries(l.criteres ?? {}).map(([k, v]) => `${k} : ${v}`).join(" · ") : undefined },
     bienOrigineId: bien?.id,
     biensProposes: bien ? [bien.id] : undefined,
-    dateRelance: jour(),
-    prochaineAction: `Rappeler : lead ${portail} du ${dateFr(date)}`,
+    dateRelance: recent ? jour() : undefined,
+    prochaineAction: recent ? `Rappeler : lead ${portail} du ${dateFr(date)}` : `Lead ${portail} du ${dateFr(date)} : faire le point`,
     dernierContact: date,
     historique: [entree],
     synchro: "gmail",
@@ -176,7 +176,7 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
   bilan.contactsCrees++;
 
   // Tâche « Rappeler » seulement pour les leads récents (moins de 3 jours)
-  if (Date.now() - new Date(date).getTime() < 3 * 86400000) {
+  if (recent) {
     const titre = `Rappeler ${[prenom, nom].filter(Boolean).join(" ") || l.email}`;
     if (!s.liste<Tache>("taches").some((x) => !x.fait && x.titre === titre)) {
       s.creer<Omit<Tache, "id" | "createdAt" | "updatedAt">>("taches", { titre, echeance: jour(), fait: false, priorite: 1, lien: { kind: "contact", id: c.id }, origine: "agent", detail: texte });
