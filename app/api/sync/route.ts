@@ -25,7 +25,11 @@ type Row = { id: string; kind: string; data: Record<string, unknown> };
 
 export async function POST(req: Request) {
   const secret = secretSynchro();
-  if (!secret || req.headers.get("x-hub-secret") !== secret) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  // Tolère les espaces, guillemets ou backticks restés au copier-coller depuis un téléphone
+  const net = (v: string | null | undefined) => (v ?? "").replace(/^HUB_SECRET\s*[:=]\s*/i, "").replace(/[\s`'"«»]/g, "");
+  const recu = net(req.headers.get("x-hub-secret"));
+  if (!secret || recu !== net(secret))
+    return NextResponse.json({ error: "Non autorisé", aide: `Code reçu : ${recu.length} caractères, attendu : ${net(secret).length}.` }, { status: 401 });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const service = cleServiceSupabase();
   if (!url || !service) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 });
