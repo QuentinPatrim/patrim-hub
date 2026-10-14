@@ -62,10 +62,35 @@ async function photosAnnonce(url?: string): Promise<string[]> {
   }
 }
 
+type AnnonceSite = { ref: string; url: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
+
+/** Toutes les annonces de vente en ligne sur patrim.fr (lues par le serveur). */
+async function annoncesSite(): Promise<AnnonceSite[]> {
+  if (!cloudEnabled) return [];
+  try {
+    const r = await fetch("/api/annonces-site", { headers: await authHeaders(), cache: "no-store" });
+    const j = (await r.json()) as { annonces?: AnnonceSite[] };
+    return r.ok && Array.isArray(j.annonces) ? j.annonces : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Annonce d'un bien : par référence, sinon par ville + type + surface (seulement si une seule correspond). */
+function annonceDe(f: Fiche, annonces: AnnonceSite[]) {
+  const parRef = f.ref && annonces.find((a) => a.ref === f.ref);
+  if (parRef) return parRef;
+  if (!f.surface || !f.ville) return undefined;
+  const ok = annonces.filter(
+    (a) => norm(a.ville).startsWith(norm(f.ville)) && (!f.type || a.type.startsWith(f.type.slice(0, 4))) && a.surface && Math.abs(a.surface - f.surface!) <= 2
+  );
+  return ok.length === 1 ? ok[0] : undefined;
+}
+
 const duSite = (p: string) => p.startsWith("https://www.patrim.fr/");
 
 export async function importerMandats() {
-  const liste = await fiches();
+  const [liste, annonces] = await Promise.all([fiches(), annoncesSite()]);
   let crees = 0,
     maj = 0;
   const nouveaux: Partial<Bien>[] = [];
@@ -89,7 +114,13 @@ export async function importerMandats() {
       driveUrl: champs.driveUrl ?? (driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : undefined),
     };
     if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
-    const enLigne = await photosAnnonce(champs.annonceUrl);
+    const annonce = annonceDe(f, annonces);
+    if (annonce) {
+      data.ref ??= annonce.ref;
+      data.annonceUrl = annonce.url;
+      data.prix ??= annonce.prix;
+    }
+    const enLigne = annonce?.photos.length ? annonce.photos : await photosAnnonce(data.annonceUrl);
     if (enLigne.length) data.photos = enLigne;
 
     const rue = (a?: string) => norm(a?.split(",")[0]);
