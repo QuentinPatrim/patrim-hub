@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { utilisateur } from "@/lib/auth-server";
+import { photosDansPage } from "@/lib/patrim-site";
 
 /* GET /api/annonces-site : toutes les annonces de vente en ligne sur patrim.fr.
    La page de résultats du site est chargée en JavaScript ; on interroge donc directement les fiches
@@ -14,7 +15,6 @@ const PLAGES: [string, number, number][] = [
   ["TAPP", 99900, 99999],
   ["TMAI", 99400, 99499],
 ];
-const PHOTO = /https?:\/\/www\.patrim\.fr\/photobox\/[^"'()\s<>]+?\/transaction\/photo\/(?!vignettes\/)[^"'()\s<>/]+?\.(?:jpe?g|png|webp)/gi;
 let cache: { quand: number; annonces: AnnonceSite[] } | null = null;
 
 const nombre = (s?: string) => (s ? Number(s.replace(/[^\d,]/g, "").replace(",", ".")) || undefined : undefined);
@@ -29,6 +29,11 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
     if (!titre.includes(ref)) return null;
     const m = titre.match(/^(\S+).*?de\s+([\d.,]+)\s*m.*?\sà\s+(.+?)\s+propos/i);
     const prix = html.match(/([\d][\d\s .]*)\s*€\s*-\s*Ref/i)?.[1];
+    const photos = photosDansPage(html);
+    if (!photos.length) {
+      const i = html.search(/photo/i);
+      console.warn(`[annonces-site] ${ref} sans photo, html ${html.length} car., extrait : ${html.slice(Math.max(0, i - 200), i + 400).replace(/\s+/g, " ")}`);
+    }
     return {
       ref,
       url,
@@ -37,7 +42,7 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
       ville: m?.[3] ?? "",
       surface: nombre(m?.[2]),
       prix: nombre(prix),
-      photos: [...new Set(html.match(PHOTO) ?? [])].slice(0, 24),
+      photos,
     };
   } catch {
     return null;
