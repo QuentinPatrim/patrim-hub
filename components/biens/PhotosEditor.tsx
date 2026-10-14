@@ -3,9 +3,33 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, ImagePlus, Link2, Plus, Star, Trash2 } from "lucide-react";
 import { Spinner, cx } from "@/components/ui";
-import { fileToBase64Jpeg } from "@/lib/ai";
+import { authHeaders, fileToBase64Jpeg } from "@/lib/ai";
+import { cloudEnabled } from "@/lib/supabase";
+
+/** Envoie la photo dans le stockage en ligne ; sans connexion, elle reste dans la fiche. */
+async function envoyer(dataUrl: string, data: string) {
+  if (!cloudEnabled) return dataUrl;
+  try {
+    const r = await fetch("/api/photos", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ data }) });
+    const j = (await r.json()) as { url?: string };
+    return r.ok && j.url ? j.url : dataUrl;
+  } catch {
+    return dataUrl;
+  }
+}
 
 export const MAX_PHOTOS = 8;
+
+/** Réduit puis envoie des photos choisies sur le téléphone ; renvoie leurs adresses. */
+export async function importerPhotos(files: FileList | File[], max: number) {
+  const list = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, Math.max(0, max));
+  const out: string[] = [];
+  for (const f of list) {
+    const img = await fileToBase64Jpeg(f, 1600);
+    out.push(await envoyer(img.dataUrl, img.data));
+  }
+  return out;
+}
 
 /** Gestion des photos d'un bien : liens (Drive, portail…) ou import depuis le téléphone, réduites avant stockage. */
 export function PhotosEditor({ photos, onChange }: { photos: string[]; onChange: (p: string[]) => void }) {
@@ -33,11 +57,9 @@ export function PhotosEditor({ photos, onChange }: { photos: string[]; onChange:
     setBusy(true);
     setErr("");
     try {
-      const list = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, Math.max(0, restant));
-      const out: string[] = [];
-      for (const f of list) out.push((await fileToBase64Jpeg(f, 1280)).dataUrl);
+      const out = await importerPhotos(files, restant);
       onChange([...photos, ...out]);
-      if (files.length > list.length) setErr(`${MAX_PHOTOS} photos maximum : certaines n'ont pas été ajoutées.`);
+      if (files.length > out.length) setErr(`${MAX_PHOTOS} photos maximum : certaines n'ont pas été ajoutées.`);
     } catch (e) {
       setErr(e instanceof Error ? "Import impossible : " + e.message : "Import impossible.");
     } finally {

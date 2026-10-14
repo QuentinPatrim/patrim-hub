@@ -8,7 +8,7 @@ import type { BienType } from "@/lib/types";
 import { BienPlaceholder } from "./BienVisual";
 
 /** Galerie photo : glisser du doigt sur mobile, flèches sur ordinateur, plein écran au toucher. */
-export function Gallery({ photos, type, alt, overlay }: { photos: string[]; type: BienType; alt: string; overlay?: ReactNode }) {
+export function Gallery({ photos, type, alt, overlay, ajout }: { photos: string[]; type: BienType; alt: string; overlay?: ReactNode; ajout?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
   const [full, setFull] = useState<number | null>(null);
@@ -30,6 +30,7 @@ export function Gallery({ photos, type, alt, overlay }: { photos: string[]; type
       <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl">
         <BienPlaceholder type={type} className="aspect-[4/3] sm:aspect-[21/9] w-full" />
         {overlay}
+        {ajout && <div className="absolute inset-0 flex items-center justify-center">{ajout}</div>}
       </div>
     );
 
@@ -45,6 +46,7 @@ export function Gallery({ photos, type, alt, overlay }: { photos: string[]; type
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
       {overlay}
+      {ajout && photos.length < 8 && <div className="absolute right-3 top-3">{ajout}</div>}
       {photos.length > 1 && (
         <>
           <button onClick={() => go(idx - 1)} disabled={idx === 0} className="hidden sm:grid absolute left-3 top-1/2 -translate-y-1/2 place-items-center size-10 rounded-full bg-surface/90 text-fg shadow-card opacity-0 group-hover:opacity-100 transition disabled:!opacity-0" aria-label="Photo précédente">

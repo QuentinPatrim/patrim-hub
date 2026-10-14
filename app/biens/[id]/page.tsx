@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Badge, Card, DpeBadge, Empty, PageHeader, Sheet, cx } from "@/components/ui";
 import { Gallery } from "@/components/biens/Gallery";
+import { AjoutPhotos } from "@/components/biens/AjoutPhotos";
 import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienForm";
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
@@ -172,6 +173,7 @@ export default function BienPage() {
               {b.mandat?.type === "exclusif" && <span className="rounded-full bg-ink/80 px-2 h-[22px] inline-flex items-center text-[10px] font-semibold uppercase tracking-wider text-white">Exclusif</span>}
             </div>
           }
+          ajout={<AjoutPhotos photos={b.photos ?? []} onAdd={(p) => update({ photos: p })} />}
         />
       </div>
 
