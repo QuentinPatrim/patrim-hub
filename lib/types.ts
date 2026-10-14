@@ -100,6 +100,7 @@ export interface Contact extends Doc {
   dernierContact?: string;      // ISO
   notes?: string;
   historique?: { date: string; type: "appel" | "mail" | "sms" | "visite" | "note"; texte: string }[];
+  synchro?: "gmail";            // créé ou mis à jour automatiquement depuis Gmail
 }
 
 // ---------- Agenda : visites, rendez-vous ----------
@@ -116,6 +117,7 @@ export interface Rdv extends Doc {
   compteRendu?: string;
   avisClient?: 1 | 2 | 3 | 4 | 5;
   suite?: string;
+  externalId?: string;        // id de l'événement Google Agenda (synchro)
 }
 
 // ---------- Estimations ----------

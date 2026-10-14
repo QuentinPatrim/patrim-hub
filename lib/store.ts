@@ -180,3 +180,18 @@ export function refreshAll() {
   resetSession();
   (Object.keys(listeners) as Kind[]).forEach((k) => void pull(k));
 }
+
+/* Quand l'appli revient au premier plan (téléphone déverrouillé, onglet rouvert),
+   on recharge ce qui est affiché : les leads et RDV arrivés de Gmail apparaissent. */
+let dernierRetour = 0;
+if (typeof window !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || Date.now() - dernierRetour < 30000) return;
+    dernierRetour = Date.now();
+    (Object.keys(listeners) as Kind[]).forEach((k) => {
+      if (!listeners[k]?.size) return;
+      loaded[k] = false;
+      void pull(k);
+    });
+  });
+}
