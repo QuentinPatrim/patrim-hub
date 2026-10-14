@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cleClaude, cleServiceSupabase } from "@/lib/env";
 
 /* GET /api/sante : vérifie que la base et les clés sont en place (aucune donnée renvoyée). */
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET() {
   }
   return NextResponse.json({
     base,
-    cleClaude: !!process.env.ANTHROPIC_API_KEY,
-    agentDeNuit: !!process.env.SUPABASE_SERVICE_ROLE_KEY && !!process.env.CRON_SECRET,
+    cleClaude: !!cleClaude(),
+    agentDeNuit: !!cleServiceSupabase() && !!process.env.CRON_SECRET,
   });
 }

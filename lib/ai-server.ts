@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { cleClaude } from "./env";
 import { createClient } from "@supabase/supabase-js";
 
 /* Côté serveur uniquement : appel à Claude et contrôle d'accès. */
@@ -26,8 +27,9 @@ export async function checkAccess(req: Request): Promise<string | null> {
 }
 
 export function anthropic() {
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("Clé ANTHROPIC_API_KEY absente dans les variables Vercel.");
-  return new Anthropic();
+  const apiKey = cleClaude();
+  if (!apiKey) throw new Error("Clé ANTHROPIC_API_KEY absente dans les variables Vercel.");
+  return new Anthropic({ apiKey });
 }
 
 export type AiMessage = { role: "user" | "assistant"; content: string | Anthropic.ContentBlockParam[] };

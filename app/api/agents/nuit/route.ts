@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cleClaude, cleServiceSupabase } from "@/lib/env";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import { analyser, resumeCourt, type Donnees } from "@/lib/briefing";
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const service = cleServiceSupabase();
   if (!url || !service) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 });
   const db = createClient(url, service, { auth: { persistSession: false } });
 
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
     let resume = resumeCourt(a);
 
     // Mot du matin + messages de relance prêts à envoyer, rédigés par Claude
-    if (process.env.ANTHROPIC_API_KEY && a.points.length) {
+    if (cleClaude() && a.points.length) {
       try {
         const relances = a.points.filter((p) => p.type === "relance" && p.lien?.kind === "contact").slice(0, 5);
         const contexte = relances.map((p) => {
