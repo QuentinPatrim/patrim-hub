@@ -36,6 +36,7 @@ import { Avatar, Badge, Card, cx, Empty, Field, Sheet } from "@/components/ui";
 import { addDays, dateCourte, dateLongue, ETAPE, eur, heure, ilya, initiales, m2, nomComplet, RDV_TYPE, ROLE, SOURCE, STATUT_BIEN, today, TYPE_BIEN } from "@/lib/format";
 import { BIEN_DISPONIBLE, matchScore, niveauMatch, topMatches } from "@/lib/matching";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
+import { titrePublic } from "@/lib/titrePublic";
 import { marquerPropose } from "@/components/biens/AcquereursCompatibles";
 import { texteProposition } from "@/components/biens/utils";
 import { useCollection, useDoc } from "@/lib/store";
@@ -402,7 +403,7 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
           titre="Proposer ce bien"
           to={c.email}
           tel={c.tel}
-          sujet={`Un bien pour vous : ${brouillonBien.titre}`}
+          sujet={`Un bien pour vous : ${titrePublic(brouillonBien)}`}
           corps={texteProposition(brouillonBien, c)}
           onPrepare={() => marquerPropose(brouillonBien, c)}
         />

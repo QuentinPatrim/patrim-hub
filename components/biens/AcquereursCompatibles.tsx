@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { titrePublic } from "@/lib/titrePublic";
 import { useState } from "react";
 import { Check, Mail, MessageCircle, Phone, Send, Users } from "lucide-react";
 import { Avatar, Badge, Card, Empty, cx } from "@/components/ui";
@@ -118,7 +119,7 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
           titre={`Proposer à ${nomComplet(brouillon)}`}
           to={brouillon.email}
           tel={brouillon.tel}
-          sujet={`Un bien pour vous : ${bien.titre}`}
+          sujet={`Un bien pour vous : ${titrePublic(bien)}`}
           corps={texteProposition(bien, brouillon)}
           onPrepare={() => marquerPropose(bien, brouillon)}
         />

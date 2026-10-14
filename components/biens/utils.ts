@@ -1,6 +1,7 @@
 import { Building, Building2, Car, House, Store, Trees, type LucideIcon } from "lucide-react";
 import type { Bien, BienStatut, BienType, Contact } from "@/lib/types";
 import { ACQUEREUR_ACTIF, matchScore, topMatches } from "@/lib/matching";
+import { titrePublic } from "@/lib/titrePublic";
 
 /* Outils partagés du module Biens (et réutilisés par l'Agenda). */
 
@@ -92,7 +93,7 @@ export function texteProposition(b: Bien, c: Contact) {
     "",
     `Je pense à vous pour un bien que je viens de rentrer${b.quartier ? ` sur le secteur ${b.quartier}` : b.ville ? ` à ${b.ville}` : ""} et qui correspond à votre recherche :`,
     "",
-    `${b.titre}`,
+    titrePublic(b),
     carac.length ? `• ${carac.join(" · ")}` : null,
     b.prix ? `• Prix : ${Math.round(b.prix).toLocaleString("fr-FR")} € honoraires inclus` : null,
     b.dpe ? `• DPE : classe ${b.dpe}` : null,

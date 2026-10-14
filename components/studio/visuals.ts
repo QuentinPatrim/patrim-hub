@@ -3,6 +3,7 @@
 /* Modèles de visuels PATRIM (post 4:5, story 9:16, carré) dessinés sur canvas. */
 
 import { eur, m2 } from "@/lib/format";
+import { titrePublic } from "@/lib/titrePublic";
 import type { Bien } from "@/lib/types";
 import { AGENCE, lieuPublic } from "./shared";
 import { brandBackground, C, dpeWidth, drawCover, drawDpe, drawLogo, fit, font, PALETTES, rgba, roundRect, spaced, vGradient, wrap, type Palette } from "./canvas";
@@ -55,7 +56,7 @@ export function chiffresDuBien(b: Bien): Chiffre[] {
 
 export function dataDuBien(b: Bien): VisuelData {
   return {
-    titre: b.titre || "[À compléter]",
+    titre: titrePublic(b),
     lieu: lieuPublic(b),
     prix: b.prix ? eur(b.prix) : "",
     ancienPrix: "",

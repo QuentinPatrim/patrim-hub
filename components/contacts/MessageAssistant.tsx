@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Copy, ExternalLink, Mail, MessageCircle, MessageSquareText, RefreshCw, Sparkles } from "lucide-react";
+import { titrePublic } from "@/lib/titrePublic";
 import { useEffect, useMemo, useState } from "react";
 import { cx, Field, Sheet, Spinner } from "@/components/ui";
 import { ask } from "@/lib/ai";
@@ -28,7 +29,7 @@ const OBJECTIFS: { v: Objectif; label: string; desc: string }[] = [
 /** Uniquement les informations publiques d'un bien (jamais le vendeur, le net vendeur ni les notes internes). */
 function bienPublic(b: Bien) {
   return {
-    titre: b.titre,
+    titre: titrePublic(b),
     type: TYPE_BIEN[b.type],
     secteur: [b.quartier, b.ville].filter(Boolean).join(", "),
     prix: b.prix ? `${eur(b.prix)} honoraires inclus` : undefined,

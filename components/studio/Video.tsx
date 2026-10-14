@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, BookmarkPlus, Check, Download, Film, ImageOff, Pause, Play, Share2, Sparkles, Square } from "lucide-react";
+import { titrePublic } from "@/lib/titrePublic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cx, Field, Spinner } from "@/components/ui";
 import { ask } from "@/lib/ai";
@@ -14,7 +15,7 @@ import { bienLigne, enregistrerContenu, errMsg, faitsPublics, lieuPublic, partag
 function textesDuBien(b: Bien): ReelTexts {
   return {
     accroche: b.statut === "vendu" ? "VENDU" : b.statut === "sous_offre" ? "SOUS OFFRE" : "NOUVEAUTÉ",
-    titre: b.titre || "[À compléter]",
+    titre: titrePublic(b),
     lieu: lieuPublic(b),
     prix: b.prix ? eur(b.prix) : "",
     chiffres: [bienLigne(b).split(" · ").slice(0, 2).join(" · "), b.exterieur].filter(Boolean).join(" · "),
