@@ -12,8 +12,8 @@ export const maxDuration = 60;
 export type AnnonceSite = { ref: string; url: string; titre: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
 
 const PLAGES: [string, number, number][] = [
-  ["TAPP", 99900, 99999],
-  ["TMAI", 99400, 99499],
+  ["TAPP", 99800, 99999],
+  ["TMAI", 99350, 99499],
 ];
 let cache: { quand: number; annonces: AnnonceSite[] } | null = null;
 
@@ -54,8 +54,8 @@ export async function GET(req: Request) {
   if (cache && Date.now() - cache.quand < 30 * 60_000) return NextResponse.json({ annonces: cache.annonces });
   const refs = PLAGES.flatMap(([p, a, b]) => Array.from({ length: b - a + 1 }, (_, i) => `${p}${a + i}`));
   const annonces: AnnonceSite[] = [];
-  for (let i = 0; i < refs.length; i += 25) {
-    const lot = await Promise.all(refs.slice(i, i + 25).map(lire));
+  for (let i = 0; i < refs.length; i += 50) {
+    const lot = await Promise.all(refs.slice(i, i + 50).map(lire));
     annonces.push(...lot.filter((x): x is AnnonceSite => !!x));
   }
   cache = { quand: Date.now(), annonces };

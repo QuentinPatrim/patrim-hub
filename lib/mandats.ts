@@ -4,7 +4,7 @@ import { authHeaders } from "./ai";
 import { MANDATS_PATRIM } from "./seed";
 import { cloudEnabled } from "./supabase";
 import { bulkCreate, create, getAll, update } from "./store";
-import type { Bien } from "./types";
+import type { Bien, BienType } from "./types";
 
 /* Import et mise à jour des mandats.
    Les fiches complètes (propriétaire, charges, DDT, photos…) viennent de /api/mandats
@@ -62,7 +62,7 @@ async function photosAnnonce(url?: string): Promise<string[]> {
   }
 }
 
-type AnnonceSite = { ref: string; url: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
+type AnnonceSite = { ref: string; url: string; titre?: string; type: string; ville: string; surface?: number; prix?: number; photos: string[] };
 
 /** Toutes les annonces de vente en ligne sur patrim.fr (lues par le serveur). */
 async function annoncesSite(): Promise<AnnonceSite[]> {
@@ -84,7 +84,33 @@ function annonceDe(f: Fiche, annonces: AnnonceSite[]) {
   const ok = annonces.filter(
     (a) => norm(a.ville).startsWith(norm(f.ville)) && (!f.type || a.type.startsWith(f.type.slice(0, 4))) && a.surface && Math.abs(a.surface - f.surface!) <= 2
   );
-  return ok.length === 1 ? ok[0] : undefined;
+  if (ok.length === 1) return ok[0];
+  // Sinon même prix dans la même ville (la surface ou le type de l'annonce peuvent différer du mandat)
+  const prix = f.prix && annonces.filter((a) => a.prix === f.prix && norm(a.ville).startsWith(norm(f.ville)));
+  return prix && prix.length === 1 ? prix[0] : undefined;
+}
+
+const TYPES: BienType[] = ["appartement", "maison", "terrain", "local", "immeuble", "parking"];
+
+/** Bien créé à partir d'une annonce du site qui n'a pas encore de fiche dans l'appli. */
+function bienDepuisAnnonce(a: AnnonceSite & { titre?: string }): Partial<Bien> {
+  const type = TYPES.find((t) => a.type.startsWith(t.slice(0, 4))) ?? "appartement";
+  const pieces = Number(a.titre?.match(/(\d+)\s*pi[eè]ce/i)?.[1]) || undefined;
+  const nom = type === "appartement" ? "Appartement" : type === "maison" ? "Maison" : type[0].toUpperCase() + type.slice(1);
+  return {
+    ref: a.ref,
+    titre: [nom, pieces && `${pieces} pièces`, a.surface && `${a.surface} m²`].filter(Boolean).join(" "),
+    type,
+    adresse: "[À compléter]",
+    ville: a.ville || "Toulouse",
+    prix: a.prix,
+    surface: a.surface,
+    pieces,
+    photos: a.photos,
+    annonceUrl: a.url,
+    statut: "en_vente",
+    notes: "Ajouté depuis le site patrim.fr : propriétaire, adresse et détails à compléter.",
+  };
 }
 
 const duSite = (p: string) => p.startsWith("https://www.patrim.fr/");
@@ -94,6 +120,7 @@ export async function importerMandats() {
   let crees = 0,
     maj = 0;
   const nouveaux: Partial<Bien>[] = [];
+  const utilisees = new Set<string>();
 
   for (const f of liste) {
     const { proprietaire, ddt, driveFolderId, aVerifier, sources: _sources, ...champs } = f;
@@ -116,6 +143,7 @@ export async function importerMandats() {
     if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
     const annonce = annonceDe(f, annonces);
     if (annonce) {
+      utilisees.add(annonce.ref);
       data.ref ??= annonce.ref;
       data.annonceUrl = annonce.url;
       data.prix ??= annonce.prix;
@@ -145,6 +173,21 @@ export async function importerMandats() {
       }
     } else {
       nouveaux.push({ ...data, statut: data.statut ?? "en_vente" });
+      crees++;
+    }
+  }
+  // Annonces du site sans mandat dans la liste : ajoutées (ou complétées si le bien existe déjà avec cette référence)
+  for (const a of annonces) {
+    if (utilisees.has(a.ref)) continue;
+    const existant = getAll("biens").find((b) => b.ref === a.ref || b.annonceUrl === a.url);
+    if (existant) {
+      const actuelles = existant.photos ?? [];
+      if (a.photos.length && actuelles.every(duSite) && actuelles.join() !== a.photos.join()) {
+        update("biens", existant.id, { photos: a.photos, annonceUrl: existant.annonceUrl ?? a.url });
+        maj++;
+      }
+    } else {
+      nouveaux.push(bienDepuisAnnonce(a));
       crees++;
     }
   }
