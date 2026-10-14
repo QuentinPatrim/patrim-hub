@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { cx } from "@/components/ui";
 import type { BienType } from "@/lib/types";
 import { BienPlaceholder } from "./BienVisual";
+import { MAX_PHOTOS } from "./PhotosEditor";
 
 /** Galerie photo : glisser du doigt sur mobile, flèches sur ordinateur, plein écran au toucher. */
 export function Gallery({ photos, type, alt, overlay, ajout }: { photos: string[]; type: BienType; alt: string; overlay?: ReactNode; ajout?: ReactNode }) {
@@ -46,7 +47,7 @@ export function Gallery({ photos, type, alt, overlay, ajout }: { photos: string[
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
       {overlay}
-      {ajout && photos.length < 8 && <div className="absolute right-3 top-3">{ajout}</div>}
+      {ajout && photos.length < MAX_PHOTOS && <div className="absolute right-3 top-3">{ajout}</div>}
       {photos.length > 1 && (
         <>
           <button onClick={() => go(idx - 1)} disabled={idx === 0} className="hidden sm:grid absolute left-3 top-1/2 -translate-y-1/2 place-items-center size-10 rounded-full bg-surface/90 text-fg shadow-card opacity-0 group-hover:opacity-100 transition disabled:!opacity-0" aria-label="Photo précédente">

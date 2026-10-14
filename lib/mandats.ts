@@ -50,6 +50,20 @@ function vendeur(nom: string) {
   return create("contacts", { nom: n, prenom: p.join(" ") || undefined, roles: ["vendeur"], historique: [] }).id;
 }
 
+/** Photos de l'annonce, lues en direct sur patrim.fr (toutes, dans l'ordre du site). */
+async function photosAnnonce(url?: string): Promise<string[]> {
+  if (!url || !cloudEnabled) return [];
+  try {
+    const r = await fetch(`/api/annonce-photos?url=${encodeURIComponent(url)}`, { headers: await authHeaders(), cache: "no-store" });
+    const j = (await r.json()) as { photos?: string[] };
+    return r.ok && Array.isArray(j.photos) ? j.photos.slice(0, 24) : [];
+  } catch {
+    return [];
+  }
+}
+
+const duSite = (p: string) => p.startsWith("https://www.patrim.fr/");
+
 export async function importerMandats() {
   const liste = await fiches();
   let crees = 0,
@@ -75,6 +89,8 @@ export async function importerMandats() {
       driveUrl: champs.driveUrl ?? (driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : undefined),
     };
     if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
+    const enLigne = await photosAnnonce(champs.annonceUrl);
+    if (enLigne.length) data.photos = enLigne;
 
     const rue = (a?: string) => norm(a?.split(",")[0]);
     const existant = getAll("biens").find((b) => (f.ref && b.ref === f.ref) || (f.adresse && rue(b.adresse) === rue(f.adresse)));
@@ -87,6 +103,9 @@ export async function importerMandats() {
         const vide = actuel === undefined || actuel === null || actuel === "" || (Array.isArray(actuel) && !actuel.length);
         if (vide || k === "titre" || k === "vendeurIds") (patch as Record<string, unknown>)[k] = v;
       }
+      // Photos : la liste complète du site remplace celles venues du site, jamais celles ajoutées depuis le téléphone
+      const actuelles = existant.photos ?? [];
+      if (enLigne.length && actuelles.every(duSite) && actuelles.join() !== enLigne.join()) patch.photos = enLigne;
       // Les points à vérifier et le DDT s'ajoutent aux notes existantes, une seule fois
       if (existant.notes && data.notes && !existant.notes.includes(data.notes)) patch.notes = `${existant.notes}\n${data.notes}`;
       if (Object.keys(patch).length) {

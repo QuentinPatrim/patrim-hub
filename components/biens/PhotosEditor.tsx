@@ -18,7 +18,7 @@ async function envoyer(dataUrl: string, data: string) {
   }
 }
 
-export const MAX_PHOTOS = 8;
+export const MAX_PHOTOS = 24;
 
 /** Réduit puis envoie des photos choisies sur le téléphone ; renvoie leurs adresses. */
 export async function importerPhotos(files: FileList | File[], max: number) {

@@ -35,7 +35,7 @@ export function AjoutPhotos({ photos, onAdd }: { photos: string[]; onAdd: (p: st
           <button type="button" onClick={() => input.current?.click()} disabled={busy} className="btn-primary shadow-lift">
             {busy ? <Spinner /> : <Camera size={17} />} {busy ? "Envoi des photos…" : "Ajouter des photos"}
           </button>
-          <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-[11px] text-white backdrop-blur">{err || "Appareil photo ou galerie, 8 maximum"}</span>
+          <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-[11px] text-white backdrop-blur">{err || `Appareil photo ou galerie, ${MAX_PHOTOS} maximum`}</span>
         </div>
       ) : (
         <button
