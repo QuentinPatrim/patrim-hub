@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* En-tête mobile */}
-      <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/80 backdrop-blur-xl backdrop-saturate-150 border-b border-line/60 no-print">
+      <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/95 backdrop-blur-xl backdrop-saturate-150 border-b border-line/40 no-print">
         <div className="flex items-center gap-3 h-14 px-4">
           <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil PATRIM">
             <Image src="/emblem.png" alt="" width={30} height={30} className="rounded-lg shadow-xs" />

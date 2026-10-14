@@ -17,16 +17,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8f6f3" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e1014" },
-  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
+        {/* Couleur de la barre d'état du téléphone : suit le thème choisi dans l'appli (voir lib/theme.ts) */}
+        <meta name="theme-color" content="#f7f5f1" />
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
