@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ETAT_LABEL, asPlus, etageLabel, resumeBien, typeLabel, ventesDe, type Vente } from "@/components/estimations/shared";
 import { dateCourte, eur } from "@/lib/format";
 import { useCollection, useDoc } from "@/lib/store";
+import { useSignature } from "@/lib/profil";
 
 /* ============================================================
    Avis de valeur imprimable (A4) — charte PATRIM.
@@ -42,6 +43,7 @@ export default function AvisDeValeur() {
   const [zoom, setZoom] = useState(1);
   const [afficherNom, setAfficherNom] = useState(true);
   const [attente, setAttente] = useState(true);
+  const signature = useSignature();
 
   useEffect(() => {
     const fit = () => setZoom(Math.min(1, (window.innerWidth - 24) / 794));
@@ -374,8 +376,14 @@ export default function AvisDeValeur() {
                   PATRIM · {AGENCE.adresse} · {AGENCE.tel}
                 </div>
               </div>
-              <div className="w-[55mm] border-t pt-[2mm] text-center text-[8pt]" style={{ borderColor: C.line, color: C.muted }}>
-                Fait à Toulouse, le {dateAvis}
+              <div className="w-[55mm] text-center text-[8pt]" style={{ color: C.muted }}>
+                {signature && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={signature} alt="Signature" className="mx-auto mb-[1mm] h-[18mm] max-w-[50mm] object-contain mix-blend-multiply" />
+                )}
+                <div className="border-t pt-[2mm]" style={{ borderColor: C.line }}>
+                  Fait à Toulouse, le {dateAvis}
+                </div>
               </div>
             </div>
             <div className="mt-[6mm] border-t pt-[3mm] text-[7.3pt] leading-[1.5]" style={{ borderColor: C.line, color: C.muted }}>

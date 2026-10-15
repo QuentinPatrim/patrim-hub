@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  FileSignature,
   FileText,
   FolderOpen,
   Lock,
@@ -18,6 +19,7 @@ import {
   MapPin,
   Pencil,
   Phone,
+  Send,
   Star,
   Tag,
   Trash2,
@@ -30,6 +32,7 @@ import { AjoutPhotos } from "@/components/biens/AjoutPhotos";
 import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienForm";
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
+import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { STATUTS, acquereursCompatibles, adresseComplete, champsACompleter, joursDepuis, mailHref, mapsHref, prixM2, telHref } from "@/components/biens/utils";
 import { RdvForm, type RdvInitial } from "@/components/agenda/RdvForm";
 import { CompteRenduSheet } from "@/components/agenda/CompteRenduSheet";
@@ -72,6 +75,7 @@ export default function BienPage() {
   const [editing, setEditing] = useState<false | string>(false);
   const [statutOpen, setStatutOpen] = useState(false);
   const [rapport, setRapport] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
   const [rdvForm, setRdvForm] = useState<RdvInitial | null>(null);
   const [crId, setCrId] = useState<string>();
   const [delConfirm, setDelConfirm] = useState(false);
@@ -198,19 +202,27 @@ export default function BienPage() {
       </header>
 
       {/* Actions */}
-      <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto no-scrollbar animate-fade-up">
-        <button className="btn-primary shrink-0" onClick={() => setRdvForm({ bienId: b.id, type: "visite", jour: today() })}>
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 animate-fade-up [&>*]:min-w-0">
+        <button className="btn-primary shrink-0 col-span-2" onClick={() => setRdvForm({ bienId: b.id, type: "visite", jour: today() })}>
           <CalendarPlus size={16} /> Planifier une visite
         </button>
+        <button className="btn-secondary shrink-0" onClick={() => setEnvoi(true)}>
+          <Send size={16} /> Envoyer la fiche
+        </button>
+        <Link href={`/biens/${b.id}/offre`} className="btn-secondary shrink-0">
+          <FileSignature size={16} /> <span className="sm:hidden">Offre d&apos;achat</span>
+          <span className="hidden sm:inline">Rédiger une offre d&apos;achat</span>
+        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />
         </button>
-        <Link href={`/studio?bien=${b.id}`} className="btn-secondary shrink-0">
-          <Wand2 size={16} /> Créer les contenus marketing
-        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setRapport(true)}>
           <FileText size={16} /> Rapport vendeur
         </button>
+        <Link href={`/studio?bien=${b.id}`} className="btn-secondary shrink-0">
+          <Wand2 size={16} /> <span className="sm:hidden">Marketing</span>
+          <span className="hidden sm:inline">Créer les contenus marketing</span>
+        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setEditing("")}>
           <Pencil size={16} /> Modifier
         </button>
@@ -398,6 +410,7 @@ export default function BienPage() {
       </Sheet>
       <RdvForm open={!!rdvForm} onClose={() => setRdvForm(null)} initial={rdvForm ?? undefined} />
       <CompteRenduSheet rdv={visites.find((v) => v.id === crId)} onClose={() => setCrId(undefined)} />
+      <EnvoyerFiche open={envoi} onClose={() => setEnvoi(false)} bien={b} vendeurs={vendeurs} />
       <RapportVendeur open={rapport} onClose={() => setRapport(false)} bien={b} visites={visites} vendeurs={vendeurs} nbCompatibles={matches.length} nbProposes={nbProposes} />
     </div>
   );

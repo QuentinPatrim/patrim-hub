@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, FileText, Mail, RefreshCw, Share2, Sparkles } from "lucide-react";
-import { Sheet, Spinner } from "@/components/ui";
+import { Sheet, Spinner, cx } from "@/components/ui";
+import { useCollection } from "@/lib/store";
+import { titrePublic } from "@/lib/titrePublic";
+import { gmailHref } from "@/components/matching/BrouillonMail";
+import { rapportHebdo } from "./rapportHebdo";
 import { ask } from "@/lib/ai";
 import { dateCourte, eur, nomComplet } from "@/lib/format";
 import type { Bien, Contact, Rdv } from "@/lib/types";
@@ -16,13 +20,19 @@ export function RapportVendeur({ open, onClose, bien, visites, vendeurs, nbCompa
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [copie, setCopie] = useState(false);
+  const [mode, setMode] = useState<"semaine" | "ia">("semaine");
+  const { items: contacts } = useCollection("contacts");
+  const hebdo = useMemo(() => rapportHebdo({ bien, rdvs: visites, contacts, vendeurs }), [bien, visites, contacts, vendeurs]);
+  const [texteHebdo, setTexteHebdo] = useState("");
 
   useEffect(() => {
     if (open) {
       setErr("");
       setCopie(false);
+      setTexteHebdo(hebdo.texte);
     }
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hebdo.texte]);
 
   const faites = visites.filter((v) => v.statut !== "annule" && new Date(v.debut).getTime() < Date.now());
   const prevues = visites.filter((v) => v.statut === "prevu" && new Date(v.debut).getTime() >= Date.now());
@@ -83,7 +93,8 @@ Rédige le compte rendu adressé au vendeur${salutation ? ` (${salutation})` : "
   };
 
   const emails = vendeurs.map((v) => v.email).filter(Boolean).join(",");
-  const sujet = `Point sur la commercialisation – ${bien.titre}`;
+  const sujet = mode === "semaine" ? hebdo.sujet : `Point sur la commercialisation – ${titrePublic(bien)}`;
+  const courant = mode === "semaine" ? texteHebdo : texte;
 
   return (
     <Sheet
@@ -96,24 +107,33 @@ Rédige le compte rendu adressé au vendeur${salutation ? ` (${salutation})` : "
         </span>
       }
       footer={
-        texte ? (
+        courant ? (
           <div className="flex flex-wrap gap-2 w-full justify-end">
-            <button className="btn-ghost btn-sm mr-auto" onClick={generer} disabled={busy}>
-              {busy ? <Spinner /> : <RefreshCw size={14} />} Régénérer
-            </button>
+            {mode === "ia" ? (
+              <button className="btn-ghost btn-sm mr-auto" onClick={generer} disabled={busy}>
+                {busy ? <Spinner /> : <RefreshCw size={14} />} Régénérer
+              </button>
+            ) : (
+              <button className="btn-ghost btn-sm mr-auto" onClick={() => setTexteHebdo(hebdo.texte)}>
+                <RefreshCw size={14} /> Rétablir
+              </button>
+            )}
             {typeof navigator !== "undefined" && "share" in navigator && (
-              <button className="btn-secondary btn-sm" onClick={() => navigator.share({ title: sujet, text: texte }).catch(() => {})}>
+              <button className="btn-secondary btn-sm" onClick={() => navigator.share({ title: sujet, text: courant }).catch(() => {})}>
                 <Share2 size={14} /> Partager
               </button>
             )}
-            <a className="btn-secondary btn-sm" href={mailHref(emails, sujet, texte)}>
+            <a className="btn-secondary btn-sm" href={gmailHref(emails, sujet, courant)} target="_blank" rel="noreferrer">
+              <Mail size={14} /> Gmail
+            </a>
+            <a className="btn-secondary btn-sm" href={mailHref(emails, sujet, courant)}>
               <Mail size={14} /> E-mail
             </a>
             <button
               className="btn-primary btn-sm"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(texte);
+                  await navigator.clipboard.writeText(courant);
                   setCopie(true);
                   setTimeout(() => setCopie(false), 2000);
                 } catch {}
@@ -125,6 +145,32 @@ Rédige le compte rendu adressé au vendeur${salutation ? ` (${salutation})` : "
         ) : undefined
       }
     >
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
+        {(
+          [
+            ["semaine", "Point de la semaine"],
+            ["ia", "Rapport rédigé (IA)"],
+          ] as const
+        ).map(([m, label]) => (
+          <button key={m} onClick={() => setMode(m)} className={cx("h-10 rounded-lg text-sm font-medium transition", mode === m ? "bg-surface shadow-sm text-fg" : "text-muted")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === "semaine" ? (
+        <>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <Mini label="Visites (7 j)" value={hebdo.visites.length} />
+            <Mini label="Demandes (7 j)" value={hebdo.demandes} />
+            <Mini label="Proposé (7 j)" value={hebdo.proposes} />
+          </div>
+          <p className="mb-3 text-xs text-muted">
+            Du {dateCourte(hebdo.debut)} au {dateCourte(hebdo.fin)} · visiteurs anonymes · complétez la ligne « [À compléter] » avant l&apos;envoi.
+          </p>
+          <textarea className="input min-h-[50dvh] text-sm leading-relaxed" value={texteHebdo} onChange={(e) => setTexteHebdo(e.target.value)} />
+        </>
+      ) : (
+        <>
       <div className="grid grid-cols-3 gap-2 mb-4">
         <Mini label="Visites faites" value={faites.length} />
         <Mini label="À venir" value={prevues.length} />
@@ -142,6 +188,8 @@ Rédige le compte rendu adressé au vendeur${salutation ? ` (${salutation})` : "
           </button>
           {!faites.some((v) => v.compteRendu || v.avisClient) && faites.length > 0 && <p className="mt-3 text-xs text-warn">Astuce : remplissez les comptes rendus de visite pour un rapport plus riche.</p>}
         </div>
+      )}
+        </>
       )}
       {err && <p className="mt-3 text-sm text-danger">{err}</p>}
     </Sheet>

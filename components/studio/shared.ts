@@ -4,6 +4,7 @@
    enregistrement d'un contenu, petites constantes de marque. */
 
 import { create } from "@/lib/store";
+import { titrePublic } from "@/lib/titrePublic";
 import { eur, m2, TYPE_BIEN } from "@/lib/format";
 import type { Bien, Canal, Contenu } from "@/lib/types";
 
@@ -53,7 +54,7 @@ export function faitsPublics(b: Bien): string {
     if (v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length)) return;
     l.push(`- ${k} : ${Array.isArray(v) ? v.join(" ; ") : v}`);
   };
-  add("Titre interne", b.titre);
+  add("Titre", titrePublic(b));
   add("Type", TYPE_BIEN[b.type]);
   add("Secteur", [b.quartier, b.codePostal, b.ville].filter(Boolean).join(" "));
   add("Prix honoraires inclus", b.prix ? eur(b.prix) : undefined);

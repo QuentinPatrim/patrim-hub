@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Lightbulb, Plus, Share2, Trash2 } from "lucide-react";
+import { titrePublic } from "@/lib/titrePublic";
 import { useMemo, useState, type DragEvent } from "react";
 import { Badge, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { ask } from "@/lib/ai";
@@ -68,7 +69,7 @@ export function Calendrier({ bienCourant }: { bienCourant?: Bien }) {
       const portefeuille = biens
         .filter((b) => ["en_vente", "mandat_signe", "sous_offre", "compromis", "vendu"].includes(b.statut))
         .slice(0, 15)
-        .map((b, i) => `B${i + 1} : ${b.titre} — ${[b.quartier, b.ville].filter(Boolean).join(", ")} — ${STATUT_BIEN[b.statut].label}${b.prix ? ` — ${eurK(b.prix)}` : ""}${b.dpe ? ` — DPE ${b.dpe}` : ""}`);
+        .map((b, i) => `B${i + 1} : ${titrePublic(b)} — ${[b.quartier, b.ville].filter(Boolean).join(", ")} — ${STATUT_BIEN[b.statut].label}${b.prix ? ` — ${eurK(b.prix)}` : ""}${b.dpe ? ` — DPE ${b.dpe}` : ""}`);
       const refs = biens.filter((b) => ["en_vente", "mandat_signe", "sous_offre", "compromis", "vendu"].includes(b.statut)).slice(0, 15);
       const deja = semaine.map((c) => `- ${c.titre}`).join("\n") || "aucun";
       const res = await ask<{ idees?: { titre: string; canal: Canal; jour: number; texte: string; bien?: string | null }[] }>({

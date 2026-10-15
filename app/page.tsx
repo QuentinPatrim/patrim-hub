@@ -12,7 +12,6 @@ import {
   Circle,
   Download,
   MoonStar,
-  Phone,
   Plus,
   Sparkles,
   Users,
@@ -20,12 +19,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Badge, Card, Spinner, cx } from "@/components/ui";
+import { Badge, Card, Spinner, cx } from "@/components/ui";
 import { ask } from "@/lib/ai";
 import { analyser, resumeCourt } from "@/lib/briefing";
-import { ETAPE, RDV_TYPE, dateLongue, eur, eurK, heure, nomComplet, today } from "@/lib/format";
+import { ETAPE, dateLongue, eurK, today } from "@/lib/format";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE } from "@/lib/matching";
 import { create, getAll, useCollection } from "@/lib/store";
+import { Aujourdhui, aRappeler, delaiChoisi } from "@/components/accueil/Aujourdhui";
 import type { Briefing, EtapeAcquereur } from "@/lib/types";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=" };
@@ -49,7 +49,7 @@ export default function Accueil() {
   const { items: rdvs } = useCollection("rdvs");
   const { items: taches, update: majTache, create: nouvelleTache } = useCollection("taches");
   const { items: briefings } = useCollection("briefings");
-  useCollection("estimations");
+  const { items: estimations } = useCollection("estimations");
   useCollection("contenus");
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -67,7 +67,7 @@ export default function Accueil() {
     .filter((r) => r.statut !== "annule" && new Date(r.debut).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }) === jour)
     .sort((a, b) => a.debut.localeCompare(b.debut));
   const aFaire = taches.filter((t) => !t.fait).sort((a, b) => (a.priorite ?? 3) - (b.priorite ?? 3) || (a.echeance ?? "9").localeCompare(b.echeance ?? "9"));
-  const relances = contacts.filter((c) => c.dateRelance && c.dateRelance <= jour && c.etape !== "perdu" && c.etape !== "gagne");
+  const relances = mounted ? aRappeler(contacts, delaiChoisi()) : [];
   const brief = [...briefings].sort((a, b) => b.date.localeCompare(a.date))[0];
   const pipeline = (["nouveau", "qualifie", "visite", "offre", "compromis"] as EtapeAcquereur[]).map((e) => ({ e, n: acquereurs.filter((c) => (c.etape ?? "nouveau") === e).length }));
   const maxPipe = Math.max(1, ...pipeline.map((p) => p.n));
@@ -89,7 +89,7 @@ export default function Accueil() {
     ? "Votre espace de vente est prêt. Commencez par vos mandats et vos contacts, le reste suivra."
     : [
         rdvJour.length ? `${rdvJour.length} rendez-vous aujourd'hui` : "Aucun rendez-vous aujourd'hui",
-        relances.length ? `${relances.length} relance${relances.length > 1 ? "s" : ""} à faire` : null,
+        relances.length ? `${relances.length} personne${relances.length > 1 ? "s" : ""} à rappeler` : null,
         aFaire.length ? `${aFaire.length} tâche${aFaire.length > 1 ? "s" : ""}` : null,
       ]
         .filter(Boolean)
@@ -193,34 +193,7 @@ export default function Accueil() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5">
         <div className="lg:col-span-3 space-y-4 sm:space-y-5 min-w-0">
-          <Card title="Aujourd'hui" action={<Link href="/agenda" className="link">Agenda <ChevronRight size={14} /></Link>}>
-            {rdvJour.length ? (
-              <ul className="-my-1">
-                {rdvJour.map((r) => {
-                  const b = biens.find((x) => x.id === r.bienId);
-                  const c = contacts.find((x) => r.contactIds?.includes(x.id));
-                  return (
-                    <li key={r.id} className="flex items-center gap-3 py-2">
-                      <div className="w-[52px] shrink-0 rounded-xl bg-surface-2 py-1.5 text-center text-[13px] font-semibold tabular-nums">{heure(r.debut)}</div>
-                      <div className={cx("w-[3px] self-stretch rounded-full", r.type === "visite" ? "bg-accent" : "bg-line")} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold truncate">{r.titre || RDV_TYPE[r.type]}{c ? ` · ${nomComplet(c)}` : ""}</div>
-                        <div className="text-xs text-muted truncate">{b?.adresse ?? r.lieu ?? ""}</div>
-                      </div>
-                      {c?.tel && (
-                        <a href={`tel:${c.tel}`} className="grid place-items-center size-10 shrink-0 rounded-full bg-ok/10 text-ok hover:bg-ok/15 transition" aria-label="Appeler">
-                          <Phone size={16} />
-                        </a>
-                      )}
-                      <Badge tone={r.type === "visite" ? "brand" : "neutral"} className="hidden sm:inline-flex">{RDV_TYPE[r.type]}</Badge>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <MiniEmpty icon={<CalendarDays size={18} />} text="Aucun rendez-vous aujourd'hui." href="/agenda?nouveau=1" cta="Planifier une visite" />
-            )}
-          </Card>
+          <Aujourdhui biens={biens} contacts={contacts} rdvs={rdvs} estimations={estimations} />
 
           <Card title={<span className="flex items-center gap-2">Tâches{aFaire.length > 0 && <span className="grid place-items-center min-w-5 h-5 px-1.5 rounded-full bg-accent/10 text-accent text-[11px] tabular-nums">{aFaire.length}</span>}</span>}>
             <form
@@ -264,25 +237,6 @@ export default function Accueil() {
         </div>
 
         <div className="lg:col-span-2 space-y-4 sm:space-y-5 min-w-0">
-          <Card title={<span className="flex items-center gap-2">À relancer{relances.length > 0 && <span className="grid place-items-center min-w-5 h-5 px-1.5 rounded-full bg-warn/10 text-warn text-[11px] tabular-nums">{relances.length}</span>}</span>} action={<Link href="/contacts" className="link">Contacts <ChevronRight size={14} /></Link>}>
-            {relances.length ? (
-              <ul className="-mx-2">
-                {relances.slice(0, 6).map((c) => (
-                  <li key={c.id} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-surface-2 transition">
-                    <Avatar text={`${c.prenom?.[0] ?? ""}${c.nom?.[0] ?? ""}`.toUpperCase() || "?"} />
-                    <Link href={`/contacts/${c.id}`} className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold truncate">{nomComplet(c)}</div>
-                      <div className="text-xs text-muted truncate">{c.prochaineAction || (c.criteres?.budgetMax ? `Budget ${eur(c.criteres.budgetMax)}` : "Relance prévue")}</div>
-                    </Link>
-                    {c.tel && <a href={`tel:${c.tel}`} className="grid place-items-center size-10 shrink-0 rounded-full bg-ok/10 text-ok hover:bg-ok/15 transition" aria-label="Appeler"><Phone size={16} /></a>}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <MiniEmpty icon={<Phone size={17} />} text="Personne à relancer aujourd'hui." />
-            )}
-          </Card>
-
           <Card title="Pipeline acquéreurs" action={acquereurs.length > 0 && <span className="text-xs font-semibold text-muted tabular-nums">{acquereurs.length} actif{acquereurs.length > 1 ? "s" : ""}</span>}>
             {acquereurs.length ? (
               <div className="space-y-3">
