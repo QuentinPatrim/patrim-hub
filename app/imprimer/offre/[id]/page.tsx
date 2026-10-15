@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { AGENCE, C, MENTIONS, enLettres, montantComplet } from "@/components/documents/charte";
 import { ACTE_PRINT_CSS, Section, Texte, Trou, ou } from "@/components/documents/blocs";
-import { dateLettres, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
+import { dateLettres, detailFinancement, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
 
 /* ============================================================
    Offre d'achat PATRIM, prête à « Enregistrer en PDF » puis à
@@ -134,16 +134,25 @@ export default function OffrePdf() {
                 <p className="mt-[2mm]">
                   Sis <strong>{ou(o.adresseBien, "adresse du bien")}</strong>.
                 </p>
-                {o.vendeurs.length > 0 && (
-                  <p className="mt-[2mm] text-[9.5pt]" style={{ color: C.slate }}>
-                    Appartenant à {o.vendeurs.map((p) => nomOffre(p) || "[À compléter]").join(", ")}, ci-après dénommé{o.vendeurs.length > 1 ? "s" : ""} « le vendeur ».
-                  </p>
-                )}
               </div>
             </Section>
 
-            {/* 03 Prix */}
-            <Section num="03" titre="Le prix">
+            {/* 03 Le vendeur */}
+            <Section num="03" titre={o.vendeurs.length > 1 ? "Les vendeurs" : "Le vendeur"}>
+              <p>Le bien ci-dessus désigné appartient à :</p>
+              <div className="mt-[2.5mm] space-y-[2.5mm]">
+                {o.vendeurs.map((p, i) => (
+                  <Identite key={p.contactId ?? i} p={p} />
+                ))}
+                {!o.vendeurs.length && <Trou>vendeur</Trou>}
+              </div>
+              <p className="mt-[2.5mm]">
+                {o.vendeurs.length > 1 ? "ci-après dénommés ensemble « le vendeur »." : `ci-après ${o.vendeurs[0]?.civilite === "Mme" ? "dénommée" : "dénommé"} « le vendeur ».`}
+              </p>
+            </Section>
+
+            {/* 04 Prix */}
+            <Section num="04" titre="Le prix">
               <div className="acte-bloc flex items-center gap-[6mm] rounded-[3mm] px-[6mm] py-[5mm] text-white" style={{ background: C.brand }}>
                 <div className="flex-1">
                   <div className="text-[7.5pt] uppercase tracking-[0.2em] text-white/70">Prix offert, honoraires inclus</div>
@@ -176,10 +185,14 @@ export default function OffrePdf() {
               </p>
             </Section>
 
-            {/* 04 Financement */}
-            <Section num="04" titre="Financement et conditions">
+            {/* 05 Financement */}
+            <Section num="05" titre="Financement et conditions">
               <p>En cas d&apos;acceptation, la somme sera payée intégralement le jour de la signature de l&apos;acte authentique de vente.</p>
-              {o.financement === "pret" ? (
+              {!detailFinancement(o) ? (
+                <p className="mt-[2.5mm]">
+                  {o.financement === "pret" ? "L'achat sera financé en tout ou partie au moyen d'un prêt bancaire." : "L'achat sera financé au moyen de fonds propres, sans recours à un prêt."}
+                </p>
+              ) : o.financement === "pret" ? (
                 <p className="mt-[2.5mm]">
                   L&apos;achat sera financé au moyen d&apos;un apport personnel de {o.apport != null ? `${o.apport.toLocaleString("fr-FR")} €` : <Trou>apport</Trou>} et d&apos;un prêt bancaire
                   {pret != null ? ` de ${pret.toLocaleString("fr-FR")} €` : ""}
@@ -223,16 +236,16 @@ export default function OffrePdf() {
               )}
             </Section>
 
-            {/* 05 Durée */}
-            <Section num="05" titre="Durée de l'offre">
+            {/* 06 Durée */}
+            <Section num="06" titre="Durée de l'offre">
               <p>
                 Cette offre est ferme et irrévocable et prendra fin à l&apos;issue d&apos;un délai de <strong>{enLettres(o.validiteJours)} jour{o.validiteJours > 1 ? "s" : ""}</strong> à compter de ce
                 jour{o.date ? `, le ${dateLettres(o.date)}` : ""}.
               </p>
             </Section>
 
-            {/* 06 Signature électronique */}
-            <Section num="06" titre="Signature électronique">
+            {/* 07 Signature électronique */}
+            <Section num="07" titre="Signature électronique">
               <p className="text-[9pt] leading-[1.5]" style={{ color: C.slate }}>
                 Pour tous les actes ou documents relatifs à la présente offre, les parties acceptent une signature en la forme « électronique » via notamment la plateforme de signature en ligne
                 « ICSIGN ». Ces signatures en la forme « électronique » seront opérées sous l&apos;administration de la société PATRIM, Société par actions simplifiée ayant son siège social à

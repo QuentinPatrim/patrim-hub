@@ -40,6 +40,8 @@ export interface Offre {
   honoraires?: number;
   charge: "acquereur" | "vendeur";
   financement: "pret" | "comptant";
+  /** Détailler l'apport et le prêt dans l'offre : facultatif, tous les acquéreurs ne communiquent pas ces chiffres. */
+  detailFinancement?: boolean;
   apport?: number;
   montantPret?: number;
   dureePret?: number; // années
@@ -56,6 +58,9 @@ export interface Offre {
 /* ---------- Brouillon sur l'appareil ---------- */
 
 const cle = (bienId: string) => `patrim-hub:offre:${bienId}`;
+
+/** Brouillons d'avant l'option : le détail était affiché dès qu'un montant était saisi. */
+export const detailFinancement = (o: Offre) => o.detailFinancement ?? (o.apport != null || o.montantPret != null);
 
 export function lireOffre(bienId: string): Offre | null {
   try {
