@@ -19,7 +19,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
   const router = useRouter();
   const actes = [...(bien.actes ?? [])].sort((a, b) => b.maj.localeCompare(a.maj));
   const [choix, setChoix] = useState<Acte | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ texte: string; baisse?: boolean } | null>(null);
   const { items: toutes } = useCollection("estimations");
   const estimations = toutes.filter((x) => x.bienId === bien.id).sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   const total = actes.length + estimations.length;
@@ -31,15 +31,34 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
     router.push(`/biens/${bien.id}/${a.kind}${a.kind === "avenant" ? `?acte=${a.id}` : ""}`);
   };
   const changer = (a: Acte, v: Acte["statut"]) => {
+    const avant = bien.prix;
     const nouveau: BienStatut | undefined = changerStatutActe(bien.id, a.id, v);
     setChoix(null);
     const hai = a.kind === "avenant" && v === "signe" ? prixPresentation(a.data.nouveau) : undefined;
-    setInfo(nouveau ? `Le bien passe en « ${STATUT_BIEN[nouveau].label} ».` : hai != null ? `Prix de la fiche mis à jour : ${eur(hai)} honoraires inclus.` : null);
+    setInfo(
+      nouveau
+        ? { texte: `Le bien passe en « ${STATUT_BIEN[nouveau].label} ».` }
+        : hai != null
+          ? { texte: `Prix de la fiche mis à jour : ${eur(hai)} honoraires inclus.`, baisse: avant != null && hai < avant }
+          : null,
+    );
   };
 
   return (
     <Card title={`Documents${total ? ` (${total})` : ""}`} pad={false}>
-      {info && <p className="mx-4 sm:mx-5 mt-3 rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">{info}</p>}
+      {info && (
+        <p className="mx-4 sm:mx-5 mt-3 rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">
+          {info.texte}
+          {info.baisse && (
+            <>
+              {" "}
+              <Link href={`/biens/${bien.id}/baisse`} className="font-semibold underline underline-offset-2">
+                Prévenir les acquéreurs
+              </Link>
+            </>
+          )}
+        </p>
+      )}
       {!total ? (
         <Empty
           title="Aucun document pour l'instant"
