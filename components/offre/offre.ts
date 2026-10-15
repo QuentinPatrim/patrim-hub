@@ -12,7 +12,7 @@ import { titrePublic } from "@/lib/titrePublic";
 import { AGENCE } from "@/components/documents/charte";
 import type { Bien, Contact } from "@/lib/types";
 
-export type ContactEtatCivil = Contact & { dateNaissance?: string; lieuNaissance?: string };
+export type ContactEtatCivil = Contact & { dateNaissance?: string; lieuNaissance?: string; profession?: string };
 
 export interface Partie {
   contactId?: string;
@@ -24,6 +24,7 @@ export interface Partie {
   adresse?: string;
   email?: string;
   tel?: string;
+  profession?: string;
 }
 
 export type Motif = "pret" | "vente" | "autre";
@@ -88,6 +89,7 @@ export function partieDepuisContact(c: ContactEtatCivil): Partie {
     adresse: c.adresse,
     email: c.email,
     tel: c.tel,
+    profession: c.profession,
   };
 }
 
@@ -97,7 +99,7 @@ export function enregistrerParties(parties: Partie[], contacts: ContactEtatCivil
     const c = contacts.find((x) => x.id === p.contactId);
     if (!c) continue;
     const patch: Partial<ContactEtatCivil> = {};
-    (["civilite", "prenom", "nom", "dateNaissance", "lieuNaissance", "adresse", "email", "tel"] as const).forEach((k) => {
+    (["civilite", "prenom", "nom", "dateNaissance", "lieuNaissance", "adresse", "email", "tel", "profession"] as const).forEach((k) => {
       const v = p[k]?.trim();
       if (v && v !== (c[k] ?? "")) (patch as Record<string, string>)[k] = v;
     });
@@ -105,7 +107,8 @@ export function enregistrerParties(parties: Partie[], contacts: ContactEtatCivil
   }
 }
 
-export const CHAMPS: { key: keyof Partie; label: string; demande: string }[] = [
+export type Champ = { key: keyof Partie; label: string; demande: string };
+export const CHAMPS: Champ[] = [
   { key: "prenom", label: "Prénom", demande: "" },
   { key: "nom", label: "Nom", demande: "" },
   { key: "dateNaissance", label: "Date de naissance", demande: "votre date de naissance" },
@@ -115,7 +118,7 @@ export const CHAMPS: { key: keyof Partie; label: string; demande: string }[] = [
   { key: "tel", label: "Portable", demande: "votre numéro de portable" },
 ];
 
-export const manquants = (p: Partie) => CHAMPS.filter((c) => !p[c.key]?.toString().trim());
+export const manquants = (p: Partie, champs: Champ[] = CHAMPS) => champs.filter((c) => !p[c.key]?.toString().trim());
 
 /* ---------- Textes ---------- */
 

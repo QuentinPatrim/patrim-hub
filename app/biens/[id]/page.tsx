@@ -213,6 +213,10 @@ export default function BienPage() {
           <FileSignature size={16} /> <span className="sm:hidden">Offre d&apos;achat</span>
           <span className="hidden sm:inline">Rédiger une offre d&apos;achat</span>
         </Link>
+        <Link href={`/biens/${b.id}/mandat`} className="btn-secondary shrink-0">
+          <FileText size={16} /> <span className="sm:hidden">Mandat</span>
+          <span className="hidden sm:inline">Rédiger le mandat de vente</span>
+        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />
         </button>
