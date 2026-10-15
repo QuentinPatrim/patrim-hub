@@ -14,6 +14,7 @@ import { adresseComplete } from "@/components/biens/utils";
 import { enLettres } from "@/components/documents/charte";
 import {
   designationDepuisBien,
+  detailFinancement,
   ecrireOffre,
   effacerOffre,
   enregistrerParties,
@@ -220,13 +221,15 @@ export default function OffreAchatPage() {
                   </PickChip>
                 </div>
               </div>
-              <div className="rounded-xl bg-surface-2 px-4 py-3 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted">Net vendeur</span>
-                  <span className="font-semibold">{net != null ? eur(net) : "—"}</span>
-                </div>
-                {o.prix ? <div className="mt-1 text-xs text-muted first-letter:uppercase">{enLettres(o.prix)} euros</div> : null}
-              </div>
+              <Field label="Net vendeur" hint="Se calcule tout seul ; le modifier ajuste les honoraires.">
+                <NumInput value={net} onChange={(v) => set({ honoraires: o.prix != null && v != null ? o.prix - v : undefined })} suffix="€" />
+              </Field>
+              {o.prix ? <div className="text-xs text-muted first-letter:uppercase">{enLettres(o.prix)} euros</div> : null}
+              {net != null && o.honoraires != null && (o.honoraires < 0 || o.honoraires > net) && (
+                <p className="flex gap-2 rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">
+                  <TriangleAlert size={14} className="mt-0.5 shrink-0" /> Les honoraires ({eur(o.honoraires)}) dépassent le net vendeur ({eur(net)}) : honoraires et net vendeur sont sans doute inversés.
+                </p>
+              )}
             </div>
           </Card>
 
@@ -240,26 +243,39 @@ export default function OffreAchatPage() {
                   Sans prêt
                 </PickChip>
               </div>
-              <div className="grid grid-cols-2 items-end gap-3">
-                <Field label="Apport personnel">
-                  <NumInput value={o.apport} onChange={(v) => set({ apport: v })} suffix="€" placeholder="À compléter" />
-                </Field>
-                {o.financement === "pret" && (
-                  <Field label="Montant du prêt">
-                    <NumInput value={o.montantPret} onChange={(v) => set({ montantPret: v })} suffix="€" placeholder={o.prix && o.apport != null ? (o.prix - o.apport).toLocaleString("fr-FR") : "Le solde"} />
-                  </Field>
-                )}
-                {o.financement === "pret" && (
-                  <Field label="Durée (facultatif)">
-                    <NumInput value={o.dureePret} onChange={(v) => set({ dureePret: v })} suffix="ans" />
-                  </Field>
-                )}
-                {o.financement === "pret" && (
-                  <Field label="Taux maximum (facultatif)">
-                    <TauxInput value={o.tauxMax} onChange={(v) => set({ tauxMax: v })} />
-                  </Field>
-                )}
-              </div>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" className="mt-0.5 size-5 accent-[#6c191e]" checked={detailFinancement(o)} onChange={(e) => set({ detailFinancement: e.target.checked })} />
+                <span>
+                  <span className="block text-sm font-medium">Préciser l&apos;apport{o.financement === "pret" ? " et le prêt" : ""} (facultatif)</span>
+                  <span className="block text-xs text-muted">
+                    {o.financement === "pret" ? "Sinon l'offre indique simplement un financement en tout ou partie par prêt bancaire." : "Sinon l'offre indique simplement un financement sur fonds propres."}
+                  </span>
+                </span>
+              </label>
+              {detailFinancement(o) && (
+                <div className="animate-fade-up">
+                  <div className="grid grid-cols-2 items-end gap-3">
+                    <Field label="Apport personnel">
+                      <NumInput value={o.apport} onChange={(v) => set({ apport: v })} suffix="€" placeholder="À compléter" />
+                    </Field>
+                    {o.financement === "pret" && (
+                      <Field label="Montant du prêt">
+                        <NumInput value={o.montantPret} onChange={(v) => set({ montantPret: v })} suffix="€" placeholder={o.prix && o.apport != null ? (o.prix - o.apport).toLocaleString("fr-FR") : "Le solde"} />
+                      </Field>
+                    )}
+                    {o.financement === "pret" && (
+                      <Field label="Durée (facultatif)">
+                        <NumInput value={o.dureePret} onChange={(v) => set({ dureePret: v })} suffix="ans" />
+                      </Field>
+                    )}
+                    {o.financement === "pret" && (
+                      <Field label="Taux maximum (facultatif)">
+                        <TauxInput value={o.tauxMax} onChange={(v) => set({ tauxMax: v })} />
+                      </Field>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-xl border border-line p-3">
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -351,7 +367,7 @@ export default function OffreAchatPage() {
           titre={`Demander à ${nomComplet(demande.p)}`}
           to={demande.p.email}
           tel={demande.p.tel}
-          {...mailDemande(demande.p, b, demande.role, o.financement === "pret")}
+          {...mailDemande(demande.p, b, demande.role, o.financement === "pret" && detailFinancement(o))}
         />
       )}
     </div>
