@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge, Card, DpeBadge, Empty, Field, Sheet, Spinner, cx } from "@/components/ui";
 import { ContactCarte, ContactPicker, Fourchette, VenteItem } from "@/components/estimations/blocks";
 import { Choix, Nombre } from "@/components/estimations/controls";
+import { AvisComplements } from "@/components/estimations/AvisComplements";
 import {
   CONFIANCE_TONE,
   ETAT_LABEL,
@@ -295,6 +296,8 @@ export default function EstimationPage() {
               </div>
             )}
           </Card>
+
+          <AvisComplements e={e} bien={bien} proprio={proprio} maj={maj} />
         </div>
 
         {/* Colonne latérale */}

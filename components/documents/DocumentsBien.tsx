@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Eye, FileSignature, FileText, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, Eye, FileSignature, FileText, Pencil, Scale, Trash2 } from "lucide-react";
 import { Badge, Card, Empty, Sheet } from "@/components/ui";
-import { STATUT_BIEN, dateCourte } from "@/lib/format";
+import { STATUT_BIEN, dateCourte, eur } from "@/lib/format";
+import { useCollection } from "@/lib/store";
+import { STATUT_ESTIM } from "@/components/estimations/shared";
 import type { BienStatut } from "@/lib/types";
 import { ecrireOffre } from "@/components/offre/offre";
 import { ecrireMandat } from "@/components/mandat/mandat";
@@ -17,6 +19,9 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
   const actes = [...(bien.actes ?? [])].sort((a, b) => b.maj.localeCompare(a.maj));
   const [choix, setChoix] = useState<Acte | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const { items: toutes } = useCollection("estimations");
+  const estimations = toutes.filter((x) => x.bienId === bien.id).sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+  const total = actes.length + estimations.length;
 
   const modifier = (a: Acte) => {
     if (a.kind === "offre") ecrireOffre(a.data);
@@ -30,12 +35,12 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
   };
 
   return (
-    <Card title={`Documents${actes.length ? ` (${actes.length})` : ""}`} pad={false}>
+    <Card title={`Documents${total ? ` (${total})` : ""}`} pad={false}>
       {info && <p className="mx-4 sm:mx-5 mt-3 rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">{info}</p>}
-      {!actes.length ? (
+      {!total ? (
         <Empty
           title="Aucun document pour l'instant"
-          text="Les offres d'achat et les mandats rédigés depuis cette fiche sont gardés ici, avec leur statut."
+          text="Les offres d'achat, les mandats et les avis de valeur de ce bien sont gardés ici, avec leur statut."
           action={
             <Link href={`/biens/${bien.id}/offre`} className="btn-secondary btn-sm">
               <FileSignature size={14} /> Rédiger une offre d&apos;achat
@@ -74,6 +79,35 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                   <button className="btn-ghost btn-sm" onClick={() => modifier(a)}>
                     <Pencil size={14} /> Modifier
                   </button>
+                </div>
+              </li>
+            );
+          })}
+          {estimations.map((x) => {
+            const prix = x.prixConseille ?? x.resultat?.median;
+            return (
+              <li key={x.id} className="px-4 sm:px-5 py-3.5">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-accent">
+                    <Scale size={17} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium leading-snug">Avis de valeur</div>
+                    <div className="mt-0.5 text-xs text-muted">
+                      {prix ? `${eur(prix)} · ` : ""}estimé le {dateCourte(x.createdAt)}
+                    </div>
+                    <div className="mt-2">
+                      <Badge tone={STATUT_ESTIM[x.statut].tone}>{STATUT_ESTIM[x.statut].label}</Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-2 pl-12">
+                  <Link href={`/imprimer/estimation/${x.id}`} className="btn-secondary btn-sm">
+                    <Eye size={14} /> Voir le PDF
+                  </Link>
+                  <Link href={`/estimations/${x.id}#avis`} className="btn-ghost btn-sm">
+                    <Pencil size={14} /> Modifier
+                  </Link>
                 </div>
               </li>
             );
