@@ -31,6 +31,12 @@ const nombre = (s?: string) => (s ? Number(s.replace(/[^\d,]/g, "").replace(",",
 const BRUIT = /cookie|disque dur|navigat|votre terminal|agence patrim|05[ .]?61[ .]?99[ .]?08|mentions l[ée]gales|confidentialit/i;
 const utile = (t?: string) => !!t && !BRUIT.test(t.slice(0, 90));
 
+const CHIFFRES: Record<string, number> = { une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
+function compteChambres(texte?: string) {
+  const m = texte?.match(/\b(\d|une|deux|trois|quatre|cinq|six)\s+(?:(?:belles?|grandes?|vastes?|spacieuses?)\s+)?chambres?\b/i);
+  return m ? (CHIFFRES[m[1].toLowerCase()] ?? Number(m[1])) : undefined;
+}
+
 /** Quartier tiré de l'en-tête de la description : « APPARTEMENT DE PRESTIGE - ESQUIROL / rue des Marchands » → « Esquirol ». */
 function quartierDe(entete?: string) {
   if (!entete) return undefined;
@@ -64,6 +70,10 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
     const quartier = quartierDe(description?.match(/^([^:]{3,60}?)\s*:/)?.[1]);
     const dpe = html.match(/dpe-([A-G])-\d+-([A-G])/i);
     const nb = (re: RegExp) => Number(texte.match(re)?.[1]) || undefined;
+    const pieces = nb(/(\d+)\s*pi[eè]ces?/i);
+    // « 2 chambres » dans le texte de l'annonce, sinon « Chambres : 2 » ; jamais « chambre 1 » (nom d'une pièce)
+    let chambres = compteChambres(description) ?? nb(/chambres?\s*:\s*(\d+)/i);
+    if (chambres !== undefined && pieces !== undefined && chambres >= pieces) chambres = undefined;
     const photos = photosDansPage(html);
     if (!photos.length) {
       const i = html.search(/photo/i);
@@ -80,8 +90,8 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
       netVendeur: nombre(net),
       quartier,
       description,
-      pieces: nb(/(\d+)\s*pi[eè]ces?/i),
-      chambres: nb(/chambres?\s*:?\s*(\d+)/i) ?? nb(/(\d+)\s*chambres?/i),
+      pieces,
+      chambres,
       etage: nb(/[ée]tage\s*:?\s*(\d+)/i),
       ascenseur: /ascenseur\s*:?\s*oui/i.test(texte) || undefined,
       dpe: dpe?.[1]?.toUpperCase(),
