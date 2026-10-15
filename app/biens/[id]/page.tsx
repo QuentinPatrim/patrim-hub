@@ -40,6 +40,7 @@ import { basculerPoint, dossierDe, reglesDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
 import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
+import { DiagnosticsFiche } from "@/components/diagnostics/DiagnosticsFiche";
 import { aPrevenir, suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
 import type { BienActes } from "@/components/documents/archive";
 import { STATUTS, acquereursCompatibles, adresseComplete, champsACompleter, joursDepuis, mailHref, mapsHref, prixM2, telHref } from "@/components/biens/utils";
@@ -376,6 +377,8 @@ export default function BienPage() {
           </Card>
 
           <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />
+
+          <DiagnosticsFiche b={b} />
 
           <DossierBlock
             dossier={dossierDe(b)}

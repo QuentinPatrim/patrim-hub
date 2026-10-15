@@ -14,6 +14,8 @@ import { AGENCE, telActe } from "@/components/documents/charte";
 import { TYPES_MANDAT } from "@/components/mandat/mandat";
 import { CHAMPS, dateLettres, designationDepuisBien, detailFinancement, ne, nomOffre, partieDepuisContact, type Champ, type ContactEtatCivil, type Offre, type Partie } from "@/components/offre/offre";
 import type { Acte } from "@/components/documents/archive";
+import { diagnosticsSuivis, resumeDiagnostics } from "@/components/diagnostics/diagnostics";
+import { today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 
 /** Pour les vendeurs, le notaire a l'état civil par le titre : nom et coordonnées suffisent. */
@@ -135,7 +137,8 @@ export function transmissionInitiale(b: Bien, vendeurs: ContactEtatCivil[], acte
     bien: [acte?.data.designation || designationDepuisBien(b), d?.copropriete && `Copropriété : ${d.copropriete}`, d?.lots && `Lots : ${d.lots}`].filter(Boolean).join("\n"),
     copropriete: [d?.syndic && `Syndic : ${d.syndic}`, d?.charges && `Charges : ${d.charges}`].filter(Boolean).join("\n"),
     occupation: d?.occupation ?? "",
-    diagnostics: [d?.ddt, d?.dpe && `DPE : ${d.dpe}`].filter(Boolean).join("\n"),
+    // Dates saisies dans « Diagnostics » quand il y en a, sinon ce que dit le dossier.
+    diagnostics: [d?.ddt, diagnosticsSuivis(b) ? resumeDiagnostics(b, today()) : d?.dpe && `DPE : ${d.dpe}`].filter(Boolean).join("\n"),
     attention: "",
     pieces: (["offre", "mandat", "identite", "ddt"] as ClePiece[]).concat(copro ? ["copro", "charges"] : [], b.taxeFonciere || d?.taxeFonciere ? ["tf"] : [], loue ? ["bail"] : []),
     confrere: false,

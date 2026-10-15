@@ -2,6 +2,7 @@ import type { Bien, Briefing, Contact, Estimation, Rdv, Tache } from "./types";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore } from "./matching";
 import { alertesMandats, registre } from "@/components/mandats/registre";
 import { aPrevenir, baisseRecente } from "@/components/baisse/baisse";
+import { diagnosticsSuivis, statutsDiags } from "@/components/diagnostics/diagnostics";
 
 /* ============================================================
    Agent de nuit : analyse tout le portefeuille et prépare le
@@ -108,14 +109,27 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
   for (const a of alertesMandats(registre(d.biens, now)).filter((a) => a.code === "doublon" || a.code === "expire" || a.code === "bientot"))
     points.push({ type: "alerte", titre: a.titre, detail: a.detail, lien: a.bienIds.length === 1 ? { kind: "bien", id: a.bienIds[0] } : { kind: "page", id: "mandats" } });
 
-  // 7. Visites passées sans compte rendu
+  // 7. Diagnostics expirés, ou qui expirent dans le mois ou avant la signature prévue (biens dont les dates sont saisies)
+  for (const b of d.biens.filter((x) => ["en_vente", "mandat_signe", "sous_offre", "compromis"].includes(x.statut) && diagnosticsSuivis(x))) {
+    const vente = b.statut === "sous_offre" || b.statut === "compromis";
+    const pb = statutsDiags(b, today).filter((s) => s.etat === "expire" || s.etat === "avantSignature" || s.etat === "bientot" || (vente && s.etat === "manquant"));
+    if (pb.length)
+      points.push({
+        type: "alerte",
+        titre: `Diagnostics de ${b.titre || b.adresse} : ${pb.map((s) => s.label).join(", ")}`,
+        detail: pb.map((s) => `${s.label} : ${s.texte}`).join(" · "),
+        lien: { kind: "bien", id: b.id },
+      });
+  }
+
+  // 8. Visites passées sans compte rendu
   d.rdvs
     .filter((r) => r.type === "visite" && r.statut === "prevu" && new Date(r.debut) < now && jours(r.debut, now.getTime()) <= 14)
     .forEach((r) => {
       points.push({ type: "relance", titre: "Visite sans compte rendu", detail: `Visite du ${ymd(new Date(r.debut))} : noter le retour du client et la suite.`, lien: { kind: "rdv", id: r.id } });
     });
 
-  // 8. Estimations envoyées sans suite depuis 10 jours
+  // 9. Estimations envoyées sans suite depuis 10 jours
   d.estimations
     .filter((e) => e.statut === "envoyee" && jours(e.updatedAt, now.getTime()) >= 10)
     .forEach((e) => {
