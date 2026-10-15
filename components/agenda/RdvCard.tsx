@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Ban, CalendarPlus, CircleCheck, ClipboardCheck, MapPin, MessageCircle, Navigation, Pencil, Phone, RotateCcw, Send, Star } from "lucide-react";
+import { Ban, CalendarPlus, CircleCheck, ClipboardCheck, MapPin, MessageCircle, Navigation, Pencil, Phone, RotateCcw, Send, Signature, Star } from "lucide-react";
 import { Avatar, Badge, Sheet, cx } from "@/components/ui";
 import { BienCover } from "@/components/biens/BienVisual";
 import { mailHref, mapsHref, smsHref, telHref, waHref } from "@/components/biens/utils";
+import { bonDuRdv } from "@/components/bon/bon";
 import { update } from "@/lib/store";
 import { RDV_TYPE, dateCourte, heure, initiales, nomComplet } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
@@ -33,6 +34,7 @@ export function RdvCard({
   const aFaire = crAFaire(r);
   const enCours = !annule && new Date(r.debut).getTime() <= Date.now() && finDe(r).getTime() >= Date.now();
   const suiteKey = r.crDetail?.suite;
+  const bonSigne = bonDuRdv(bien, r.id)?.statut === "signe";
 
   return (
     <article className={cx("card overflow-hidden transition", annule && "opacity-60", enCours && "ring-2 ring-accent/40")}>
@@ -108,6 +110,11 @@ export function RdvCard({
           <button onClick={onCompteRendu} className={cx("btn-sm btn shrink-0", aFaire ? "bg-brand text-white hover:bg-brand-light" : "btn-ghost")}>
             <ClipboardCheck size={14} /> {r.compteRendu || r.avisClient ? "Voir le compte rendu" : "Compte rendu"}
           </button>
+        )}
+        {r.type === "visite" && !annule && (
+          <Link href={`/agenda/bon/${r.id}`} className={cx("btn-ghost btn-sm shrink-0", bonSigne && "text-ok")}>
+            {bonSigne ? <CircleCheck size={14} /> : <Signature size={14} />} {bonSigne ? "Bon signé" : "Bon de visite"}
+          </Link>
         )}
         {lieu && r.type !== "appel" && (
           <a href={mapsHref(lieu)} target="_blank" rel="noreferrer" className="btn-ghost btn-sm shrink-0">
