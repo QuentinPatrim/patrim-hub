@@ -39,6 +39,8 @@ import { pointAvenant } from "@/components/avenant/avenant";
 import { basculerPoint, dossierDe, reglesDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
+import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
+import { aPrevenir, suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
 import type { BienActes } from "@/components/documents/archive";
 import { STATUTS, acquereursCompatibles, adresseComplete, champsACompleter, joursDepuis, mailHref, mapsHref, prixM2, telHref } from "@/components/biens/utils";
 import { RdvForm, type RdvInitial } from "@/components/agenda/RdvForm";
@@ -101,6 +103,7 @@ export default function BienPage() {
   const rdvs = rdvsRaw as RdvExt[];
   const visites = useMemo(() => rdvs.filter((r) => r.bienId === id).sort((a, c) => c.debut.localeCompare(a.debut)), [rdvs, id]);
   const matches = useMemo(() => (b ? acquereursCompatibles(b, contacts) : []), [b, contacts]);
+  const restantsBaisse = useMemo(() => (b ? aPrevenir(b as BienBaisse, contacts, rdvs).length : 0), [b, contacts, rdvs]);
   const contactMap = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
   const vendeurs = (b?.vendeurIds ?? []).map((v) => contactMap.get(v)).filter(Boolean) as Contact[];
   const nbProposes = contacts.filter((c) => c.biensProposes?.includes(id)).length;
@@ -137,7 +140,9 @@ export default function BienPage() {
           initial={b}
           onCancel={() => setEditing(false)}
           onSubmit={(d) => {
-            update(finaliserBien(d));
+            const f = finaliserBien(d);
+            // Prix en baisse : la fiche propose ensuite de prévenir les acquéreurs.
+            update({ ...f, ...suiviBaisse(b, f.prix, today()) });
             setEditing(false);
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
@@ -205,6 +210,7 @@ export default function BienPage() {
             {pm2 ? `${eur(pm2)} / m²` : ""}
             {b.prix && b.honorairesCharge ? ` · honoraires à la charge ${b.honorairesCharge === "acquereur" ? "de l'acquéreur" : "du vendeur"}` : ""}
           </div>
+          <BaisseEnTete b={b} restants={restantsBaisse} />
         </div>
       </header>
 
@@ -366,6 +372,7 @@ export default function BienPage() {
                 }
               />
             </dl>
+            <BaisseFiche b={b} restants={restantsBaisse} />
           </Card>
 
           <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />

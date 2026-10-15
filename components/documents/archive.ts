@@ -9,12 +9,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getAll, uid, update, useDoc } from "@/lib/store";
-import { eur } from "@/lib/format";
+import { eur, today } from "@/lib/format";
 import type { Bien, BienStatut } from "@/lib/types";
 import { nomOffre, type Offre } from "@/components/offre/offre";
 import { titreMandat, type Mandat } from "@/components/mandat/mandat";
 import { pointAvenant, prixPresentation, titreAvenant, type Avenant } from "@/components/avenant/avenant";
 import { basculerPoint, clePoint, dossierDe, reglesDe, type BienDossier } from "@/components/biens/dossier";
+import { suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
 
 export type ActeKind = "offre" | "mandat" | "avenant";
 export type ActeStatut = "brouillon" | "envoye" | "signe" | "refuse";
@@ -111,7 +112,7 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
   const actes = (b.actes ?? []).map((a) => (a.id === acteId ? ({ ...a, statut, maj: new Date().toISOString() } as Acte) : a));
   const acte = actes.find((a) => a.id === acteId);
   if (!acte) return;
-  const patch: Partial<BienActes & BienDossier> = { actes };
+  const patch: Partial<BienActes & BienDossier & BienBaisse> = { actes };
 
   if (acte.kind === "offre") {
     const uneAcceptee = actes.some((a) => a.kind === "offre" && a.statut === "signe");
@@ -124,6 +125,8 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
       if (n.honoraires != null) {
         patch.honoraires = n.honoraires;
         patch.prix = n.netVendeur + n.honoraires;
+        // Prix en baisse : la fiche propose ensuite de prévenir les acquéreurs.
+        Object.assign(patch, suiviBaisse(b, patch.prix, today()));
       }
       patch.honorairesCharge = n.charge;
     }

@@ -1,6 +1,7 @@
 import type { Bien, Briefing, Contact, Estimation, Rdv, Tache } from "./types";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore } from "./matching";
 import { alertesMandats, registre } from "@/components/mandats/registre";
+import { aPrevenir, baisseRecente } from "@/components/baisse/baisse";
 
 /* ============================================================
    Agent de nuit : analyse tout le portefeuille et prépare le
@@ -56,8 +57,25 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     .slice(0, 6)
     .forEach((c) => points.push({ type: "relance", titre: `${nom(c)} est chaud mais sans nouvelles depuis ${jours(c.dernierContact ?? c.updatedAt, now.getTime())} jours`, lien: { kind: "contact", id: c.id } }));
 
-  // 3. Rapprochements : biens compatibles pas encore proposés
+  // 3. Baisse de prix récente pas encore annoncée (visites, bien déjà proposé, budgets compatibles)
+  const baisses = new Set<string>();
   for (const b of biensDispo) {
+    if (!baisseRecente(b, now.getTime())) continue;
+    const restants = aPrevenir(b, d.contacts, d.rdvs, now.getTime());
+    if (!restants.length) continue;
+    baisses.add(b.id);
+    points.push({
+      type: "matching",
+      titre: `${b.titre || b.adresse} : baisse de prix à annoncer à ${restants.length} acquéreur${restants.length > 1 ? "s" : ""}`,
+      detail: restants.slice(0, 5).map((x) => nom(x.c)).join(", ") + (restants.length > 5 ? "…" : ""),
+      lien: { kind: "bien", id: b.id },
+    });
+    ajouterTache({ titre: `Annoncer la baisse de prix : ${b.titre || b.adresse}`, echeance: today, fait: false, priorite: 1, lien: { kind: "bien", id: b.id }, origine: "agent" });
+  }
+
+  // 4. Rapprochements : biens compatibles pas encore proposés (déjà dans la baisse à annoncer sinon)
+  for (const b of biensDispo) {
+    if (baisses.has(b.id)) continue;
     const nouveaux = acquereurs
       .map((c) => ({ c, m: matchScore(c, b) }))
       .filter(({ c, m }) => m.score >= 70 && !m.bloquants.length && !c.biensProposes?.includes(b.id))
@@ -72,7 +90,7 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
       });
   }
 
-  // 4. Mandats qui s'essoufflent : en vente depuis 45 j sans visite depuis 21 j
+  // 5. Mandats qui s'essoufflent : en vente depuis 45 j sans visite depuis 21 j
   for (const b of biensDispo) {
     const depuis = jours(b.dateMiseEnVente ?? b.createdAt, now.getTime());
     const visites = d.rdvs.filter((r) => r.bienId === b.id && r.type === "visite" && r.statut !== "annule");
@@ -86,18 +104,18 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     if (manque.length >= 2) points.push({ type: "alerte", titre: `Fiche à compléter : ${b.titre || b.adresse}`, detail: `Manque : ${manque.join(", ")}. Les acquéreurs posent ces questions en premier.`, lien: { kind: "bien", id: b.id } });
   }
 
-  // 5. Registre des mandats : numéro en double, mandat expiré ou bientôt fini (les dates manquantes restent dans le registre)
+  // 6. Registre des mandats : numéro en double, mandat expiré ou bientôt fini (les dates manquantes restent dans le registre)
   for (const a of alertesMandats(registre(d.biens, now)).filter((a) => a.code === "doublon" || a.code === "expire" || a.code === "bientot"))
     points.push({ type: "alerte", titre: a.titre, detail: a.detail, lien: a.bienIds.length === 1 ? { kind: "bien", id: a.bienIds[0] } : { kind: "page", id: "mandats" } });
 
-  // 6. Visites passées sans compte rendu
+  // 7. Visites passées sans compte rendu
   d.rdvs
     .filter((r) => r.type === "visite" && r.statut === "prevu" && new Date(r.debut) < now && jours(r.debut, now.getTime()) <= 14)
     .forEach((r) => {
       points.push({ type: "relance", titre: "Visite sans compte rendu", detail: `Visite du ${ymd(new Date(r.debut))} : noter le retour du client et la suite.`, lien: { kind: "rdv", id: r.id } });
     });
 
-  // 7. Estimations envoyées sans suite depuis 10 jours
+  // 8. Estimations envoyées sans suite depuis 10 jours
   d.estimations
     .filter((e) => e.statut === "envoyee" && jours(e.updatedAt, now.getTime()) >= 10)
     .forEach((e) => {
