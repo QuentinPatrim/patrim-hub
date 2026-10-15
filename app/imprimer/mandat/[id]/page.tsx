@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
-import { C, MENTIONS, montantComplet } from "@/components/documents/charte";
+import { C, MENTIONS, montantComplet, telActe } from "@/components/documents/charte";
 import { ACTE_PRINT_CSS, Pagine, Case, Section, Texte, ou } from "@/components/documents/blocs";
 import { dateLettres, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
-import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, dureeLettres, lireMandat, type Mandat } from "@/components/mandat/mandat";
+import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, avecExclusivite, dureeLettres, lireMandat, titreMandat, typeMandat, type Mandat } from "@/components/mandat/mandat";
 
 /* ============================================================
-   Mandat de vente simple PATRIM, prêt à « Enregistrer en PDF »
-   puis à déposer sur ICSIGN. Texte du modèle de l'agence.
+   Mandat de vente PATRIM (simple, semi-exclusif ou exclusif), prêt à
+   « Enregistrer en PDF » puis à déposer sur ICSIGN. Texte du modèle
+   de l'agence ; clauses d'exclusivité selon l'article 78 du décret
+   n° 72-678 du 20 juillet 1972.
    ============================================================ */
 
 const SOCIETE = {
@@ -39,7 +41,7 @@ export default function MandatPdf() {
   useEffect(() => {
     if (!m) return;
     const prev = document.title;
-    document.title = `Mandat de vente simple ${m.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim();
+    document.title = `${titreMandat(m)} ${m.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim();
     return () => {
       document.title = prev;
     };
@@ -61,7 +63,8 @@ export default function MandatPdf() {
   const plusieurs = m.mandants.length > 1;
   const nous = (pl: string, sg: string) => (plusieurs ? pl : sg);
   const nbManquants =
-    m.mandants.reduce((n, p) => n + manquants(p, CHAMPS_MANDAT).length, 0) + (m.netVendeur ? 0 : 1) + (m.honoraires != null ? 0 : 1) + (m.numero ? 0 : 1) + (m.signataire.email && m.signataire.tel ? 0 : 1);
+    m.mandants.reduce((n, p) => n + manquants(p, CHAMPS_MANDAT).length, 0) + (m.netVendeur ? 0 : 1) + (m.honoraires != null ? 0 : 1) + (m.numero ? 0 : 1) + (m.signataire.email && m.signataire.tel ? 0 : 1) +
+    (avecExclusivite(m) ? (m.actions?.trim() ? 0 : 1) + (m.comptesRendus?.trim() ? 0 : 1) : 0);
   const signataires: { nom: string; email?: string; tel?: string }[] = [...m.mandants.map((p) => ({ nom: nomOffre(p), email: p.email, tel: p.tel })), { nom: m.signataire.nom, email: m.signataire.email, tel: m.signataire.tel }];
 
   return (
@@ -109,7 +112,7 @@ export default function MandatPdf() {
             <div>
               <div className="h-[3px] w-[16mm]" style={{ background: C.coral }} />
               <h1 className="mt-[4mm] font-serif text-[30pt] font-semibold leading-[1.05]" style={{ color: C.brand }}>
-                Mandat de vente simple
+                {titreMandat(m).replace(/ (\S+)$/, "")} <span className="whitespace-nowrap">{titreMandat(m).split(" ").pop()}</span>
               </h1>
               <div className="mt-[2mm] text-[8.5pt] leading-snug" style={{ color: C.muted }}>
                 Articles 1984 et suivants du Code civil · Articles 64 et 65 du décret du 20 juillet 1972 fixant les conditions d&apos;application de la loi du 2 janvier 1970
@@ -134,7 +137,8 @@ export default function MandatPdf() {
                 {!m.mandants.length && ou(undefined, "vendeur")}
               </div>
               <P className="mt-[2.5mm]">
-                {m.qualite ? <Texte t={m.qualite} /> : ou(undefined, "qualité")}, {nous("vous mandatons", "vous mandate")} par la présente afin de rechercher un acquéreur et faire toutes les démarches en vue de vendre les biens et droits ci-dessous désignés,{" "}
+                {m.qualite ? <Texte t={m.qualite} /> : ou(undefined, "qualité")}, {nous("vous mandatons", "vous mandate")} par la présente
+                {typeMandat(m) === "exclusif" ? ", à titre exclusif," : typeMandat(m) === "semi_exclusif" ? ", à titre semi-exclusif," : ""} afin de rechercher un acquéreur et faire toutes les démarches en vue de vendre les biens et droits ci-dessous désignés,{" "}
                 {nous("nous engageant", "m'engageant")} à produire toutes justifications de propriété.
               </P>
               <P>Dénommé ci-après « LE MANDANT » d&apos;une part,</P>
@@ -220,11 +224,11 @@ export default function MandatPdf() {
             </Section>
 
             <Section num="VII" titre="Actions particulières">
-              <P className="whitespace-pre-line">{m.actions?.trim() || "Néant."}</P>
+              <P className="whitespace-pre-line">{m.actions?.trim() || (avecExclusivite(m) ? ou(undefined, "actions de l'agence") : "Néant.")}</P>
             </Section>
 
             <Section num="VIII" titre="Modalités de comptes rendus">
-              <P>{m.comptesRendus?.trim() || "Néant."}</P>
+              <P>{m.comptesRendus?.trim() || (avecExclusivite(m) ? ou(undefined, "comptes rendus") : "Néant.")}</P>
             </Section>
 
             <Section num="IX" titre="Dossier de diagnostic technique">
@@ -248,14 +252,33 @@ export default function MandatPdf() {
 
             <Section num="XI" titre="Durée du mandat">
               <P className="font-semibold uppercase text-[9pt]">
-                Ce mandat vous est consenti pour une durée de {dureeLettres(m.dureeMois)} mois ({m.dureeMois}) prenant effet ce jour{m.date ? `, ${dateLettres(m.date)}` : ""}, dont le premier mois est
-                irrévocable. Au terme de cette période d&apos;irrévocabilité, le mandat pourra être dénoncé à tout moment par chacune des parties, à charge pour celle qui entend y mettre fin d&apos;en aviser
+                Ce mandat vous est consenti pour une durée de {dureeLettres(m.dureeMois)} mois ({m.dureeMois}) prenant effet ce jour{m.date ? `, ${dateLettres(m.date)}` : ""}, dont{" "}
+                {avecExclusivite(m) ? "les trois premiers mois sont irrévocables" : "le premier mois est irrévocable"}. Au terme de cette période d&apos;irrévocabilité, le mandat pourra être dénoncé à tout moment par chacune des parties, à charge pour celle qui entend y mettre fin d&apos;en aviser
                 l&apos;autre partie quinze jours à l&apos;avance par lettre recommandée avec avis de réception.
               </P>
               <P>Les prescriptions de l&apos;article L 136-1 recodifié à l&apos;article L 215-1 du code de la consommation ne sont pas applicables au présent contrat.</P>
             </Section>
 
             <Section num="XII" titre="Obligations du mandant">
+              {typeMandat(m) === "exclusif" && (
+                <div className="acte-bloc mb-[2.5mm] rounded-[2.5mm] border-[0.4mm] px-[5mm] py-[3mm] text-[9pt] font-semibold uppercase" style={{ borderColor: C.brand }}>
+                  Clause d&apos;exclusivité : pendant toute la durée du présent mandat, {nous("nous nous interdisons", "je m'interdis")} de négocier ou de vendre, directement ou par
+                  l&apos;intermédiaire d&apos;un autre mandataire, les biens objet des présentes. {nous("Nous nous engageons", "Je m'engage")} à diriger vers le mandataire toutes les demandes qui{" "}
+                  {nous("nous", "me")} seraient adressées directement. Clause pénale : en cas de manquement à cette obligation, {nous("nous vous règlerons", "je vous règlerai")} une indemnité
+                  compensatrice forfaitaire d&apos;un montant égal à la rémunération convenue au présent mandat (article 78 du décret n° 72-678 du 20 juillet 1972).
+                </div>
+              )}
+              {typeMandat(m) === "semi_exclusif" && (
+                <div className="acte-bloc mb-[2.5mm] rounded-[2.5mm] border-[0.4mm] px-[5mm] py-[3mm] text-[9pt] font-semibold uppercase" style={{ borderColor: C.brand }}>
+                  Clause de semi-exclusivité : pendant toute la durée du présent mandat, {nous("nous nous interdisons", "je m'interdis")} de confier la vente des biens objet des présentes à
+                  un autre intermédiaire. {nous("Nous conservons", "Je conserve")} toutefois la faculté de vendre directement, sans intermédiaire, à un acquéreur trouvé par{" "}
+                  {nous("nos", "mes")} propres moyens et qui ne {nous("nous", "m'")}
+                  {plusieurs ? " " : ""}aurait pas été présenté par le mandataire, à un prix net vendeur qui ne pourra être inférieur à celui fixé aux présentes, à charge d&apos;en informer le
+                  mandataire sans délai par lettre recommandée avec avis de réception, en lui indiquant les coordonnées de l&apos;acquéreur et du notaire chargé de la vente ; dans ce cas, aucune
+                  rémunération ne sera due au mandataire. Clause pénale : en cas de manquement à ces obligations, {nous("nous vous règlerons", "je vous règlerai")} une indemnité compensatrice
+                  forfaitaire d&apos;un montant égal à la rémunération convenue au présent mandat (article 78 du décret n° 72-678 du 20 juillet 1972).
+                </div>
+              )}
               <P>
                 Pendant une période de deux ans après expiration du mandat, {nous("nous nous interdisons", "je m'interdis")} de vendre sans votre concours, y compris par un autre intermédiaire, à un
                 acquéreur qui {nous("nous", "m'")}
@@ -395,7 +418,7 @@ export default function MandatPdf() {
                       </span>
                     </span>
                     <span className="tabular-nums">
-                      {ou(s.email, "e-mail")} / {ou(s.tel, "portable")}
+                      {ou(s.email, "e-mail")} / {ou(telActe(s.tel), "portable")}
                     </span>
                   </div>
                 ))}
@@ -441,7 +464,7 @@ export default function MandatPdf() {
             </section>
           </div>
 
-          <footer className="px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
+          <footer className="no-print px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
             {MENTIONS}
           </footer>
           </Pagine>
@@ -461,7 +484,7 @@ function Mandant({ p }: { p: Partie }) {
         {ou(p.lieuNaissance, "lieu de naissance")}.
       </p>
       <p className="text-[9pt]" style={{ color: C.slate }}>
-        Profession : {ou(p.profession, "profession")} · Portable : {ou(p.tel, "portable")} · Mail : {ou(p.email, "e-mail")}
+        Profession : {ou(p.profession, "profession")} · Portable : {ou(telActe(p.tel), "portable")} · Mail : {ou(p.email, "e-mail")}
       </p>
     </div>
   );

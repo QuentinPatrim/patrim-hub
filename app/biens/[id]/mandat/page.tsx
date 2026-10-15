@@ -12,12 +12,12 @@ import { PickChip, Toggle } from "@/components/contacts/bits";
 import { EtapeBtn, Etat, PartieForm } from "@/components/documents/Parties";
 import { enLettres } from "@/components/documents/charte";
 import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
-import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, ecrireMandat, effacerMandat, lireMandat, mailDemandeMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
+import { ACTIONS_EXCLU, CHAMPS_MANDAT, COMPTES_RENDUS_EXCLU, DIAGNOSTICS, NATURES, TYPES_MANDAT, avecExclusivite, typeMandat, ecrireMandat, effacerMandat, lireMandat, mailDemandeMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
 import { useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 
 /* ============================================================
-   Rédiger un mandat de vente simple : 1. les mandants (ce qui
+   Rédiger un mandat de vente (simple, semi-exclusif ou exclusif) : 1. les mandants (ce qui
    manque, mail de demande), 2. la rédaction, puis le PDF PATRIM
    prêt à déposer sur ICSIGN.
    ============================================================ */
@@ -128,6 +128,29 @@ export default function MandatPage() {
           </Card>
 
           <Card title="Le mandat">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {TYPES_MANDAT.map((t) => (
+                <PickChip
+                  key={t.v}
+                  active={typeMandat(m) === t.v}
+                  onClick={() =>
+                    set({
+                      type: t.v,
+                      ...(t.v !== "simple" ? { actions: m.actions?.trim() ? m.actions : ACTIONS_EXCLU, comptesRendus: m.comptesRendus?.trim() ? m.comptesRendus : COMPTES_RENDUS_EXCLU } : {}),
+                    })
+                  }
+                >
+                  {t.label}
+                </PickChip>
+              ))}
+            </div>
+            <p className="mb-3 text-xs text-muted">
+              {typeMandat(m) === "exclusif"
+                ? "Le vendeur ne peut ni vendre lui-même ni passer par une autre agence pendant le mandat. Trois premiers mois irrévocables."
+                : typeMandat(m) === "semi_exclusif"
+                  ? "Le vendeur peut vendre lui-même à un acquéreur qu'il a trouvé, mais pas par une autre agence. Trois premiers mois irrévocables."
+                  : "Le vendeur reste libre de vendre lui-même ou par d'autres agences. Premier mois irrévocable."}
+            </p>
             <div className="grid grid-cols-2 items-end gap-3">
               <Field label="N° de mandat">
                 <input className="input" inputMode="numeric" value={m.numero ?? ""} onChange={(e) => set({ numero: e.target.value })} />
@@ -226,10 +249,10 @@ export default function MandatPage() {
               <Field label="Moyens de diffusion des annonces">
                 <input className="input" value={m.diffusion} onChange={(e) => set({ diffusion: e.target.value })} />
               </Field>
-              <Field label="Actions particulières (facultatif)">
+              <Field label={avecExclusivite(m) ? "Actions de l'agence (obligatoire en exclusivité)" : "Actions particulières (facultatif)"}>
                 <textarea className="input min-h-[70px] text-sm" value={m.actions ?? ""} onChange={(e) => set({ actions: e.target.value })} placeholder="Ex. visite virtuelle, reel Instagram, mise en avant sur les portails…" />
               </Field>
-              <Field label="Modalités de comptes rendus (facultatif)">
+              <Field label={avecExclusivite(m) ? "Comptes rendus au vendeur (obligatoire en exclusivité)" : "Modalités de comptes rendus (facultatif)"}>
                 <input className="input" value={m.comptesRendus ?? ""} onChange={(e) => set({ comptesRendus: e.target.value })} placeholder="Ex. point hebdomadaire par e-mail" />
               </Field>
               <Field label="Conditions particulières (facultatif)">

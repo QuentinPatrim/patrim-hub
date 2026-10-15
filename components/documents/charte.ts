@@ -79,3 +79,13 @@ export function enLettres(n: number): string {
 /** 115000 → « cent quinze mille euros (115 000,00 €) » */
 export const montantComplet = (n: number) =>
   `${enLettres(n)} euros (${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €)`;
+
+/** Numéro de téléphone au format des actes : 06.12.34.56.78, quelle que soit la saisie (espaces, points, virgules, +33…). */
+export function telActe(t?: string): string | undefined {
+  if (!t?.trim()) return undefined;
+  let d = t.replace(/\D/g, "");
+  if (d.startsWith("0033")) d = d.slice(4);
+  else if (d.startsWith("33") && d.length === 11) d = d.slice(2);
+  if (d.length === 9) d = "0" + d;
+  return d.length === 10 ? d.match(/../g)!.join(".") : t.trim();
+}

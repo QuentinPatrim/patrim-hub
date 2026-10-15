@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
-import { AGENCE, C, MENTIONS, enLettres, montantComplet } from "@/components/documents/charte";
+import { AGENCE, C, MENTIONS, enLettres, montantComplet, telActe } from "@/components/documents/charte";
 import { ACTE_PRINT_CSS, Pagine, Section, Texte, Trou, ou } from "@/components/documents/blocs";
 import { dateLettres, detailFinancement, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
 
@@ -265,7 +265,7 @@ export default function OffrePdf() {
                       </span>
                     </span>
                     <span className="tabular-nums">
-                      {ou(p.email, "e-mail")} / {ou(p.tel, "portable")}
+                      {ou(p.email, "e-mail")} / {ou(telActe(p.tel), "portable")}
                     </span>
                   </div>
                 ))}
@@ -284,8 +284,8 @@ export default function OffrePdf() {
             </p>
           </div>
 
-          {/* Mentions de l'agence (à l'impression, <Pagine> répète un rappel court en bas de chaque page) */}
-          <footer className="offre-footer px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
+          {/* Mentions de l'agence : à l'impression, <Pagine> les répète en bas de chaque page */}
+          <footer className="no-print px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
             {MENTIONS}
           </footer>
           </Pagine>

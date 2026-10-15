@@ -10,7 +10,7 @@ import { adresseComplete } from "@/components/biens/utils";
 import { AGENCE } from "@/components/documents/charte";
 import { CHAMPS, civiliteLongue, manquants, partieDepuisContact, type Champ, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { today } from "@/lib/format";
-import type { Bien } from "@/lib/types";
+import type { Bien, MandatType } from "@/lib/types";
 
 export const CHAMPS_MANDAT: Champ[] = [...CHAMPS, { key: "profession", label: "Profession", demande: "votre profession" }];
 
@@ -31,6 +31,22 @@ export const DIAGNOSTICS = [
   "Plan d'exposition au bruit",
 ] as const;
 
+export const TYPES_MANDAT: { v: MandatType; label: string; titre: string }[] = [
+  { v: "simple", label: "Simple", titre: "Mandat de vente simple" },
+  { v: "semi_exclusif", label: "Semi-exclusif", titre: "Mandat de vente semi-exclusif" },
+  { v: "exclusif", label: "Exclusif", titre: "Mandat de vente exclusif" },
+];
+/** Brouillons d'avant le choix du type : mandat simple. */
+export const typeMandat = (m: Mandat): MandatType => m.type ?? "simple";
+export const titreMandat = (m: Mandat) => TYPES_MANDAT.find((t) => t.v === typeMandat(m))!.titre;
+/** Loi Hoguet (art. 6) : un mandat avec exclusivité doit préciser les actions du mandataire et la façon dont il rend compte. */
+export const avecExclusivite = (m: Mandat) => typeMandat(m) !== "simple";
+
+/** Textes proposés au passage en exclusif ou semi-exclusif (modifiables). */
+export const ACTIONS_EXCLU =
+  "Photographies du bien et diffusion de l'annonce sur le site patrim.fr et les portails immobiliers, présentation aux acquéreurs du fichier de l'agence, visites accompagnées par le mandataire.";
+export const COMPTES_RENDUS_EXCLU = "Compte rendu par e-mail après chaque visite et point complet au moins une fois par mois.";
+
 export interface Signataire {
   nom: string;
   qualite: string;
@@ -40,6 +56,7 @@ export interface Signataire {
 
 export interface Mandat {
   bienId: string;
+  type?: MandatType;
   numero?: string;
   mandants: Partie[];
   qualite: string;
@@ -103,6 +120,7 @@ export function mandatInitial(b: Bien, vendeurs: ContactEtatCivil[]): Mandat {
   const honoraires = b.honoraires ?? (b.prix && b.netVendeur ? b.prix - b.netVendeur : undefined);
   return {
     bienId: b.id,
+    type: b.mandat?.type ?? "simple",
     numero: b.mandat?.numero,
     mandants: vendeurs.map(partieDepuisContact),
     qualite: vendeurs.length > 1 ? "Agissant conjointement et solidairement en qualité de seuls propriétaires" : "Agissant en qualité de seul propriétaire",
@@ -117,6 +135,7 @@ export function mandatInitial(b: Bien, vendeurs: ContactEtatCivil[]): Mandat {
     diffusion: "Fichier clients et portails immobiliers",
     diagnostics: [],
     dureeMois: 12,
+    ...(b.mandat?.type && b.mandat.type !== "simple" ? { actions: ACTIONS_EXCLU, comptesRendus: COMPTES_RENDUS_EXCLU } : {}),
     prospection: false,
     signataire: signataireRetenu(),
     date: today(),
