@@ -27,6 +27,25 @@ let cache: { quand: number; annonces: AnnonceSite[] } | null = null;
 
 const nombre = (s?: string) => (s ? Number(s.replace(/[^\d,]/g, "").replace(",", ".")) || undefined : undefined);
 
+/** Textes de la page qui ne décrivent pas le bien : bandeau cookies, coordonnées de l'agence, mentions. */
+const BRUIT = /cookie|disque dur|navigat|votre terminal|agence patrim|05[ .]?61[ .]?99[ .]?08|mentions l[ée]gales|confidentialit/i;
+const utile = (t?: string) => !!t && !BRUIT.test(t.slice(0, 90));
+
+/** Quartier tiré de l'en-tête de la description : « APPARTEMENT DE PRESTIGE - ESQUIROL / rue des Marchands » → « Esquirol ». */
+function quartierDe(entete?: string) {
+  if (!entete) return undefined;
+  // Le quartier est le dernier morceau en capitales avant la rue (« … - ESQUIROL / rue … »)
+  const morceaux = entete.split("/")[0].split(/\s[-–]\s/).map((m) => m.replace(/^\s*quartier\s+/i, "").trim());
+  let q = [...morceaux].reverse().find((m) => /\p{L}/u.test(m) && m === m.toUpperCase()) ?? morceaux[morceaux.length - 1];
+  if (!q || q.length > 40 || /\d/.test(q)) return undefined;
+  if (q === q.toUpperCase())
+    q = q
+      .toLowerCase()
+      .replace(/(^|[\s'-])(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase())
+      .replace(/\s(De|Des|Du|La|Le|Les|Et)(?=\s)|\s(D'|L')(?=\p{L})/gu, (m) => m.toLowerCase());
+  return q;
+}
+
 async function lire(ref: string): Promise<AnnonceSite | null> {
   const url = `https://www.patrim.fr/vente-bien-${ref}`;
   try {
@@ -39,10 +58,10 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
     const texte = texteDe(html);
     const prix = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*-\s*Ref/i)?.[1] ?? texte.match(/Prix\s*:?\s*(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
     const net = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*net vendeur/i)?.[1] ?? texte.match(/net vendeur[^\d]{0,20}(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
-    const metas = [meta(html, "description"), meta(html, "og:description")].filter(Boolean).map((d) => decoder(d!));
-    const para = texte.split(/\n+/).map((l) => l.trim()).filter((l) => /^[^:]{3,60}:\s/.test(l) && l.length > 120).sort((a, b) => b.length - a.length)[0];
+    const metas = [meta(html, "description"), meta(html, "og:description")].filter(Boolean).map((d) => decoder(d!)).filter(utile);
+    const para = texte.split(/\n+/).map((l) => l.trim()).filter((l) => /^[^:]{3,60}:\s/.test(l) && l.length > 120 && utile(l)).sort((a, b) => b.length - a.length)[0];
     const description = [para, ...metas].filter(Boolean).sort((a, b) => b!.length - a!.length)[0];
-    const quartier = description?.match(/^([^:]{3,60}?)\s*:/)?.[1]?.trim();
+    const quartier = quartierDe(description?.match(/^([^:]{3,60}?)\s*:/)?.[1]);
     const dpe = html.match(/dpe-([A-G])-\d+-([A-G])/i);
     const nb = (re: RegExp) => Number(texte.match(re)?.[1]) || undefined;
     const photos = photosDansPage(html);
