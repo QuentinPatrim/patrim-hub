@@ -56,6 +56,8 @@ export interface Signataire {
 
 export interface Mandat {
   bienId: string;
+  /** Copie gardée sur la fiche du bien (voir components/documents/archive.ts). */
+  acteId?: string;
   type?: MandatType;
   numero?: string;
   mandants: Partie[];

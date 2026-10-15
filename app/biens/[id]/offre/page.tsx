@@ -27,6 +27,7 @@ import {
   type Offre,
   type Partie,
 } from "@/components/offre/offre";
+import { enregistrerActe } from "@/components/documents/archive";
 import { useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
@@ -123,8 +124,9 @@ export default function OffreAchatPage() {
   const net = o.prix != null && o.honoraires != null ? o.prix - o.honoraires : undefined;
   const voirPdf = () => {
     enregistrerParties([...o.acquereurs, ...o.vendeurs], contacts);
-    ecrireOffre(o);
-    router.push(`/imprimer/offre/${b.id}`);
+    const acteId = enregistrerActe(b.id, "offre", o);
+    ecrireOffre({ ...o, acteId });
+    router.push(`/imprimer/offre/${b.id}?acte=${acteId}`);
   };
 
   return (

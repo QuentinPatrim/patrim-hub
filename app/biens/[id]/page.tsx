@@ -33,6 +33,8 @@ import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienFo
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
+import { DocumentsBien } from "@/components/documents/DocumentsBien";
+import type { BienActes } from "@/components/documents/archive";
 import { STATUTS, acquereursCompatibles, adresseComplete, champsACompleter, joursDepuis, mailHref, mapsHref, prixM2, telHref } from "@/components/biens/utils";
 import { RdvForm, type RdvInitial } from "@/components/agenda/RdvForm";
 import { CompteRenduSheet } from "@/components/agenda/CompteRenduSheet";
@@ -264,6 +266,8 @@ export default function BienPage() {
           )}
 
           <AcquereursCompatibles bien={b} matches={matches} />
+
+          <DocumentsBien bien={b as BienActes} />
 
           <Card
             title={`Visites${visites.length ? ` (${visites.length})` : ""}`}
