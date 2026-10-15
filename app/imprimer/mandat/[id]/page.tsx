@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { C, MENTIONS, montantComplet } from "@/components/documents/charte";
-import { ACTE_PRINT_CSS, Case, Section, Texte, ou } from "@/components/documents/blocs";
+import { ACTE_PRINT_CSS, Pagine, Case, Section, Texte, ou } from "@/components/documents/blocs";
 import { dateLettres, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, dureeLettres, lireMandat, type Mandat } from "@/components/mandat/mandat";
 
@@ -90,7 +90,8 @@ export default function MandatPdf() {
 
       <div className="flex justify-center py-4 sm:py-6">
         <article className="acte-sheet relative flex min-h-[297mm] w-[210mm] flex-col bg-white shadow-xl" style={{ zoom }}>
-          <div className="h-[2mm]" style={{ background: C.brand }} />
+          <div className="acte-barre h-[2mm]" style={{ background: C.brand }} />
+          <Pagine>
           <header className="flex items-start justify-between px-[18mm] pt-[11mm]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="PATRIM" style={{ height: "14mm" }} />
@@ -443,7 +444,8 @@ export default function MandatPdf() {
           <footer className="px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
             {MENTIONS}
           </footer>
-          <div className="h-[1.5mm]" style={{ background: C.coral }} />
+          </Pagine>
+          <div className="acte-barre h-[1.5mm]" style={{ background: C.coral }} />
         </article>
       </div>
     </div>
