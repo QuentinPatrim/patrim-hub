@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { C, MENTIONS, montantComplet, telActe } from "@/components/documents/charte";
 import { useActe } from "@/components/documents/archive";
-import { ACTE_PRINT_CSS, Pagine, Case, Section, Texte, ou } from "@/components/documents/blocs";
+import { ACTE_PRINT_CSS, Pagine, Case, PrixBloc, Section, Texte, ou } from "@/components/documents/blocs";
 import { dateLettres, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, avecExclusivite, dureeLettres, ecrireMandat, lireMandat, titreMandat, typeMandat, type Mandat } from "@/components/mandat/mandat";
 
@@ -177,20 +177,14 @@ export default function MandatPdf() {
 
             <Section num="II" titre="Prix">
               <P>Le prix demandé par le mandant, vendeur des biens et droits ci-avant désignés, est, sauf accord ultérieur, de :</P>
-              <div className="acte-bloc mt-[2.5mm] flex items-center gap-[6mm] rounded-[3mm] px-[6mm] py-[4mm] text-white" style={{ background: C.brand }}>
-                <div className="flex-1">
-                  <div className="text-[7.5pt] uppercase tracking-[0.2em] text-white/70">Prix net vendeur</div>
-                  <div className="mt-[1mm] font-serif text-[22pt] font-semibold leading-none" style={{ fontVariantNumeric: "lining-nums" }}>
-                    {m.netVendeur ? `${m.netVendeur.toLocaleString("fr-FR")} €` : "—"}
-                  </div>
-                </div>
+              <PrixBloc className="mt-[2.5mm]" label="Prix net vendeur" montant={m.netVendeur ? `${m.netVendeur.toLocaleString("fr-FR")} €` : "—"}>
                 {m.netVendeur != null && m.honoraires != null && (
-                  <div className="text-right text-[9pt] text-white/85">
+                  <>
                     Prix de présentation
-                    <div className="font-semibold text-white">{(m.netVendeur + m.honoraires).toLocaleString("fr-FR")} € honoraires inclus</div>
-                  </div>
+                    <div>{(m.netVendeur + m.honoraires).toLocaleString("fr-FR")} € honoraires inclus</div>
+                  </>
                 )}
-              </div>
+              </PrixBloc>
               <P className="mt-[2.5mm]">
                 <strong>{m.netVendeur ? montantComplet(m.netVendeur) : ou(undefined, "prix")} net vendeur</strong>, payable comptant le jour de la signature de l&apos;acte authentique, tant à
                 l&apos;aide de prêts que de fonds propres de l&apos;acquéreur.

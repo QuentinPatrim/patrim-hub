@@ -96,6 +96,27 @@ export function Section({ num, titre, children }: { num: string; titre: string; 
   );
 }
 
+/** Montant mis en avant, de façon sobre : filets fins, chiffre en noir, détails à droite. */
+export function PrixBloc({ label, montant, children, className }: { label: string; montant: string; children?: ReactNode; className?: string }) {
+  return (
+    <div className={`acte-bloc flex items-center gap-[6mm] border-y px-[1mm] py-[3mm] ${className ?? ""}`} style={{ borderColor: C.line }}>
+      <div className="flex-1">
+        <div className="text-[7.5pt] uppercase tracking-[0.16em]" style={{ color: C.muted }}>
+          {label}
+        </div>
+        <div className="mt-[1mm] text-[15pt] font-semibold leading-none" style={{ color: C.ink, fontVariantNumeric: "lining-nums tabular-nums" }}>
+          {montant}
+        </div>
+      </div>
+      {children && (
+        <div className="text-right text-[9pt] leading-relaxed" style={{ color: C.slate }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Case à cocher imprimée. */
 export function Case({ on, children }: { on?: boolean; children: ReactNode }) {
   return (

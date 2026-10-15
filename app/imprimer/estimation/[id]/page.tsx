@@ -652,23 +652,23 @@ export default function AvisDeValeur() {
                   {avis.loue ? (
                     <div className="grid shrink-0 grid-cols-2 gap-[4mm]">
                       {[
-                        { t: "Valeur libre", lo: low, hi: high, c: central, bg: `radial-gradient(120% 140% at 0% 0%, #b3261a 0%, ${COLORS.primary} 45%, #2a0804 100%)` },
-                        { t: "Valeur occupée (vendu loué)", lo: avis.basLoue ?? 0, hi: avis.hautLoue ?? 0, c: 0, bg: "radial-gradient(120% 140% at 0% 0%, #3a3a3c 0%, #1c1c1e 55%, #000 100%)" },
+                        { t: "Valeur libre", lo: low, hi: high, c: central },
+                        { t: "Valeur occupée (vendu loué)", lo: avis.basLoue ?? 0, hi: avis.hautLoue ?? 0, c: 0 },
                       ].map((v) => {
                         const c = v.c || (v.lo && v.hi ? Math.round((v.lo + v.hi) / 2) : v.lo || v.hi);
                         return (
-                          <div key={v.t} className="rounded-[22px] text-white" style={{ background: v.bg, padding: mm(7, 3.6) }}>
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/70">{v.t}</p>
-                            <p className="mt-2 font-bold leading-none tabular-nums tracking-[-0.035em]" style={{ fontSize: mix(30, 23, 0.25) }}>
+                          <div key={v.t} className="rounded-[18px] border border-[#e8e8ed] text-[#1d1d1f]" style={{ padding: mm(6, 3.4) }}>
+                            <p className={LABEL}>{v.t}</p>
+                            <p className="mt-2 font-semibold leading-none tabular-nums tracking-[-0.02em]" style={{ fontSize: mix(22, 18, 0.25) }}>
                               {c ? eur(c) : "—"}
                             </p>
                             {v.lo > 0 && v.hi > 0 && v.lo !== v.hi && (
-                              <p className="mt-2 text-[10.5px] tabular-nums text-white/80">
+                              <p className="mt-2 text-[10.5px] tabular-nums text-[#6e6e73]">
                                 de {eur(v.lo)} à {eur(v.hi)}
                               </p>
                             )}
                             {c > 0 && surface > 0 && (
-                              <span className="inline-block rounded-full bg-white/15 px-2.5 py-1 text-[9.5px] font-semibold tabular-nums" style={{ marginTop: mix(16, 7) }}>
+                              <span className="inline-block text-[9.5px] font-medium tabular-nums text-[#6e6e73]" style={{ marginTop: mix(10, 5) }}>
                                 {nombre(c / surface)} €/m²
                               </span>
                             )}
@@ -677,23 +677,21 @@ export default function AvisDeValeur() {
                       })}
                     </div>
                   ) : (
-                    <div
-                      className="relative shrink-0 overflow-hidden rounded-[24px] px-[9mm] text-white"
-                      style={{ background: `radial-gradient(120% 140% at 0% 0%, #b3261a 0%, ${COLORS.primary} 45%, #2a0804 100%)`, paddingTop: mm(9, 4.2), paddingBottom: mm(9, 4.2) }}
-                    >
-                      <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-[#ffb4a8] opacity-25 blur-3xl" />
-                      <p className="relative text-[9.5px] font-semibold uppercase tracking-[0.08em] text-white/70">Valeur vénale estimée</p>
-                      <p className="relative font-bold leading-none tabular-nums tracking-[-0.04em]" style={{ fontSize: mix(52, 34, 0.25), marginTop: mix(12, 6) }}>
-                        {central ? eur(central) : "—"}
-                      </p>
-                      <div className="relative flex flex-wrap items-center gap-2" style={{ marginTop: mix(20, 8) }}>
-                        {!singleValue && (
-                          <span className="rounded-full bg-white/15 px-3 py-1.5 text-[10.5px] font-semibold tabular-nums">
-                            Fourchette {eur(low)} – {eur(high)}
-                          </span>
-                        )}
-                        {central > 0 && surface > 0 && <span className="rounded-full bg-white/15 px-3 py-1.5 text-[10.5px] font-semibold tabular-nums">{nombre(central / surface)} €/m²</span>}
-                        {marketStats && <span className="rounded-full bg-white/15 px-3 py-1.5 text-[10.5px] font-semibold tabular-nums">Médiane du secteur {nombre(marketStats.median)} €/m²</span>}
+                    <div className="shrink-0 rounded-[18px] border border-[#e8e8ed] px-[7mm]" style={{ paddingTop: mm(6, 3.4), paddingBottom: mm(6, 3.4) }}>
+                      <p className={LABEL}>Valeur vénale estimée</p>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2" style={{ marginTop: mix(8, 4) }}>
+                        <p className="font-semibold leading-none tabular-nums tracking-[-0.02em] text-[#1d1d1f]" style={{ fontSize: mix(28, 22, 0.25) }}>
+                          {central ? eur(central) : "—"}
+                        </p>
+                        <p className="text-[10.5px] tabular-nums text-[#6e6e73]">
+                          {[
+                            !singleValue ? `Fourchette ${eur(low)} – ${eur(high)}` : "",
+                            central > 0 && surface > 0 ? `${nombre(central / surface)} €/m²` : "",
+                            marketStats ? `Médiane du secteur ${nombre(marketStats.median)} €/m²` : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
                       </div>
                     </div>
                   )}
