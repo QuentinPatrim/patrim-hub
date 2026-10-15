@@ -133,6 +133,16 @@ export interface StatutDiag {
   tone: Tone;
 }
 
+/** Signature à venir à laquelle les diagnostics doivent encore être valables : la plus tardive
+    de la signature saisie ici et de l'acte prévu dans le suivi de la vente. */
+export function signaturePrevue(b: Bien, aujourdhui: string): string | undefined {
+  const acte = (b as { vente?: { acte?: string; acteSigne?: string } }).vente;
+  return [diagnosticsDe(b).signature, acte?.acteSigne ? undefined : acte?.acte]
+    .filter((x): x is string => !!x && x >= aujourdhui)
+    .sort()
+    .pop();
+}
+
 const date = (ymd: string, month: "short" | "long") => new Date(ymd + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month, year: "numeric" }).replace(/^1 /, "1er ");
 const court = (ymd: string) => date(ymd, "short");
 const joursEntre = (de: string, a: string) => Math.round((new Date(a + "T12:00:00").getTime() - new Date(de + "T12:00:00").getTime()) / 86400000);
@@ -152,7 +162,7 @@ export function statutDiag(cle: CleDiag, b: Bien, aujourdhui: string): StatutDia
   if (fin === undefined) return { ...base, etat: "aPreciser", fin, texte: `Rapport du ${court(d.date)} : présence ou absence à préciser`, tone: "neutral" };
   if (fin === null) return { ...base, etat: "ok", fin, texte: `Rapport du ${court(d.date)}, sans limite de durée`, tone: "ok" };
   if (fin < aujourdhui) return { ...base, etat: "expire", fin, texte: `Expiré depuis le ${court(fin)}`, tone: "danger" };
-  const signature = tout.signature && tout.signature >= aujourdhui ? tout.signature : undefined;
+  const signature = signaturePrevue(b, aujourdhui);
   if (signature && fin < signature) return { ...base, etat: "avantSignature", fin, texte: `Expire le ${court(fin)}, avant la signature du ${court(signature)}`, tone: "danger" };
   const reste = joursEntre(aujourdhui, fin);
   if (reste <= 30) return { ...base, etat: "bientot", fin, texte: `Expire le ${court(fin)} (dans ${reste} j)`, tone: "warn" };

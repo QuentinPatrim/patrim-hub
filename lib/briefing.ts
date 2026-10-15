@@ -3,6 +3,7 @@ import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore } from "./matching";
 import { alertesMandats, registre } from "@/components/mandats/registre";
 import { aPrevenir, baisseRecente } from "@/components/baisse/baisse";
 import { diagnosticsSuivis, statutsDiags } from "@/components/diagnostics/diagnostics";
+import { VENTE_EN_COURS, acquereursDe, ajouterJours, checksRestants, dans, dateTexte, dernierPoint, echeances, manques, venteDe } from "@/components/vente/vente";
 
 /* ============================================================
    Agent de nuit : analyse tout le portefeuille et prépare le
@@ -58,7 +59,56 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     .slice(0, 6)
     .forEach((c) => points.push({ type: "relance", titre: `${nom(c)} est chaud mais sans nouvelles depuis ${jours(c.dernierContact ?? c.updatedAt, now.getTime())} jours`, lien: { kind: "contact", id: c.id } }));
 
-  // 3. Baisse de prix récente pas encore annoncée (visites, bien déjà proposé, budgets compatibles)
+  // 3. Ventes en cours : délais de l'avant-contrat (rétractation, prêt, acte) et suivi à compléter
+  for (const b of d.biens.filter(VENTE_EN_COURS)) {
+    const t = b.titre || b.adresse;
+    const v = venteDe(b);
+    const page = { kind: "page", id: `biens/${b.id}/vente` };
+    const lienBien = { kind: "bien" as const, id: b.id };
+    if (b.statut === "sous_offre") {
+      if (v.signature && v.signature < today)
+        points.push({ type: "alerte", titre: `${t} : avant-contrat prévu le ${dateTexte(v.signature, today)}`, detail: "S'il est signé, passer le bien en « Compromis » et saisir la notification et les dates du prêt.", lien: page });
+      continue;
+    }
+    if (v.acteSigne) {
+      points.push({ type: "alerte", titre: `${t} : acte signé le ${dateTexte(v.acteSigne, today)}`, detail: "Passer le bien en « Vendu » depuis le suivi de la vente.", lien: page });
+      continue;
+    }
+    const manque = manques(b, today);
+    if (manque.length) points.push({ type: "alerte", titre: `${t} : suivi de la vente à compléter`, detail: `À saisir : ${manque.join(", ")}.`, lien: page });
+    const liste = echeances(b, today);
+    const get = (cle: string) => liste.find((x) => x.cle === cle);
+    const retractation = get("retractation");
+    if (retractation?.date && retractation.etat === "aVenir" && retractation.date <= ajouterJours(today, 1))
+      points.push({ type: "alerte", titre: `${t} : fin du délai de rétractation ${dans(retractation.date, today)}`, detail: "Prévenir le vendeur une fois le délai écoulé.", lien: page });
+    const depot = get("depot");
+    if (depot?.date && depot.etat === "depasse") points.push({ type: "alerte", titre: `${t} : dépôt des demandes de prêt à justifier`, detail: depot.texte, lien: page });
+    if (depot?.date && depot.etat === "bientot")
+      points.push({ type: "alerte", titre: `${t} : dépôt des demandes de prêt avant le ${dateTexte(depot.date, today)}`, detail: `${dans(depot.date, today).replace(/^./, (c) => c.toUpperCase())} : demander le justificatif à l'acquéreur.`, lien: page });
+    const pret = get("pret");
+    if (pret?.date && (pret.etat === "depasse" || pret.etat === "bientot")) {
+      const dernier = dernierPoint(b, acquereursDe(b));
+      const recent = jours(dernier, now.getTime()) < 7;
+      const suite = recent ? `Dernier point avec l'acquéreur le ${dateTexte(dernier!.slice(0, 10), today)}.` : pret.etat === "depasse" ? "Faire le point avec l'acquéreur et le notaire." : "Faire le point avec l'acquéreur.";
+      points.push({
+        type: "alerte",
+        titre: `${t} : ${pret.etat === "depasse" ? `date limite du prêt dépassée (${dateTexte(pret.date, today)})` : `prêt à obtenir avant le ${dateTexte(pret.date, today)}`}`,
+        detail: pret.etat === "depasse" ? suite : `${dans(pret.date, today).replace(/^./, (c) => c.toUpperCase())}. ${suite}`,
+        lien: page,
+      });
+      if (!recent) ajouterTache({ titre: `Point prêt avec l'acquéreur : ${t}`, echeance: today, fait: false, priorite: pret.etat === "depasse" || pret.date <= ajouterJours(today, 7) ? 1 : 2, lien: lienBien, origine: "agent" });
+    }
+    const acte = get("acte");
+    if (acte?.date && acte.etat === "bientot") {
+      const reste = checksRestants(b).map((c) => c.label.charAt(0).toLowerCase() + c.label.slice(1));
+      points.push({ type: "alerte", titre: `${t} : acte ${dans(acte.date, today)} (${dateTexte(acte.date, today, true)})`, detail: reste.length ? `Reste à faire : ${reste.join(", ")}.` : "Tout est coché pour l'acte.", lien: page });
+      if (!v.faits?.facture) ajouterTache({ titre: `Envoyer la facture d'honoraires au notaire : ${t}`, echeance: today, fait: false, priorite: 1, lien: lienBien, origine: "agent" });
+    }
+    if (acte?.date && acte.etat === "depasse")
+      points.push({ type: "alerte", titre: `${t} : acte prévu le ${dateTexte(acte.date, today)}`, detail: "S'il est signé, le noter dans le suivi de la vente pour passer le bien en « Vendu ».", lien: page });
+  }
+
+  // 4. Baisse de prix récente pas encore annoncée (visites, bien déjà proposé, budgets compatibles)
   const baisses = new Set<string>();
   for (const b of biensDispo) {
     if (!baisseRecente(b, now.getTime())) continue;
@@ -74,7 +124,7 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     ajouterTache({ titre: `Annoncer la baisse de prix : ${b.titre || b.adresse}`, echeance: today, fait: false, priorite: 1, lien: { kind: "bien", id: b.id }, origine: "agent" });
   }
 
-  // 4. Rapprochements : biens compatibles pas encore proposés (déjà dans la baisse à annoncer sinon)
+  // 5. Rapprochements : biens compatibles pas encore proposés (déjà dans la baisse à annoncer sinon)
   for (const b of biensDispo) {
     if (baisses.has(b.id)) continue;
     const nouveaux = acquereurs
@@ -91,7 +141,7 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
       });
   }
 
-  // 5. Mandats qui s'essoufflent : en vente depuis 45 j sans visite depuis 21 j
+  // 6. Mandats qui s'essoufflent : en vente depuis 45 j sans visite depuis 21 j
   for (const b of biensDispo) {
     const depuis = jours(b.dateMiseEnVente ?? b.createdAt, now.getTime());
     const visites = d.rdvs.filter((r) => r.bienId === b.id && r.type === "visite" && r.statut !== "annule");
@@ -105,11 +155,11 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     if (manque.length >= 2) points.push({ type: "alerte", titre: `Fiche à compléter : ${b.titre || b.adresse}`, detail: `Manque : ${manque.join(", ")}. Les acquéreurs posent ces questions en premier.`, lien: { kind: "bien", id: b.id } });
   }
 
-  // 6. Registre des mandats : numéro en double, mandat expiré ou bientôt fini (les dates manquantes restent dans le registre)
+  // 7. Registre des mandats : numéro en double, mandat expiré ou bientôt fini (les dates manquantes restent dans le registre)
   for (const a of alertesMandats(registre(d.biens, now)).filter((a) => a.code === "doublon" || a.code === "expire" || a.code === "bientot"))
     points.push({ type: "alerte", titre: a.titre, detail: a.detail, lien: a.bienIds.length === 1 ? { kind: "bien", id: a.bienIds[0] } : { kind: "page", id: "mandats" } });
 
-  // 7. Diagnostics expirés, ou qui expirent dans le mois ou avant la signature prévue (biens dont les dates sont saisies)
+  // 8. Diagnostics expirés, ou qui expirent dans le mois ou avant la signature prévue (biens dont les dates sont saisies)
   for (const b of d.biens.filter((x) => ["en_vente", "mandat_signe", "sous_offre", "compromis"].includes(x.statut) && diagnosticsSuivis(x))) {
     const vente = b.statut === "sous_offre" || b.statut === "compromis";
     const pb = statutsDiags(b, today).filter((s) => s.etat === "expire" || s.etat === "avantSignature" || s.etat === "bientot" || (vente && s.etat === "manquant"));
@@ -122,14 +172,14 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
       });
   }
 
-  // 8. Visites passées sans compte rendu
+  // 9. Visites passées sans compte rendu
   d.rdvs
     .filter((r) => r.type === "visite" && r.statut === "prevu" && new Date(r.debut) < now && jours(r.debut, now.getTime()) <= 14)
     .forEach((r) => {
       points.push({ type: "relance", titre: "Visite sans compte rendu", detail: `Visite du ${ymd(new Date(r.debut))} : noter le retour du client et la suite.`, lien: { kind: "rdv", id: r.id } });
     });
 
-  // 9. Estimations envoyées sans suite depuis 10 jours
+  // 10. Estimations envoyées sans suite depuis 10 jours
   d.estimations
     .filter((e) => e.statut === "envoyee" && jours(e.updatedAt, now.getTime()) >= 10)
     .forEach((e) => {

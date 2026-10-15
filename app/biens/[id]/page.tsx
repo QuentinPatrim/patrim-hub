@@ -41,6 +41,8 @@ import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
 import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
 import { DiagnosticsFiche } from "@/components/diagnostics/DiagnosticsFiche";
+import { VenteFiche } from "@/components/vente/VenteFiche";
+import { VENTE_EN_COURS } from "@/components/vente/vente";
 import { aPrevenir, suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
 import type { BienActes } from "@/components/documents/archive";
 import { STATUTS, acquereursCompatibles, adresseComplete, champsACompleter, joursDepuis, mailHref, mapsHref, prixM2, telHref } from "@/components/biens/utils";
@@ -278,6 +280,8 @@ export default function BienPage() {
               </div>
             </section>
           )}
+
+          {VENTE_EN_COURS(b) && <VenteFiche b={b} />}
 
           <AcquereursCompatibles bien={b} matches={matches} />
 
