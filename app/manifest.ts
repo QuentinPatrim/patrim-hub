@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "PATRIM Hub",
     short_name: "PATRIM",
-    description: "L'espace de vente de l'agence PATRIM : biens, acquéreurs, visites, estimations et marketing.",
+    description: "L'espace de vente de l'agence PATRIM : biens, acquéreurs, visites, estimations et documents.",
     start_url: "/",
     display: "standalone",
     orientation: "portrait",
@@ -19,7 +19,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Nouveau contact", url: "/contacts?nouveau=1" },
       { name: "Estimation express", url: "/estimations/nouvelle" },
-      { name: "Studio marketing", url: "/studio" },
+      { name: "Nouvelle visite", url: "/agenda?nouveau=1" },
     ],
   };
 }

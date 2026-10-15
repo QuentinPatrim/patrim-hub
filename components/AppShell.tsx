@@ -8,12 +8,12 @@ import {
   Calculator,
   Home,
   LayoutGrid,
+  ListChecks,
   Moon,
   Search,
   Sparkles,
   Sun,
   Users,
-  Wand2,
   X,
   Settings,
 } from "lucide-react";
@@ -31,7 +31,7 @@ export const NAV = [
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/estimations", label: "Estimations", icon: Calculator },
-  { href: "/studio", label: "Studio", icon: Wand2 },
+  { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
 // Barre du bas sur mobile : 4 raccourcis + « Plus »

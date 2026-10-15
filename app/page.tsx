@@ -11,11 +11,11 @@ import {
   CheckCircle2,
   Circle,
   Download,
+  ListChecks,
   MoonStar,
   Plus,
   Sparkles,
   Users,
-  Wand2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -28,7 +28,7 @@ import { create, getAll, useCollection } from "@/lib/store";
 import { Aujourdhui, aRappeler, delaiChoisi } from "@/components/accueil/Aujourdhui";
 import type { Briefing, EtapeAcquereur } from "@/lib/types";
 
-const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=" };
+const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
   relance: { label: "Relance", tone: "warn" },
   matching: { label: "À proposer", tone: "ok" },
@@ -50,7 +50,6 @@ export default function Accueil() {
   const { items: taches, update: majTache, create: nouvelleTache } = useCollection("taches");
   const { items: briefings } = useCollection("briefings");
   const { items: estimations } = useCollection("estimations");
-  useCollection("contenus");
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -178,7 +177,7 @@ export default function Accueil() {
           { href: "/contacts?nouveau=1", label: "Contact", icon: UserPlus },
           { href: "/agenda?nouveau=1", label: "Visite", icon: CalendarPlus },
           { href: "/estimations/nouvelle", label: "Estimer", icon: Calculator },
-          { href: "/studio", label: "Studio", icon: Wand2 },
+          { href: "/a-regler", label: "À régler", icon: ListChecks },
         ].map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} className="card card-hover group min-w-0 flex flex-col sm:flex-row items-center gap-2 sm:gap-3 py-3.5 sm:p-4 text-[11.5px] sm:text-sm font-semibold active:scale-[.97]">
             <span className="grid place-items-center size-10 sm:size-11 rounded-2xl bg-accent/[0.08] text-accent ring-1 ring-inset ring-accent/10 transition group-hover:bg-gradient-to-b group-hover:from-brand-light group-hover:to-brand group-hover:text-white">
@@ -319,7 +318,7 @@ function BriefingCard({ brief }: { brief?: Briefing }) {
   async function lancer() {
     setBusy(true);
     setErr("");
-    const d = { biens: getAll("biens"), contacts: getAll("contacts"), rdvs: getAll("rdvs"), estimations: getAll("estimations"), taches: getAll("taches"), contenus: getAll("contenus") };
+    const d = { biens: getAll("biens"), contacts: getAll("contacts"), rdvs: getAll("rdvs"), estimations: getAll("estimations"), taches: getAll("taches") };
     const a = analyser(d);
     let resume = resumeCourt(a);
     if (a.points.length) {

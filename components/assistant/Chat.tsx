@@ -8,8 +8,7 @@ import { ask, fileToBase64Jpeg } from "@/lib/ai";
 import { heure } from "@/lib/format";
 import { BIEN_DISPONIBLE } from "@/lib/matching";
 import { useCollection } from "@/lib/store";
-import { copier, partager } from "@/components/studio/shared";
-import { useToast } from "@/components/studio/bits";
+import { copier, partager, useToast } from "./outils";
 import { buildContext, SYSTEM_ASSISTANT } from "./context";
 import { Markdown } from "./Markdown";
 

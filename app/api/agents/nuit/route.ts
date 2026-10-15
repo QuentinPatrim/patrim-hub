@@ -25,7 +25,7 @@ export async function GET(req: Request) {
 
   const parUser = new Map<string, Donnees & { briefings: Briefing[] }>();
   for (const r of rows ?? []) {
-    const d = parUser.get(r.user_id) ?? { biens: [], contacts: [], rdvs: [], estimations: [], taches: [], contenus: [], briefings: [] };
+    const d = parUser.get(r.user_id) ?? { biens: [], contacts: [], rdvs: [], estimations: [], taches: [], briefings: [] };
     const list = (d as unknown as Record<string, unknown[]>)[r.kind as Kind];
     if (list) list.push({ ...r.data, id: r.id });
     parUser.set(r.user_id, d);

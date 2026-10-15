@@ -1,10 +1,11 @@
-import type { Bien, Briefing, Contact, Contenu, Estimation, Rdv, Tache } from "./types";
+import type { Bien, Briefing, Contact, Estimation, Rdv, Tache } from "./types";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore } from "./matching";
+import { alertesMandats, registre } from "@/components/mandats/registre";
 
 /* ============================================================
    Agent de nuit : analyse tout le portefeuille et prépare le
    briefing du matin (relances, rapprochements, mandats qui
-   s'essoufflent, comptes rendus manquants, idées marketing).
+   s'essoufflent ou arrivent à échéance, comptes rendus manquants).
    Fonction pure : utilisée par la tâche planifiée Vercel (serveur)
    et par le bouton « Lancer l'analyse » (navigateur).
    ============================================================ */
@@ -15,7 +16,6 @@ export interface Donnees {
   rdvs: Rdv[];
   estimations: Estimation[];
   taches: Tache[];
-  contenus: Contenu[];
 }
 
 type Point = Briefing["points"][number];
@@ -81,36 +81,29 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
       points.push({ type: "mandat", titre: `${b.titre || b.adresse} : ${visites.length ? "aucune visite depuis 3 semaines" : "aucune visite"} (${depuis} j en vente)`, detail: "Faire un point avec le vendeur (rapport d'activité, repositionnement du prix, nouveaux visuels).", lien: { kind: "bien", id: b.id } });
       ajouterTache({ titre: `Point vendeur : ${b.titre || b.adresse}`, echeance: today, fait: false, priorite: 2, lien: { kind: "bien", id: b.id }, origine: "agent" });
     }
-    // Fin de mandat proche
-    if (b.mandat?.fin) {
-      const reste = -jours(b.mandat.fin, now.getTime());
-      if (reste >= 0 && reste <= 30) points.push({ type: "alerte", titre: `Mandat ${b.mandat.numero ?? ""} de ${b.titre || b.adresse} : fin dans ${reste} jours`, detail: "Préparer le renouvellement.", lien: { kind: "bien", id: b.id } });
-    }
     // Fiche incomplète
     const manque = [!b.dpe && "DPE", b.type === "appartement" && b.etage == null && "étage", b.type === "appartement" && !b.chargesAnnuelles && "charges", !b.taxeFonciere && "taxe foncière", !b.photos?.length && "photos"].filter(Boolean);
     if (manque.length >= 2) points.push({ type: "alerte", titre: `Fiche à compléter : ${b.titre || b.adresse}`, detail: `Manque : ${manque.join(", ")}. Les acquéreurs posent ces questions en premier.`, lien: { kind: "bien", id: b.id } });
   }
 
-  // 5. Visites passées sans compte rendu
+  // 5. Registre des mandats : numéro en double, mandat expiré ou bientôt fini (les dates manquantes restent dans le registre)
+  for (const a of alertesMandats(registre(d.biens, now)).filter((a) => a.code === "doublon" || a.code === "expire" || a.code === "bientot"))
+    points.push({ type: "alerte", titre: a.titre, detail: a.detail, lien: a.bienIds.length === 1 ? { kind: "bien", id: a.bienIds[0] } : { kind: "page", id: "mandats" } });
+
+  // 6. Visites passées sans compte rendu
   d.rdvs
     .filter((r) => r.type === "visite" && r.statut === "prevu" && new Date(r.debut) < now && jours(r.debut, now.getTime()) <= 14)
     .forEach((r) => {
       points.push({ type: "relance", titre: "Visite sans compte rendu", detail: `Visite du ${ymd(new Date(r.debut))} : noter le retour du client et la suite.`, lien: { kind: "rdv", id: r.id } });
     });
 
-  // 6. Estimations envoyées sans suite depuis 10 jours
+  // 7. Estimations envoyées sans suite depuis 10 jours
   d.estimations
     .filter((e) => e.statut === "envoyee" && jours(e.updatedAt, now.getTime()) >= 10)
     .forEach((e) => {
       points.push({ type: "mandat", titre: `Estimation ${e.adresse} envoyée il y a ${jours(e.updatedAt, now.getTime())} j`, detail: "Rappeler le propriétaire pour transformer en mandat.", lien: { kind: "estimation", id: e.id } });
       ajouterTache({ titre: `Rappeler le propriétaire : ${e.adresse}`, echeance: today, fait: false, priorite: 2, lien: { kind: "estimation", id: e.id }, origine: "agent" });
     });
-
-  // 7. Marketing : biens en vente sans contenu depuis 14 jours
-  biensDispo
-    .filter((b) => !d.contenus.some((c) => c.bienId === b.id && jours(c.updatedAt, now.getTime()) <= 14))
-    .slice(0, 3)
-    .forEach((b) => points.push({ type: "marketing", titre: `Aucun contenu récent pour ${b.titre || b.adresse}`, detail: "Le Studio peut générer le kit de diffusion et un reel en un clic.", lien: { kind: "bien", id: b.id } }));
 
   return { points, nouvellesTaches: taches };
 }

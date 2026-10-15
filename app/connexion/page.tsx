@@ -43,7 +43,7 @@ export default function Connexion() {
             <br />
             avec moins d&apos;efforts.
           </h1>
-          <p className="mt-4 max-w-md text-sm lg:text-base leading-relaxed text-white/65">Biens, acquéreurs, visites, estimations et marketing réunis dans un seul outil, pensé pour l&apos;agence PATRIM.</p>
+          <p className="mt-4 max-w-md text-sm lg:text-base leading-relaxed text-white/65">Biens, acquéreurs, visites, estimations et documents réunis dans un seul outil, pensé pour l&apos;agence PATRIM.</p>
         </div>
         <div className="hidden lg:block text-xs text-white/40">PATRIM · 45 allées Jean Jaurès · Toulouse</div>
       </div>

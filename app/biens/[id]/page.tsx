@@ -24,7 +24,6 @@ import {
   Tag,
   Trash2,
   TriangleAlert,
-  Wand2,
 } from "lucide-react";
 import { Badge, Card, DpeBadge, Empty, PageHeader, Sheet, cx } from "@/components/ui";
 import { Gallery } from "@/components/biens/Gallery";
@@ -33,7 +32,8 @@ import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienFo
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
 import { DossierBlock } from "@/components/biens/DossierBlock";
-import { dossierDe } from "@/components/biens/dossier";
+import { dateMandat } from "@/components/mandats/registre";
+import { basculerPoint, dossierDe, reglesDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
 import type { BienActes } from "@/components/documents/archive";
@@ -43,7 +43,7 @@ import { CompteRenduSheet } from "@/components/agenda/CompteRenduSheet";
 import { SUITE, crAFaire, type RdvExt } from "@/components/agenda/utils";
 import { remove, useCollection, useDoc } from "@/lib/store";
 import { STATUT_BIEN, TYPE_BIEN, dateCourte, dateLongue, eur, heure, m2, nomComplet, today } from "@/lib/format";
-import type { BienStatut, Contact } from "@/lib/types";
+import type { Bien, BienStatut, Contact } from "@/lib/types";
 
 /** Champ manquant → section du formulaire. */
 const SECTION_DE: Record<string, string> = {
@@ -227,10 +227,6 @@ export default function BienPage() {
         <button className="btn-secondary shrink-0" onClick={() => setRapport(true)}>
           <FileText size={16} /> Rapport vendeur
         </button>
-        <Link href={`/studio?bien=${b.id}`} className="btn-secondary shrink-0">
-          <Wand2 size={16} /> <span className="sm:hidden">Marketing</span>
-          <span className="hidden sm:inline">Créer les contenus marketing</span>
-        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setEditing("")}>
           <Pencil size={16} /> Modifier
         </button>
@@ -348,13 +344,13 @@ export default function BienPage() {
               <Info label="Honoraires" value={honoraires != null ? `${eur(honoraires)}${b.netVendeur ? ` (${((honoraires / b.netVendeur) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %)` : ""}` : undefined} />
               <Info label="Honoraires à la charge" value={b.honorairesCharge ? (b.honorairesCharge === "acquereur" ? "de l'acquéreur" : "du vendeur") : undefined} />
               <Info label="Mandat" value={[b.mandat?.type ? MANDAT_LABEL[b.mandat.type] : "", b.mandat?.numero ? `n° ${b.mandat.numero}` : ""].filter(Boolean).join(" · ") || undefined} />
-              <Info label="Signé le" value={b.mandat?.debut ? dateCourte(b.mandat.debut) : undefined} />
+              <Info label="Signé le" value={b.mandat?.debut ? dateMandat(b.mandat.debut) : undefined} />
               <Info
                 label="Fin du mandat"
                 value={
                   b.mandat?.fin ? (
                     <span className={cx(finMandatDans != null && finMandatDans <= 30 && "text-warn font-semibold")}>
-                      {dateCourte(b.mandat.fin)}
+                      {dateMandat(b.mandat.fin)}
                       {finMandatDans != null && finMandatDans >= 0 && finMandatDans <= 30 ? ` (dans ${finMandatDans} j)` : finMandatDans != null && finMandatDans < 0 ? " (échu)" : ""}
                     </span>
                   ) : undefined
@@ -365,7 +361,7 @@ export default function BienPage() {
 
           <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />
 
-          <DossierBlock dossier={dossierDe(b)} />
+          <DossierBlock dossier={dossierDe(b)} regles={reglesDe(b)} onBasculer={(texte) => update({ pointsRegles: basculerPoint(reglesDe(b), texte) } as Partial<Bien>)} />
 
           {(b.driveUrl || b.annonceUrl) && (
             <Card title="Liens">
