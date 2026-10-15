@@ -27,6 +27,31 @@ let cache: { quand: number; annonces: AnnonceSite[] } | null = null;
 
 const nombre = (s?: string) => (s ? Number(s.replace(/[^\d,]/g, "").replace(",", ".")) || undefined : undefined);
 
+/** Textes de la page qui ne décrivent pas le bien : bandeau cookies, coordonnées de l'agence, mentions. */
+const BRUIT = /cookie|disque dur|navigat|votre terminal|agence patrim|05[ .]?61[ .]?99[ .]?08|mentions l[ée]gales|confidentialit/i;
+const utile = (t?: string) => !!t && !BRUIT.test(t.slice(0, 90));
+
+const CHIFFRES: Record<string, number> = { une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
+function compteChambres(texte?: string) {
+  const m = texte?.match(/\b(\d|une|deux|trois|quatre|cinq|six)\s+(?:(?:belles?|grandes?|vastes?|spacieuses?)\s+)?chambres?\b/i);
+  return m ? (CHIFFRES[m[1].toLowerCase()] ?? Number(m[1])) : undefined;
+}
+
+/** Quartier tiré de l'en-tête de la description : « APPARTEMENT DE PRESTIGE - ESQUIROL / rue des Marchands » → « Esquirol ». */
+function quartierDe(entete?: string) {
+  if (!entete) return undefined;
+  // Le quartier est le dernier morceau en capitales avant la rue (« … - ESQUIROL / rue … »)
+  const morceaux = entete.split("/")[0].split(/\s[-–]\s/).map((m) => m.replace(/^\s*quartier\s+/i, "").trim());
+  let q = [...morceaux].reverse().find((m) => /\p{L}/u.test(m) && m === m.toUpperCase()) ?? morceaux[morceaux.length - 1];
+  if (!q || q.length > 40 || /\d/.test(q)) return undefined;
+  if (q === q.toUpperCase())
+    q = q
+      .toLowerCase()
+      .replace(/(^|[\s'-])(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase())
+      .replace(/\s(De|Des|Du|La|Le|Les|Et)(?=\s)|\s(D'|L')(?=\p{L})/gu, (m) => m.toLowerCase());
+  return q;
+}
+
 async function lire(ref: string): Promise<AnnonceSite | null> {
   const url = `https://www.patrim.fr/vente-bien-${ref}`;
   try {
@@ -39,12 +64,16 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
     const texte = texteDe(html);
     const prix = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*-\s*Ref/i)?.[1] ?? texte.match(/Prix\s*:?\s*(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
     const net = texte.match(/(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€\s*net vendeur/i)?.[1] ?? texte.match(/net vendeur[^\d]{0,20}(?<![\w.,])(\d{1,3}(?:[ .]\d{3})+|\d{4,})\s*€/i)?.[1];
-    const metas = [meta(html, "description"), meta(html, "og:description")].filter(Boolean).map((d) => decoder(d!));
-    const para = texte.split(/\n+/).map((l) => l.trim()).filter((l) => /^[^:]{3,60}:\s/.test(l) && l.length > 120).sort((a, b) => b.length - a.length)[0];
+    const metas = [meta(html, "description"), meta(html, "og:description")].filter(Boolean).map((d) => decoder(d!)).filter(utile);
+    const para = texte.split(/\n+/).map((l) => l.trim()).filter((l) => /^[^:]{3,60}:\s/.test(l) && l.length > 120 && utile(l)).sort((a, b) => b.length - a.length)[0];
     const description = [para, ...metas].filter(Boolean).sort((a, b) => b!.length - a!.length)[0];
-    const quartier = description?.match(/^([^:]{3,60}?)\s*:/)?.[1]?.trim();
+    const quartier = quartierDe(description?.match(/^([^:]{3,60}?)\s*:/)?.[1]);
     const dpe = html.match(/dpe-([A-G])-\d+-([A-G])/i);
     const nb = (re: RegExp) => Number(texte.match(re)?.[1]) || undefined;
+    const pieces = nb(/(\d+)\s*pi[eè]ces?/i);
+    // « 2 chambres » dans le texte de l'annonce, sinon « Chambres : 2 » ; jamais « chambre 1 » (nom d'une pièce)
+    let chambres = compteChambres(description) ?? nb(/chambres?\s*:\s*(\d+)/i);
+    if (chambres !== undefined && pieces !== undefined && chambres >= pieces) chambres = undefined;
     const photos = photosDansPage(html);
     if (!photos.length) {
       const i = html.search(/photo/i);
@@ -61,8 +90,8 @@ async function lire(ref: string): Promise<AnnonceSite | null> {
       netVendeur: nombre(net),
       quartier,
       description,
-      pieces: nb(/(\d+)\s*pi[eè]ces?/i),
-      chambres: nb(/chambres?\s*:?\s*(\d+)/i) ?? nb(/(\d+)\s*chambres?/i),
+      pieces,
+      chambres,
       etage: nb(/[ée]tage\s*:?\s*(\d+)/i),
       ascenseur: /ascenseur\s*:?\s*oui/i.test(texte) || undefined,
       dpe: dpe?.[1]?.toUpperCase(),

@@ -4,14 +4,34 @@ import { authHeaders } from "./ai";
 import { MANDATS_PATRIM } from "./seed";
 import { cloudEnabled } from "./supabase";
 import { bulkCreate, create, getAll, remove, update } from "./store";
-import type { Bien, BienType } from "./types";
+import type { Bien, BienType, Contact } from "./types";
+import type { BienDossier, DossierBien } from "@/components/biens/dossier";
+import type { ContactEtatCivil } from "@/components/offre/offre";
 
 /* Import et mise à jour des mandats.
    Les fiches complètes (propriétaire, charges, DDT, photos…) viennent de /api/mandats
    (données privées côté serveur) ; sans connexion, la liste publique de lib/seed.ts sert de base. */
 
+/** Un propriétaire (une personne par fiche contact, même en indivision ou en succession). */
+type Personne = {
+  civilite?: "M." | "Mme";
+  prenom?: string;
+  nom: string;
+  nomNaissance?: string;
+  dateNaissance?: string;
+  lieuNaissance?: string;
+  profession?: string;
+  adresse?: string;
+  tel?: string;
+  email?: string;
+  situation?: string;
+};
+
 type Fiche = Partial<Bien> & {
+  /** Nom affiché du ou des propriétaires (ancien format, sert aussi de clé côté serveur). */
   proprietaire?: string;
+  proprietaires?: Personne[];
+  dossier?: DossierBien;
   ddt?: string;
   driveFolderId?: string;
   aVerifier?: string[];
@@ -41,7 +61,52 @@ async function fiches(): Promise<Fiche[]> {
   return MANDATS_PATRIM;
 }
 
-/** Contact vendeur : retrouvé par son nom, sinon créé. */
+const vide = (v: unknown) => v === undefined || v === null || v === "" || v === "[À compléter]" || (Array.isArray(v) && !v.length);
+/** Texte récupéré par erreur sur le site (bandeau cookies, coordonnées de l'agence) : traité comme vide. */
+const parasite = (v: unknown) => typeof v === "string" && /disque dur|cookie|votre terminal|^agence patrim/i.test(v);
+
+/** Champs de `infos` à reporter : seulement là où rien n'est encore saisi. */
+function aCompleter<T extends object>(obj: T, infos: Partial<T>): Partial<T> {
+  const patch: Partial<T> = {};
+  const o = obj as Record<string, unknown>;
+  for (const [k, v] of Object.entries(infos)) if (!vide(v) && (vide(o[k]) || parasite(o[k]))) (patch as Record<string, unknown>)[k] = v;
+  return patch;
+}
+
+const nomsDe = (c: { nom?: string; prenom?: string }) => [norm(`${c.nom ?? ""} ${c.prenom ?? ""}`), norm(`${c.prenom ?? ""} ${c.nom ?? ""}`)];
+
+/** Fiche contact d'un propriétaire : retrouvée par son nom (ou complétée quand seul le nom de famille
+    était connu), sinon créée. Ce qui est déjà saisi n'est jamais remplacé. */
+function personne(p: Personne, ancienne?: string): string {
+  const contacts = getAll("contacts") as ContactEtatCivil[];
+  const cle = norm(`${p.nom} ${p.prenom ?? ""}`);
+  const seulNom = contacts.filter((c) => c.roles?.includes("vendeur") && !c.prenom && norm(c.nom) === norm(p.nom));
+  // Fiche créée par un import précédent avec tous les noms dans un seul contact : reprise pour la première personne
+  const groupee = ancienne ? contacts.find((c) => !c.tel && !c.email && nomsDe(c).includes(norm(ancienne))) : undefined;
+  const c = contacts.find((x) => nomsDe(x).includes(cle)) ?? (seulNom.length === 1 && p.prenom ? seulNom[0] : undefined) ?? groupee;
+  const infos: Partial<ContactEtatCivil> = {
+    civilite: p.civilite,
+    prenom: p.prenom,
+    tel: p.tel,
+    email: p.email,
+    adresse: p.adresse,
+    dateNaissance: p.dateNaissance,
+    lieuNaissance: p.lieuNaissance,
+    profession: p.profession,
+    notes: [p.nomNaissance && `${p.civilite === "M." ? "Né" : "Née"} ${p.nomNaissance}`, p.situation].filter(Boolean).join(". ") || undefined,
+  };
+  if (c) {
+    const patch = aCompleter(c, infos);
+    if (c === groupee) Object.assign(patch, { nom: p.nom, prenom: p.prenom });
+    if (!c.roles?.includes("vendeur")) patch.roles = [...(c.roles ?? []), "vendeur"];
+    if (Object.keys(patch).length) update("contacts", c.id, patch as Partial<Contact>);
+    return c.id;
+  }
+  const champs = Object.fromEntries(Object.entries(infos).filter(([, v]) => !vide(v))) as Partial<ContactEtatCivil>;
+  return create("contacts", { ...champs, nom: p.nom, roles: ["vendeur"], historique: [] }).id;
+}
+
+/** Contact vendeur (ancien format, un seul nom) : retrouvé par son nom, sinon créé. */
 function vendeur(nom: string) {
   const cle = norm(nom);
   const c = getAll("contacts").find((x) => norm([x.nom, x.prenom].filter(Boolean).join(" ")) === cle || norm([x.prenom, x.nom].filter(Boolean).join(" ")) === cle);
@@ -83,14 +148,6 @@ function infosAnnonce(a: AnnonceSite): Partial<Bien> {
     dpe: classe(a.dpe),
     ges: classe(a.ges),
   };
-}
-
-const vide = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length);
-/** Champs de `infos` à reporter sur `bien` : seulement là où rien n'est encore saisi. */
-function aCompleter(bien: Partial<Bien>, infos: Partial<Bien>) {
-  const patch: Partial<Bien> = {};
-  for (const [k, v] of Object.entries(infos) as [keyof Bien, unknown][]) if (!vide(v) && vide(bien[k])) (patch as Record<string, unknown>)[k] = v;
-  return patch;
 }
 
 const MARQUEUR = "Ajouté depuis le site patrim.fr : propriétaire, adresse et détails à compléter.";
@@ -154,24 +211,33 @@ export async function importerMandats() {
   const utilisees = new Set<string>();
 
   for (const f of liste) {
-    const { proprietaire, ddt, driveFolderId, aVerifier, sources: _sources, ...champs } = f;
+    const { proprietaire, proprietaires, dossier: dossierFiche, ddt, driveFolderId, aVerifier, sources: _sources, ...champs } = f;
     void _sources;
-    // Champs saisis en texte dans les dossiers (lots, année approximative) : gardés dans les notes
-    const texte: string[] = [];
-    for (const k of ["lotsCopro", "anneeConstruction", "etage", "nbEtages", "surfaceTerrain"] as const) {
+    // Champs saisis en texte dans les dossiers (lots détaillés, année approximative) : rangés dans le dossier du bien
+    const precisions: string[] = [];
+    const LIBELLES = { lotsCopro: "Lots", anneeConstruction: "Construction", etage: "Étage", nbEtages: "Niveaux", surfaceTerrain: "Terrain" } as const;
+    for (const k of Object.keys(LIBELLES) as (keyof typeof LIBELLES)[]) {
       const v = (champs as Record<string, unknown>)[k];
       if (typeof v === "string") {
-        texte.push(`${k === "lotsCopro" ? "Lots" : k === "anneeConstruction" ? "Construction" : k} : ${v}`);
+        precisions.push(`${LIBELLES[k]} : ${v}`);
         delete (champs as Record<string, unknown>)[k];
       }
     }
-    const notes = [champs.notes, ...texte, ddt && `DDT : ${ddt}`, aVerifier?.length ? `À vérifier : ${aVerifier.join(" ; ")}` : ""].filter(Boolean).join("\n");
-    const data: Partial<Bien> = {
+    const dossier: DossierBien = Object.fromEntries(
+      Object.entries({
+        ...dossierFiche,
+        ddt: dossierFiche?.ddt ?? ddt,
+        aVerifier: dossierFiche?.aVerifier ?? aVerifier,
+        precisions: [...(dossierFiche?.precisions ?? []), ...precisions],
+      }).filter(([, v]) => !vide(v))
+    );
+    const data: Partial<BienDossier> = {
       ...champs,
-      notes: notes || undefined,
       driveUrl: champs.driveUrl ?? (driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : undefined),
     };
-    if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
+    if (Object.keys(dossier).length) data.dossier = { ...dossier, maj: new Date().toISOString().slice(0, 10) };
+    if (proprietaires?.length) data.vendeurIds = proprietaires.map((p, i) => personne(p, i === 0 ? proprietaire : undefined));
+    else if (proprietaire) data.vendeurIds = [vendeur(proprietaire)];
     const annonce = annonceDe(f, annonces);
     if (annonce) {
       utilisees.add(annonce.ref);
@@ -195,22 +261,29 @@ export async function importerMandats() {
     }
     if (existant) {
       // On complète sans écraser ce que Quentin a déjà saisi (photos, statut, notes modifiées…)
-      const patch: Partial<Bien> = {};
-      for (const [k, v] of Object.entries(data) as [keyof Bien, unknown][]) {
-        if (v === undefined || v === null || v === "") continue;
-        if (vide(existant[k]) || k === "titre" || k === "vendeurIds") (patch as Record<string, unknown>)[k] = v;
-      }
+      const { vendeurIds, dossier: dossierImport, mandat, titre, ...reste } = data;
+      const patch: Partial<BienDossier> = aCompleter(existant, reste);
+      if (titre && titre !== existant.titre) patch.titre = titre;
+      // Vendeurs : ceux du dossier, plus ceux ajoutés à la main
+      const ids = [...new Set([...(vendeurIds ?? []), ...(existant.vendeurIds ?? [])])];
+      if (ids.join() !== (existant.vendeurIds ?? []).join()) patch.vendeurIds = ids;
+      // Mandat : seules les informations manquantes (numéro, type, dates) sont ajoutées
+      const manque = mandat ? aCompleter(existant.mandat ?? {}, mandat) : {};
+      if (Object.keys(manque).length) patch.mandat = { ...existant.mandat, ...manque };
+      // Le dossier vient des pièces (rien ne s'y saisit à la main) : il est remplacé à chaque import
+      const sansDate = (d?: DossierBien) => JSON.stringify({ ...d, maj: undefined });
+      if (dossierImport && sansDate(dossierImport) !== sansDate((existant as BienDossier).dossier)) patch.dossier = dossierImport;
+      // Bien créé depuis le site : la mention « à compléter » disparaît une fois le dossier rattaché
+      if (existant.notes === MARQUEUR && (vendeurIds?.length || reste.adresse)) patch.notes = reste.notes ?? "";
       // Photos : la liste complète du site remplace celles venues du site, jamais celles ajoutées depuis le téléphone
       const actuelles = existant.photos ?? [];
       if (enLigne.length && actuelles.every(duSite) && actuelles.join() !== enLigne.join()) patch.photos = enLigne;
-      // Les points à vérifier et le DDT s'ajoutent aux notes existantes, une seule fois
-      if (existant.notes && data.notes && !existant.notes.includes(data.notes)) patch.notes = `${existant.notes}\n${data.notes}`;
       if (Object.keys(patch).length) {
-        update("biens", existant.id, patch);
+        update("biens", existant.id, patch as Partial<Bien>);
         maj++;
       }
     } else {
-      nouveaux.push({ ...data, statut: data.statut ?? "en_vente" });
+      nouveaux.push({ ...data, statut: data.statut ?? "en_vente" } as Partial<Bien>);
       crees++;
     }
   }

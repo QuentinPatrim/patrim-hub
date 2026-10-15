@@ -32,6 +32,8 @@ import { AjoutPhotos } from "@/components/biens/AjoutPhotos";
 import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienForm";
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
+import { DossierBlock } from "@/components/biens/DossierBlock";
+import { dossierDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
 import type { BienActes } from "@/components/documents/archive";
@@ -362,6 +364,8 @@ export default function BienPage() {
           </Card>
 
           <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />
+
+          <DossierBlock dossier={dossierDe(b)} />
 
           {(b.driveUrl || b.annonceUrl) && (
             <Card title="Liens">

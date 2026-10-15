@@ -38,7 +38,8 @@ import { BIEN_DISPONIBLE, matchScore, niveauMatch, topMatches } from "@/lib/matc
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { titrePublic } from "@/lib/titrePublic";
 import { marquerPropose } from "@/components/biens/AcquereursCompatibles";
-import { texteProposition } from "@/components/biens/utils";
+import { mapsHref, texteProposition } from "@/components/biens/utils";
+import { dateLettres, ne, type ContactEtatCivil } from "@/components/offre/offre";
 import { useCollection, useDoc } from "@/lib/store";
 import type { Bien, Contact, ContactRole, Criteres, EtapeAcquereur, Rdv, Source } from "@/lib/types";
 
@@ -133,6 +134,11 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
     setTimeout(() => setToast(null), 2600);
   };
 
+  // État civil (repris dans les offres et les mandats) : « Née le 3 mars 1950 à Albi (81) · Retraitée »
+  const ec = c as ContactEtatCivil;
+  const naissance = ec.dateNaissance || ec.lieuNaissance ? [ne(ec), ec.dateNaissance && `le ${dateLettres(ec.dateNaissance)}`, ec.lieuNaissance && `à ${ec.lieuNaissance}`].filter(Boolean).join(" ") : "";
+  const etatCivil = [naissance.replace(/^./, (x) => x.toUpperCase()), ec.profession].filter(Boolean).join(" · ");
+
   const addHisto = (type: HistoType, texte: string, extra?: Partial<Contact>) => {
     const now = new Date().toISOString();
     update({ historique: [{ date: now, type, texte }, ...(c.historique ?? [])], ...(type !== "note" ? { dernierContact: now } : {}), ...extra });
@@ -199,6 +205,16 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
               <a href={`mailto:${c.email}`} className="flex items-center gap-2 h-9 min-w-0 text-fg/90 hover:text-accent">
                 <Mail size={15} className="text-muted shrink-0" /> <span className="truncate">{c.email}</span>
               </a>
+            )}
+            {c.adresse && (
+              <a href={mapsHref(c.adresse)} target="_blank" rel="noreferrer" className="flex items-start gap-2 min-h-9 py-2 min-w-0 text-fg/90 hover:text-accent sm:col-span-2">
+                <MapPin size={15} className="text-muted shrink-0 mt-0.5" /> <span>{c.adresse}</span>
+              </a>
+            )}
+            {etatCivil && (
+              <div className="flex items-start gap-2 min-h-9 py-2 text-fg/90 sm:col-span-2">
+                <UserRound size={15} className="text-muted shrink-0 mt-0.5" /> <span>{etatCivil}</span>
+              </div>
             )}
           </div>
 
@@ -773,20 +789,38 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
 /* ---------- Modification de l'identité ---------- */
 
 function EditSheet({ open, onClose, c, update }: { open: boolean; onClose: () => void; c: Contact; update: (p: Partial<Contact>) => unknown }) {
-  const [d, setD] = useState<Partial<Contact>>({});
+  const [d, setD] = useState<Partial<ContactEtatCivil>>({});
   useEffect(() => {
-    if (open) setD({ civilite: c.civilite ?? "", prenom: c.prenom, nom: c.nom, tel: c.tel, email: c.email, roles: c.roles ?? [], source: c.source });
+    const ec = c as ContactEtatCivil;
+    if (open)
+      setD({
+        civilite: c.civilite ?? "",
+        prenom: c.prenom,
+        nom: c.nom,
+        tel: c.tel,
+        email: c.email,
+        adresse: c.adresse,
+        dateNaissance: ec.dateNaissance,
+        lieuNaissance: ec.lieuNaissance,
+        profession: ec.profession,
+        roles: c.roles ?? [],
+        source: c.source,
+      });
   }, [open, c]);
-  const set = (p: Partial<Contact>) => setD((x) => ({ ...x, ...p }));
+  const set = (p: Partial<ContactEtatCivil>) => setD((x) => ({ ...x, ...p }));
   const roles = d.roles ?? [];
   const toggleRole = (r: ContactRole) => set({ roles: roles.includes(r) ? roles.filter((x) => x !== r) : [...roles, r] });
   const save = () => {
-    const patch: Partial<Contact> = {
+    const patch: Partial<ContactEtatCivil> = {
       ...d,
       nom: (d.nom ?? "").trim() || (d.prenom ?? "").trim() || c.nom,
       prenom: d.prenom?.trim() || undefined,
       tel: d.tel?.trim() || undefined,
       email: d.email?.trim() || undefined,
+      adresse: d.adresse?.trim() || undefined,
+      dateNaissance: d.dateNaissance || undefined,
+      lieuNaissance: d.lieuNaissance?.trim() || undefined,
+      profession: d.profession?.trim() || undefined,
       roles: roles.length ? roles : ["acquereur"],
     };
     if (patch.roles?.includes("acquereur") && !c.etape) patch.etape = "nouveau";
@@ -843,6 +877,20 @@ function EditSheet({ open, onClose, c, update }: { open: boolean; onClose: () =>
             <input className="input" type="email" value={d.email ?? ""} onChange={(e) => set({ email: e.target.value })} />
           </Field>
         </div>
+        <Field label="Adresse">
+          <input className="input" value={d.adresse ?? ""} onChange={(e) => set({ adresse: e.target.value })} placeholder="N°, rue, code postal, ville" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Date de naissance">
+            <input className="input" type="date" value={d.dateNaissance ?? ""} onChange={(e) => set({ dateNaissance: e.target.value })} />
+          </Field>
+          <Field label="Lieu de naissance">
+            <input className="input" value={d.lieuNaissance ?? ""} onChange={(e) => set({ lieuNaissance: e.target.value })} placeholder="Ville (dépt)" />
+          </Field>
+        </div>
+        <Field label="Profession">
+          <input className="input" value={d.profession ?? ""} onChange={(e) => set({ profession: e.target.value })} />
+        </Field>
         <Field label="Source">
           <select className="input" value={d.source ?? ""} onChange={(e) => set({ source: (e.target.value || undefined) as Source | undefined })}>
             <option value="">—</option>
