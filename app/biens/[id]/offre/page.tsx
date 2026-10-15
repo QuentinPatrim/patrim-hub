@@ -8,7 +8,7 @@ import { Badge, Card, Empty, Field, PageHeader, cx } from "@/components/ui";
 import { ContactPicker } from "@/components/biens/ContactPicker";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { NumInput } from "@/components/contacts/CriteresEditor";
-import { PickChip, Toggle } from "@/components/contacts/bits";
+import { PickChip } from "@/components/contacts/bits";
 import { adresseComplete } from "@/components/biens/utils";
 import { enLettres } from "@/components/documents/charte";
 import {

@@ -288,16 +288,10 @@ export default function OffrePdf() {
               </p>
             </Section>
 
-            {/* Signatures */}
-            <div className="offre-bloc pt-[2mm]">
-              <p className="text-center text-[9pt] font-semibold uppercase tracking-[0.12em]" style={{ color: C.brand }}>
-                Fait par voie électronique à la date indiquée pour chaque signature par voie électronique
-              </p>
-              <div className="mt-[5mm] grid grid-cols-2 gap-[6mm]">
-                <Signatures titre={plusieurs ? "Les promettants" : "Le promettant"} mention="Bon pour offre d'achat" parties={o.acquereurs} />
-                <Signatures titre="Le vendeur" mention="Bon pour acceptation de l'offre" parties={o.vendeurs} />
-              </div>
-            </div>
+            {/* Les signatures sont ajoutées par ICSIGN */}
+            <p className="offre-bloc pt-[2mm] text-center text-[9pt] font-semibold uppercase tracking-[0.12em]" style={{ color: C.brand }}>
+              Fait par voie électronique à la date indiquée pour chaque signature par voie électronique, en autant d&apos;exemplaires que de parties
+            </p>
           </div>
 
           {/* Mentions de l'agence (à l'impression, un rappel court figure aussi en bas de chaque page) */}
@@ -354,28 +348,5 @@ function Texte({ t }: { t: string }) {
         )
       )}
     </>
-  );
-}
-
-/** Zones de signature (ICSIGN y pose les champs de signature). */
-function Signatures({ titre, mention, parties }: { titre: string; mention: string; parties: Partie[] }) {
-  const liste = parties.length ? parties : [{} as Partie];
-  return (
-    <div>
-      <div className="text-[8pt] font-semibold uppercase tracking-[0.16em]" style={{ color: C.muted }}>
-        {titre}
-      </div>
-      <div className="mt-[2mm] space-y-[3mm]">
-        {liste.map((p, i) => (
-          <div key={i} className="rounded-[2.5mm] border px-[4mm] pt-[3mm] pb-[2mm]" style={{ borderColor: C.line }}>
-            <div className="text-[9pt] font-medium">{nomOffre(p) || " "}</div>
-            <div className="text-[8pt] italic" style={{ color: C.muted }}>
-              « {mention} »
-            </div>
-            <div className="h-[18mm]" />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
