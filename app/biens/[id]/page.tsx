@@ -32,7 +32,9 @@ import { BienForm, finaliserBien, type BienExt } from "@/components/biens/BienFo
 import { AcquereursCompatibles } from "@/components/biens/AcquereursCompatibles";
 import { RapportVendeur } from "@/components/biens/RapportVendeur";
 import { DossierBlock } from "@/components/biens/DossierBlock";
-import { dateMandat } from "@/components/mandats/registre";
+import { STATUTS_ACTIFS, dateMandat } from "@/components/mandats/registre";
+import { LienAvenant } from "@/components/avenant/LienAvenant";
+import { pointAvenant } from "@/components/avenant/avenant";
 import { basculerPoint, dossierDe, reglesDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
@@ -337,7 +339,7 @@ export default function BienPage() {
 
         {/* Colonne latérale */}
         <aside className="space-y-5">
-          <Card title="Prix & mandat">
+          <Card title="Prix & mandat" action={b.mandat?.numero || b.mandat?.debut ? <LienAvenant bienId={b.id} court /> : undefined}>
             <dl>
               <Info label="Prix affiché" value={b.prix ? eur(b.prix) : undefined} />
               <Info label="Net vendeur" value={b.netVendeur ? eur(b.netVendeur) : undefined} />
@@ -361,7 +363,12 @@ export default function BienPage() {
 
           <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />
 
-          <DossierBlock dossier={dossierDe(b)} regles={reglesDe(b)} onBasculer={(texte) => update({ pointsRegles: basculerPoint(reglesDe(b), texte) } as Partial<Bien>)} />
+          <DossierBlock
+            dossier={dossierDe(b)}
+            regles={reglesDe(b)}
+            onBasculer={(texte) => update({ pointsRegles: basculerPoint(reglesDe(b), texte) } as Partial<Bien>)}
+            actionPoint={(texte) => (pointAvenant(texte) && STATUTS_ACTIFS.includes(b.statut) ? <LienAvenant bienId={b.id} /> : null)}
+          />
 
           {(b.driveUrl || b.annonceUrl) && (
             <Card title="Liens">
