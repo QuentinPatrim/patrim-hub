@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Eye, FilePen, FileSignature, FileText, Pencil, Scale, Trash2 } from "lucide-react";
+import { ChevronDown, Eye, FilePen, FileSignature, FileText, Landmark, Pencil, Scale, Trash2 } from "lucide-react";
 import { Badge, Card, Empty, Sheet } from "@/components/ui";
 import { STATUT_BIEN, dateCourte, eur } from "@/lib/format";
 import { useCollection } from "@/lib/store";
@@ -82,6 +82,11 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                   <button className="btn-ghost btn-sm" onClick={() => modifier(a)}>
                     <Pencil size={14} /> Modifier
                   </button>
+                  {a.kind === "offre" && a.statut === "signe" && (
+                    <Link href={`/biens/${bien.id}/notaire?offre=${a.id}`} className="btn-ghost btn-sm">
+                      <Landmark size={14} /> Notaire
+                    </Link>
+                  )}
                 </div>
               </li>
             );

@@ -134,7 +134,7 @@ export const ne = (p: Partie) => (p.civilite === "M." ? "né" : p.civilite === "
 export const nomOffre = (p: Partie) => [civiliteLongue(p), p.prenom, p.nom?.toUpperCase()].filter(Boolean).join(" ");
 
 export const dateLettres = (ymd?: string) =>
-  ymd ? new Date(ymd + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "";
+  ymd ? new Date(ymd + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }).replace(/^1 /, "1er ") : "";
 
 /** Désignation de départ, à compléter par le conseiller (rien n'est inventé). */
 export function designationDepuisBien(b: Bien) {
@@ -146,7 +146,7 @@ export function designationDepuisBien(b: Bien) {
     b.surfaceTerrain ? `sur un terrain de ${b.surfaceTerrain.toLocaleString("fr-FR")} m²` : "",
   ].filter(Boolean);
   const annexes = [b.exterieur, b.parking, b.cave ? "une cave" : ""].filter(Boolean).join(", ");
-  return `${parts.join(", ")}, composé de [À compléter : pièces]${annexes ? `, avec ${annexes}` : ""}.${b.type === "appartement" ? " Lot(s) de copropriété n° [À compléter]." : ""}`;
+  return `${parts.join(", ")}, composé${b.type === "maison" ? "e" : ""} de [À compléter : pièces]${annexes ? `, avec ${annexes}` : ""}.${b.type === "appartement" ? " Lot(s) de copropriété n° [À compléter]." : ""}`;
 }
 
 const salutation = (p: Partie, vendeur: boolean) => (vendeur || !p.prenom ? `Bonjour ${[civiliteLongue(p), p.nom].filter(Boolean).join(" ")}`.trim() : `Bonjour ${p.prenom}`) + ",";
