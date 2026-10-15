@@ -9,15 +9,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getAll, uid, update, useDoc } from "@/lib/store";
-import { eur, today } from "@/lib/format";
+import { dateCourte, eur, today } from "@/lib/format";
 import type { Bien, BienStatut } from "@/lib/types";
 import { nomOffre, type Offre } from "@/components/offre/offre";
 import { titreMandat, type Mandat } from "@/components/mandat/mandat";
 import { pointAvenant, prixPresentation, titreAvenant, type Avenant } from "@/components/avenant/avenant";
 import { basculerPoint, clePoint, dossierDe, reglesDe, type BienDossier } from "@/components/biens/dossier";
 import { suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
+import type { BonVisite } from "@/components/bon/bon";
 
-export type ActeKind = "offre" | "mandat" | "avenant";
+export type ActeKind = "offre" | "mandat" | "avenant" | "bon";
 export type ActeStatut = "brouillon" | "envoye" | "signe" | "refuse";
 
 interface ActeBase {
@@ -26,7 +27,11 @@ interface ActeBase {
   creeLe: string; // ISO
   maj: string; // ISO
 }
-export type Acte = (ActeBase & { kind: "offre"; data: Offre }) | (ActeBase & { kind: "mandat"; data: Mandat }) | (ActeBase & { kind: "avenant"; data: Avenant });
+export type Acte =
+  | (ActeBase & { kind: "offre"; data: Offre })
+  | (ActeBase & { kind: "mandat"; data: Mandat })
+  | (ActeBase & { kind: "avenant"; data: Avenant })
+  | (ActeBase & { kind: "bon"; data: BonVisite });
 export type BienActes = Bien & { actes?: Acte[] };
 
 export const STATUTS_ACTE: Record<ActeKind, { v: ActeStatut; label: string; tone: "neutral" | "info" | "ok" | "danger" }[]> = {
@@ -48,6 +53,12 @@ export const STATUTS_ACTE: Record<ActeKind, { v: ActeStatut; label: string; tone
     { v: "signe", label: "Signé", tone: "ok" },
     { v: "refuse", label: "Abandonné", tone: "danger" },
   ],
+  bon: [
+    { v: "brouillon", label: "À faire signer", tone: "neutral" },
+    { v: "envoye", label: "Envoyé pour signature", tone: "info" },
+    { v: "signe", label: "Signé", tone: "ok" },
+    { v: "refuse", label: "Abandonné", tone: "danger" },
+  ],
 };
 export const statutActe = (a: Acte) => STATUTS_ACTE[a.kind].find((s) => s.v === a.statut)!;
 
@@ -57,6 +68,10 @@ export function titreActe(a: Acte) {
     return `Offre d'achat${noms ? ` de ${noms}` : ""}`;
   }
   if (a.kind === "avenant") return titreAvenant(a.data);
+  if (a.kind === "bon") {
+    const noms = a.data.visiteurs.map(nomOffre).filter(Boolean).join(" et ");
+    return `Bon de visite${noms ? ` de ${noms}` : ""}`;
+  }
   return `${titreMandat(a.data)}${a.data.numero ? ` n° ${a.data.numero}` : ""}`;
 }
 export function resumeActe(a: Acte) {
@@ -65,6 +80,7 @@ export function resumeActe(a: Acte) {
     const hai = prixPresentation(a.data.nouveau);
     return hai != null ? `Nouveau prix : ${eur(hai)} honoraires inclus` : a.data.nouveau.netVendeur ? `Nouveau prix : ${eur(a.data.nouveau.netVendeur)} net vendeur` : "Prix à compléter";
   }
+  if (a.kind === "bon") return `Visite du ${dateCourte(a.data.visite)}${a.data.signeLe ? ", signé sur place" : ""}`;
   const noms = a.data.mandants.map(nomOffre).filter(Boolean).join(" et ");
   return [a.data.netVendeur ? `${eur(a.data.netVendeur)} net vendeur` : "", noms].filter(Boolean).join(" · ");
 }
@@ -76,13 +92,14 @@ const actesDu = (bienId: string) => ((getAll("biens").find((x) => x.id === bienI
 export function enregistrerActe(bienId: string, kind: "offre", data: Offre): string;
 export function enregistrerActe(bienId: string, kind: "mandat", data: Mandat): string;
 export function enregistrerActe(bienId: string, kind: "avenant", data: Avenant): string;
-export function enregistrerActe(bienId: string, kind: ActeKind, data: Offre | Mandat | Avenant): string {
+export function enregistrerActe(bienId: string, kind: "bon", data: BonVisite, statut?: ActeStatut): string;
+export function enregistrerActe(bienId: string, kind: ActeKind, data: Offre | Mandat | Avenant | BonVisite, statut?: ActeStatut): string {
   const actes = actesDu(bienId);
   const now = new Date().toISOString();
   const id = data.acteId && actes.some((a) => a.id === data.acteId) ? data.acteId : uid();
   const copie = { ...data, acteId: id };
   const existant = actes.find((a) => a.id === id);
-  const acte = { id, kind, data: copie, statut: existant?.statut ?? "brouillon", creeLe: existant?.creeLe ?? now, maj: now } as Acte;
+  const acte = { id, kind, data: copie, statut: statut ?? existant?.statut ?? "brouillon", creeLe: existant?.creeLe ?? now, maj: now } as Acte;
   update("biens", bienId, { actes: [acte, ...actes.filter((a) => a.id !== id)] } as Partial<Bien>);
   return id;
 }
@@ -136,7 +153,7 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
       const ouverts = (dossierDe(b)?.aVerifier ?? []).filter((p) => pointAvenant(p) && !regles[clePoint(p)]);
       if (ouverts.length) patch.pointsRegles = ouverts.reduce((r, p) => basculerPoint(r, p), regles);
     }
-  } else if (statut === "signe") {
+  } else if (acte.kind === "mandat" && statut === "signe") {
     const m = acte.data;
     patch.mandat = { ...b.mandat, numero: m.numero || b.mandat?.numero, type: m.type ?? "simple", debut: m.date, fin: m.date ? ajouterMois(m.date, m.dureeMois) : b.mandat?.fin };
     if (b.statut === "estimation") patch.statut = "mandat_signe";
@@ -149,7 +166,7 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
  * Pour les pages d'impression : l'acte gardé sur la fiche (lien « ?acte=… »), sinon le brouillon
  * de cet appareil. undefined tant que ce n'est pas chargé, null si rien n'est trouvé.
  */
-export function useActe<T extends Offre | Mandat | Avenant>(bienId: string, kind: ActeKind, brouillon: (bienId: string) => T | null): T | null | undefined {
+export function useActe<T extends Offre | Mandat | Avenant | BonVisite>(bienId: string, kind: ActeKind, brouillon: (bienId: string) => T | null): T | null | undefined {
   const { doc: bien } = useDoc("biens", bienId);
   const [acteId, setActeId] = useState<string | null | undefined>(undefined);
   const [attente, setAttente] = useState(true);
