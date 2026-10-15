@@ -205,7 +205,7 @@ export default function OffreAchatPage() {
           <Card title="Prix">
             <div className="space-y-3">
               <div className="grid grid-cols-2 items-end gap-3">
-                <Field label="Prix offert (honoraires inclus)">
+                <Field label="Prix (honoraires inclus)">
                   <NumInput value={o.prix} onChange={(v) => set({ prix: v })} suffix="€" />
                 </Field>
                 <Field label="Honoraires">
