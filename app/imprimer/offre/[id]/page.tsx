@@ -154,7 +154,7 @@ export default function OffrePdf() {
 
             {/* 04 Prix */}
             <Section num="04" titre="Le prix">
-              <PrixBloc label="Prix offert, honoraires inclus" montant={o.prix ? `${o.prix.toLocaleString("fr-FR")} €` : "—"}>
+              <PrixBloc label="Prix, honoraires inclus" montant={o.prix ? `${o.prix.toLocaleString("fr-FR")} €` : "—"}>
                 {o.honoraires != null && <div>dont {o.honoraires.toLocaleString("fr-FR")} € d&apos;honoraires</div>}
                 {net != null && <div>{net.toLocaleString("fr-FR")} € net vendeur</div>}
               </PrixBloc>
