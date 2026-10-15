@@ -9,10 +9,12 @@ import { refreshAll } from "@/lib/store";
 export function AuthGate({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const [ok, setOk] = useState(!supabase);
+  // Fiche d'un bien envoyée à un acquéreur : consultable sans compte.
+  const publique = path.startsWith("/imprimer/partage/");
+  const [ok, setOk] = useState(!supabase || publique);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || publique) return;
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session && !path.startsWith("/connexion")) router.replace("/connexion");
       else setOk(true);
@@ -22,7 +24,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") router.replace("/connexion");
     });
     return () => sub.subscription.unsubscribe();
-  }, [path, router]);
+  }, [path, router, publique]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register("/sw.js").catch(() => {});
