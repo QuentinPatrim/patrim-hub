@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Building2, Plus, Search, X } from "lucide-react";
+import { ArrowUpDown, Building2, FileSignature, Plus, Search, X } from "lucide-react";
 import { Empty, PageHeader, Tabs } from "@/components/ui";
 import { BienCard, BienCardSkeleton } from "@/components/biens/BienCard";
 import { STATUTS, acquereursCompatibles, prixM2 } from "@/components/biens/utils";
@@ -99,9 +99,14 @@ export default function BiensPage() {
         title="Biens"
         subtitle={biens.length ? `${counts.actifs} mandat${counts.actifs > 1 ? "s" : ""} en cours` : "Votre portefeuille de mandats"}
         actions={
-          <Link href="/biens/nouveau" className="btn-primary">
-            <Plus size={16} /> Nouveau bien
-          </Link>
+          <>
+            <Link href="/mandats" className="btn-secondary">
+              <FileSignature size={16} /> Registre des mandats
+            </Link>
+            <Link href="/biens/nouveau" className="btn-primary">
+              <Plus size={16} /> Nouveau bien
+            </Link>
+          </>
         }
       />
 

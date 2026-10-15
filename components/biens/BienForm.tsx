@@ -331,7 +331,7 @@ export function BienForm({ initial, onSubmit, onCancel, submitLabel = "Enregistr
               </button>
             </div>
           </Group>
-          <Field label="Description" hint="Le Studio peut ensuite en tirer l'annonce et les posts.">
+          <Field label="Description" hint="Reprise telle quelle dans la fiche envoyée aux acquéreurs : rien de confidentiel ici.">
             <textarea className="input min-h-[140px]" value={d.description ?? ""} onChange={(e) => set("description", e.target.value || undefined)} placeholder="Ce qui fait le charme du bien, l'état, l'environnement…" />
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
