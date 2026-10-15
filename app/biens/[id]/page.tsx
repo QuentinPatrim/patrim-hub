@@ -14,6 +14,7 @@ import {
   FileSignature,
   FileText,
   FolderOpen,
+  Landmark,
   Lock,
   Mail,
   MapPin,
@@ -219,6 +220,12 @@ export default function BienPage() {
           <FileSignature size={16} /> <span className="sm:hidden">Offre d&apos;achat</span>
           <span className="hidden sm:inline">Rédiger une offre d&apos;achat</span>
         </Link>
+        {(b.statut === "sous_offre" || b.statut === "compromis" || (b as BienActes).actes?.some((a) => a.kind === "offre" && a.statut === "signe")) && (
+          <Link href={`/biens/${b.id}/notaire`} className="btn-secondary shrink-0">
+            <Landmark size={16} /> <span className="sm:hidden">Notaire</span>
+            <span className="hidden sm:inline">Transmettre au notaire</span>
+          </Link>
+        )}
         <Link href={`/biens/${b.id}/mandat`} className="btn-secondary shrink-0">
           <FileText size={16} /> <span className="sm:hidden">Mandat</span>
           <span className="hidden sm:inline">Rédiger le mandat de vente</span>
