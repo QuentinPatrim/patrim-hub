@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { AGENCE, C, MENTIONS, enLettres, montantComplet, telActe } from "@/components/documents/charte";
+import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine, Section, Texte, Trou, ou } from "@/components/documents/blocs";
-import { dateLettres, detailFinancement, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
+import { dateLettres, detailFinancement, ecrireOffre, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
 
 /* ============================================================
    Offre d'achat PATRIM, prête à « Enregistrer en PDF » puis à
@@ -16,11 +17,10 @@ import { dateLettres, detailFinancement, lireOffre, manquants, ne, nomOffre, typ
 
 export default function OffrePdf() {
   const { id } = useParams<{ id: string }>();
-  const [o, setO] = useState<Offre | null | undefined>(undefined);
+  const o = useActe(id, "offre", lireOffre);
   const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
-    setO(lireOffre(id));
     const fit = () => setZoom(Math.min(1, (window.innerWidth - 16) / 794));
     fit();
     window.addEventListener("resize", fit);
@@ -65,7 +65,7 @@ export default function OffrePdf() {
       {/* Barre d'outils (non imprimée) */}
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}/offre`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <Link href={`/biens/${id}/offre`} onClick={() => ecrireOffre(o)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>

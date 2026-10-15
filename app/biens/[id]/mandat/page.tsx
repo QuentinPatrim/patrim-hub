@@ -13,6 +13,7 @@ import { EtapeBtn, Etat, PartieForm } from "@/components/documents/Parties";
 import { enLettres } from "@/components/documents/charte";
 import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { ACTIONS_EXCLU, CHAMPS_MANDAT, COMPTES_RENDUS_EXCLU, DIAGNOSTICS, NATURES, TYPES_MANDAT, avecExclusivite, typeMandat, ecrireMandat, effacerMandat, lireMandat, mailDemandeMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
+import { enregistrerActe } from "@/components/documents/archive";
 import { useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 
@@ -76,8 +77,9 @@ export default function MandatPage() {
   const prixHai = m.netVendeur != null && m.honoraires != null ? m.netVendeur + m.honoraires : undefined;
   const voirPdf = () => {
     enregistrerParties(m.mandants, contacts);
-    ecrireMandat(m);
-    router.push(`/imprimer/mandat/${b.id}`);
+    const acteId = enregistrerActe(b.id, "mandat", m);
+    ecrireMandat({ ...m, acteId });
+    router.push(`/imprimer/mandat/${b.id}?acte=${acteId}`);
   };
 
   return (

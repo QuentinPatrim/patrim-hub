@@ -31,6 +31,8 @@ export type Motif = "pret" | "vente" | "autre";
 
 export interface Offre {
   bienId: string;
+  /** Copie gardée sur la fiche du bien (voir components/documents/archive.ts). */
+  acteId?: string;
   acquereurs: Partie[];
   vendeurs: Partie[];
   designation: string;
