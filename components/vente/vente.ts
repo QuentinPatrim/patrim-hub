@@ -50,6 +50,10 @@ export interface SuiviVente {
   faits?: Partial<Record<CleCheck, string>>;
   /** Derniers points faits avec un contact (acquéreur, vendeur) : id → date ISO. */
   points?: Record<string, string>;
+  /** Après l'acte : remerciement fait, contact → date ISO. */
+  merci?: Record<string, string>;
+  /** Après l'acte : dernières nouvelles données à une date anniversaire, contact → date ISO. */
+  nouvelles?: Record<string, string>;
 }
 export type BienVente = Bien & { vente?: SuiviVente };
 

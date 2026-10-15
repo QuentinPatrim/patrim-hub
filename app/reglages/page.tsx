@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { importerMandats as importerMandatsComplets } from "@/lib/mandats";
 import { SignatureCard } from "@/components/reglages/SignatureCard";
+import { AvisCard } from "@/components/reglages/AvisCard";
 import { bulkCreate, getAll } from "@/lib/store";
 import { cloudEnabled, supabase } from "@/lib/supabase";
 import type { Kind } from "@/lib/types";
@@ -82,6 +83,8 @@ export default function Reglages() {
       </Card>
 
       <SignatureCard />
+
+      <AvisCard />
 
       {!cloudEnabled && (
         <Card title="Code d'accès à l'assistant">

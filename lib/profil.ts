@@ -2,7 +2,8 @@
 
 /* ============================================================
    Profil du conseiller : signature manuscrite pour les avis de
-   valeur. Stockée côté utilisateur, jamais dans le dépôt :
+   valeur, lien de la page d'avis clients. Stocké côté
+   utilisateur, jamais dans le dépôt :
    - connecté : une ligne « profil » dans hub_docs (réservée à
      l'utilisateur par les règles de sécurité Supabase) ;
    - toujours : une copie sur le téléphone pour l'affichage immédiat.
@@ -15,6 +16,7 @@ import { uid } from "./store";
 export interface Profil {
   id: string;
   signature?: string; // image PNG (data URL), fond transparent ou blanc
+  lienAvis?: string; // page où les clients laissent un avis sur l'agence (Google…)
   updatedAt: string;
 }
 
@@ -53,19 +55,23 @@ async function chargerDistant() {
   if (!local || (p.updatedAt ?? "") >= (local.updatedAt ?? "")) publier(p);
 }
 
-export async function enregistrerSignature(signature: string | undefined) {
+/** Change un champ du profil en gardant les autres, à partir de la dernière version du compte. */
+async function enregistrer(patch: Partial<Omit<Profil, "id" | "updatedAt">>, erreur: string) {
+  await chargerDistant().catch(() => undefined);
   const base = courant ?? lireLocal();
-  const p: Profil = { id: base?.id ?? uid(), signature, updatedAt: new Date().toISOString() };
+  const p: Profil = { ...(base ?? {}), ...patch, id: base?.id ?? uid(), updatedAt: new Date().toISOString() };
   publier(p);
   if (!supabase) return;
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return;
   const { error } = await supabase.from("hub_docs").upsert({ id: p.id, kind: "profil", data: p, user_id: u.user.id, updated_at: p.updatedAt });
-  if (error) throw new Error("La signature est gardée sur ce téléphone, mais n'a pas pu être synchronisée.");
+  if (error) throw new Error(erreur);
 }
 
-/** Signature du conseiller (undefined tant qu'aucune n'est enregistrée). */
-export function useSignature() {
+export const enregistrerSignature = (signature: string | undefined) => enregistrer({ signature }, "La signature est gardée sur ce téléphone, mais n'a pas pu être synchronisée.");
+export const enregistrerLienAvis = (lienAvis: string | undefined) => enregistrer({ lienAvis }, "Le lien est gardé sur ce téléphone, mais n'a pas pu être synchronisé.");
+
+function useProfil() {
   const [p, setP] = useState<Profil | null>(null);
   useEffect(() => {
     if (courant === undefined) courant = lireLocal();
@@ -76,8 +82,13 @@ export function useSignature() {
       listeners.delete(setP);
     };
   }, []);
-  return p?.signature;
+  return p;
 }
+
+/** Signature du conseiller (undefined tant qu'aucune n'est enregistrée). */
+export const useSignature = () => useProfil()?.signature;
+/** Lien de la page d'avis clients (undefined tant qu'il n'est pas réglé). */
+export const useLienAvis = () => useProfil()?.lienAvis;
 
 /**
  * Prépare une photo ou un scan de signature : recadrée à 900 px de large

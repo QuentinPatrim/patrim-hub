@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type ChangeEvent } from "react";
-import { AlertTriangle, Check, CheckCircle2, Circle, CircleDashed, Clock, Landmark, Mail, MessageCircle, MessageSquareText, Phone } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Circle, CircleDashed, Clock, Landmark, Mail } from "lucide-react";
 import { Avatar, Card, Empty, Field, PageHeader, cx } from "@/components/ui";
 import { ContactPicker } from "@/components/biens/ContactPicker";
 import { PickChip, Toggle } from "@/components/contacts/bits";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
-import { smsHref, telHref, waHref } from "@/components/biens/utils";
 import { dossierDe } from "@/components/biens/dossier";
 import { ALERTES, diagnosticsSuivis, statutsDiags } from "@/components/diagnostics/diagnostics";
 import {
@@ -30,6 +29,8 @@ import {
 } from "@/components/vente/vente";
 import { marquerVendu, messageAcquereur, messageNotaire, messageVendeur, noterPoint, passerEnCompromis, type Canal, type Message } from "@/components/vente/messages";
 import { TEXTE_TON } from "@/components/vente/VenteFiche";
+import { ApresVenteCard, venteSignee } from "@/components/vente/ApresVente";
+import { BoutonsContact } from "@/components/vente/BoutonsContact";
 import { useCollection, useDoc } from "@/lib/store";
 import { dateCourte, initiales, nomComplet, today } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
@@ -39,6 +40,7 @@ import type { Bien, Contact } from "@/lib/types";
    l'avant-contrat, les délais qui en découlent (rétractation,
    prêt, préemption) et les points d'étape avec l'acquéreur, le
    vendeur et le notaire (messages prêts, jamais envoyés d'ici).
+   Une fois l'acte signé : l'après-vente.
    ============================================================ */
 
 const ICONE: Record<EtatEcheance, { Icon: typeof Circle; cls: string }> = {
@@ -301,39 +303,43 @@ export default function VentePage() {
         </div>
       </Card>
 
-      <Card title="Faire le point" pad={false}>
-        <ul className="divide-y divide-line">
-          {acquereurs.map((c) => {
-            const m = messageAcquereur(b, c, auj);
-            return <Ligne key={c.id} c={c} role="Acquéreur" m={m} dernier={v.points?.[c.id]} onPoint={(canal) => noterPoint(b.id, c.id, canal, `Point sur l'achat : ${titre}`)} onMail={() => ouvrirMail(c, m, `Point sur l'achat : ${titre}`)} />;
-          })}
-          {vendeurs.map((c) => {
-            const m = messageVendeur(b, c, auj);
-            return <Ligne key={c.id} c={c} role="Vendeur" m={m} dernier={v.points?.[c.id]} onPoint={(canal) => noterPoint(b.id, c.id, canal, `Point sur la vente : ${titre}`)} onMail={() => ouvrirMail(c, m, `Point sur la vente : ${titre}`)} />;
-          })}
-          <li className="px-4 py-3.5 sm:px-5">
-            <div className="flex items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted">
-                <Landmark size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="font-medium">Notaire</div>
-                <div className="truncate text-xs text-muted">{notaire.to || "Adresse à compléter dans le mail"}</div>
-                {v.points?.notaire && <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-ok"><Check size={13} /> Dernier point le {dateCourte(v.points.notaire)}</div>}
+      {venteSignee(b, auj) ? (
+        <ApresVenteCard b={b} contacts={contacts} />
+      ) : (
+        <Card title="Faire le point" pad={false}>
+          <ul className="divide-y divide-line">
+            {acquereurs.map((c) => {
+              const m = messageAcquereur(b, c, auj);
+              return <Ligne key={c.id} c={c} role="Acquéreur" m={m} dernier={v.points?.[c.id]} onPoint={(canal) => noterPoint(b.id, c.id, canal, `Point sur l'achat : ${titre}`)} onMail={() => ouvrirMail(c, m, `Point sur l'achat : ${titre}`)} />;
+            })}
+            {vendeurs.map((c) => {
+              const m = messageVendeur(b, c, auj);
+              return <Ligne key={c.id} c={c} role="Vendeur" m={m} dernier={v.points?.[c.id]} onPoint={(canal) => noterPoint(b.id, c.id, canal, `Point sur la vente : ${titre}`)} onMail={() => ouvrirMail(c, m, `Point sur la vente : ${titre}`)} />;
+            })}
+            <li className="px-4 py-3.5 sm:px-5">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted">
+                  <Landmark size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">Notaire</div>
+                  <div className="truncate text-xs text-muted">{notaire.to || "Adresse à compléter dans le mail"}</div>
+                  {v.points?.notaire && <div className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-ok"><Check size={13} /> Dernier point le {dateCourte(v.points.notaire)}</div>}
+                </div>
               </div>
-            </div>
-            <button
-              type="button"
-              className="btn-secondary mt-2.5 w-full"
-              onClick={() => setMail({ titre: "Point avec le notaire", to: notaire.to || undefined, sujet: notaire.sujet, corps: notaire.mail, cle: "notaire", texte: "" })}
-            >
-              <Mail size={16} /> Préparer le mail
-            </button>
-          </li>
-        </ul>
-        {!acquereurs.length && <p className="px-4 pt-1 text-xs text-muted sm:px-5">Choisissez l&apos;acquéreur dans « Avant-contrat » pour lui écrire.</p>}
-        <p className="px-4 pb-4 pt-2 text-xs text-muted sm:px-5">Rien n&apos;est envoyé d&apos;ici : chaque message s&apos;ouvre dans votre messagerie pour relecture.</p>
-      </Card>
+              <button
+                type="button"
+                className="btn-secondary mt-2.5 w-full"
+                onClick={() => setMail({ titre: "Point avec le notaire", to: notaire.to || undefined, sujet: notaire.sujet, corps: notaire.mail, cle: "notaire", texte: "" })}
+              >
+                <Mail size={16} /> Préparer le mail
+              </button>
+            </li>
+          </ul>
+          {!acquereurs.length && <p className="px-4 pt-1 text-xs text-muted sm:px-5">Choisissez l&apos;acquéreur dans « Avant-contrat » pour lui écrire.</p>}
+          <p className="px-4 pb-4 pt-2 text-xs text-muted sm:px-5">Rien n&apos;est envoyé d&apos;ici : chaque message s&apos;ouvre dans votre messagerie pour relecture.</p>
+        </Card>
+      )}
 
       {mail && (
         <BrouillonMail
@@ -352,7 +358,6 @@ export default function VentePage() {
 }
 
 function Ligne({ c, role, m, dernier, onPoint, onMail }: { c: Contact; role: string; m: Message; dernier?: string; onPoint: (canal: Canal) => void; onMail: () => void }) {
-  const bouton = "btn-secondary !h-12 flex-1 flex-col !gap-0.5 !px-1 text-[11px]";
   return (
     <li className="px-4 py-3.5 sm:px-5">
       <div className="flex items-start gap-3">
@@ -369,26 +374,7 @@ function Ligne({ c, role, m, dernier, onPoint, onMail }: { c: Contact; role: str
           )}
         </div>
       </div>
-      <div className="mt-2.5 flex gap-1.5">
-        {c.tel && (
-          <a href={smsHref(c.tel, m.sms)} onClick={() => onPoint("sms")} className={bouton}>
-            <MessageSquareText size={16} /> SMS
-          </a>
-        )}
-        {c.tel && (
-          <a href={waHref(c.tel, m.sms)} target="_blank" rel="noreferrer" onClick={() => onPoint("whatsapp")} className={bouton}>
-            <MessageCircle size={16} /> WhatsApp
-          </a>
-        )}
-        <button type="button" onClick={onMail} className={bouton}>
-          <Mail size={16} /> Mail
-        </button>
-        {c.tel && (
-          <a href={telHref(c.tel)} onClick={() => onPoint("appel")} className={bouton}>
-            <Phone size={16} /> Appeler
-          </a>
-        )}
-      </div>
+      <BoutonsContact c={c} m={m} onPoint={onPoint} onMail={onMail} />
     </li>
   );
 }

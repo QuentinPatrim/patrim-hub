@@ -3,11 +3,14 @@
 /* ============================================================
    Points d'étape entre l'avant-contrat et l'acte : SMS ou mail à
    l'acquéreur (prêt, date de l'acte), au vendeur (où en est la
-   vente) et au notaire. Rien n'est envoyé d'ici : chaque message
-   s'ouvre pour relecture. Changements de statut de la vente.
+   vente) et au notaire. Après l'acte : remerciement, puis des
+   nouvelles à chaque date anniversaire. Rien n'est envoyé d'ici :
+   chaque message s'ouvre pour relecture. Changements de statut
+   de la vente.
    ============================================================ */
 
 import { getAll, update } from "@/lib/store";
+import { authHeaders } from "@/lib/ai";
 import { eur } from "@/lib/format";
 import { dossierDe } from "@/components/biens/dossier";
 import { adresseComplete } from "@/components/biens/utils";
@@ -24,7 +27,9 @@ import {
   nomAvantContrat,
   venteDe,
   type BienVente,
+  type SuiviVente,
 } from "./vente";
+import { nAns, type RoleClient } from "./apres";
 
 const NATURE: Record<Bien["type"], { le: string; f: boolean }> = {
   appartement: { le: "l'appartement", f: false },
@@ -46,6 +51,9 @@ export function nomVente(b: Bien) {
 const majuscule = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const bonjour = (c: Contact) => `Bonjour ${c.prenom || [c.civilite, c.nom].filter(Boolean).join(" ")},`;
 const informe = (c: Contact) => (c.civilite === "Mme" ? "informée" : c.civilite === "M." ? "informé" : "informé(e)");
+const satisfait = (c: Contact) => (c.civilite === "Mme" ? "satisfaite" : c.civilite === "M." ? "satisfait" : "satisfait(e)");
+/** « appartement du 10 rue Exemple », pour « votre … ». */
+const sansArticle = (b: Bien) => nomVente(b).replace(/^(l'|la |le )/, "");
 const heureActe = (b: Bien) => (venteDe(b).acteHeure ? ` à ${venteDe(b).acteHeure!.replace(":", "h")}` : "");
 const SIGNATURE_SMS = "Quentin Delsol, PATRIM";
 const SIGNATURE_MAIL = ["Bien à vous,", "Quentin Delsol", "PATRIM Immobilier", telActe(AGENCE.conseillerTel)].filter(Boolean).join("\n");
@@ -153,15 +161,77 @@ export function messageNotaire(b: Bien, auj: string): { to: string; sujet: strin
   };
 }
 
+/* ---------- Après l'acte ---------- */
+
+const PROCHES = "Et si l'un de vos proches a un projet immobilier, je serai ravi de l'accompagner.";
+
+/** Remerciement après l'acte, avec le lien pour laisser un avis s'il est réglé. */
+export function messageMerci(b: Bien, c: Contact, role: RoleClient, lienAvis?: string): Message {
+  return message(c, "Merci pour votre confiance", [
+    role === "acquereur"
+      ? `Encore toutes mes félicitations pour l'achat de ${nomVente(b)}, et merci pour votre confiance : ce fut un plaisir de vous accompagner.`
+      : `La vente de votre ${sansArticle(b)} est signée : merci pour votre confiance tout au long de ce projet, ce fut un plaisir de vous accompagner.`,
+    ...(lienAvis ? [`Si vous êtes ${satisfait(c)} de notre accompagnement, votre avis nous aiderait beaucoup : ${lienAvis}`] : []),
+    PROCHES,
+  ]);
+}
+
+/** Prix médian au m² des ventes comparables autour du bien : l'année de l'achat et la dernière année publiée. */
+export interface Marche {
+  type: "appartements" | "maisons";
+  rayon: number;
+  achat: { annee: number; prixM2: number };
+  dernier: { annee: number; prixM2: number };
+}
+
+/** En dessous, un prix médian ne veut rien dire. */
+const VENTES_MIN = 5;
+
+/** Prix du quartier pour le message anniversaire (ventes enregistrées par les notaires), s'il y a assez de ventes publiées. */
+export async function marcheQuartier(b: Bien, acte: string): Promise<Marche | undefined> {
+  if ((b.type !== "appartement" && b.type !== "maison") || !b.surface || !b.adresse) return undefined;
+  const annee = Number(acte.slice(0, 4));
+  for (const rayon of [500, 1000]) {
+    const res = await fetch("/api/estimation/comparables", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ adresse: adresseComplete(b), surface: b.surface, type: b.type, rayon }) });
+    if (!res.ok) return undefined;
+    const data = await res.json().catch(() => ({}));
+    const parAn: { year: number; median: number; count: number }[] = data?.statistiques?.byYear ?? [];
+    const achat = parAn.find((x) => x.year === annee && x.count >= VENTES_MIN);
+    const dernier = [...parAn].reverse().find((x) => x.year > annee && x.count >= VENTES_MIN);
+    if (achat && dernier) return { type: b.type === "maison" ? "maisons" : "appartements", rayon, achat: { annee, prixM2: achat.median }, dernier: { annee: dernier.year, prixM2: dernier.median } };
+  }
+  return undefined;
+}
+
+/** Nouvelles à la date anniversaire de la vente, avec les prix du quartier pour l'acquéreur quand ils sont connus. */
+export function messageNouvelles(b: Bien, c: Contact, role: RoleClient, n: number, marche?: Marche): Message {
+  const duree = nAns(n);
+  if (role === "vendeur")
+    return message(c, `${majuscule(duree)} déjà !`, [
+      `Il y a ${duree}, nous signions la vente de votre ${sansArticle(b)}. J'espère que tout va bien pour vous !`,
+      "Si vous avez un nouveau projet immobilier, ou si l'un de vos proches en a un, je reste à votre disposition.",
+    ]);
+  const rayon = marche && (marche.rayon >= 1000 ? `${marche.rayon / 1000} km` : `${marche.rayon} m`);
+  return message(c, marche ? "Des nouvelles de votre quartier" : `${majuscule(duree)} déjà !`, [
+    `Il y a ${duree}, vous achetiez ${nomVente(b)} : j'espère que tout se passe bien !`,
+    ...(marche
+      ? [
+          `Côté marché, les ${marche.type} comparables vendus à moins de ${rayon} de votre bien sont partis en ${marche.dernier.annee} au prix médian de ${eur(marche.dernier.prixM2)}/m², contre ${eur(marche.achat.prixM2)}/m² en ${marche.achat.annee} (ventes enregistrées par les notaires).`,
+        ]
+      : []),
+    "Si vous avez un projet, ou si l'un de vos proches en a un, je reste à votre disposition, y compris pour faire le point sur la valeur de votre bien.",
+  ]);
+}
+
 export type Canal = "sms" | "whatsapp" | "mail" | "appel";
 
-/** Garde la date du point (sur le bien) et l'inscrit une fois par jour dans l'historique du contact. */
-export function noterPoint(bienId: string, contactId: string, canal: Canal, texte: string) {
+/** Garde la date sur le bien (point d'étape, remerciement, nouvelles) et l'inscrit une fois par jour dans l'historique du contact. */
+function noter(bienId: string, contactId: string, champ: "points" | "merci" | "nouvelles", canal: Canal, texte: string) {
   const b = getAll("biens").find((x) => x.id === bienId) as BienVente | undefined;
   if (!b) return;
   const now = new Date().toISOString();
-  const v = venteDe(b);
-  update("biens", bienId, { vente: { ...v, points: { ...(v.points ?? {}), [contactId]: now } } } as Partial<Bien>);
+  const v: SuiviVente = venteDe(b);
+  update("biens", bienId, { vente: { ...v, [champ]: { ...(v[champ] ?? {}), [contactId]: now } } } as Partial<Bien>);
   const c = getAll("contacts").find((x) => x.id === contactId);
   if (!c || c.historique?.some((h) => h.texte === texte && h.date.slice(0, 10) === now.slice(0, 10))) return;
   update("contacts", contactId, {
@@ -169,6 +239,9 @@ export function noterPoint(bienId: string, contactId: string, canal: Canal, text
     dernierContact: now,
   });
 }
+
+export const noterPoint = (bienId: string, contactId: string, canal: Canal, texte: string) => noter(bienId, contactId, "points", canal, texte);
+export const noterApres = (bienId: string, contactId: string, quoi: "merci" | "nouvelles", canal: Canal, texte: string) => noter(bienId, contactId, quoi, canal, texte);
 
 const RANG: Record<EtapeAcquereur, number> = { nouveau: 0, qualifie: 1, visite: 2, offre: 3, compromis: 4, gagne: 5, perdu: -1 };
 

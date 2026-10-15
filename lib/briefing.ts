@@ -4,6 +4,7 @@ import { alertesMandats, registre } from "@/components/mandats/registre";
 import { aPrevenir, baisseRecente } from "@/components/baisse/baisse";
 import { diagnosticsSuivis, statutsDiags } from "@/components/diagnostics/diagnostics";
 import { VENTE_EN_COURS, acquereursDe, ajouterJours, checksRestants, dans, dateTexte, dernierPoint, echeances, manques, venteDe } from "@/components/vente/vente";
+import { apresAFaire, nAns, type ClientVente } from "@/components/vente/apres";
 
 /* ============================================================
    Agent de nuit : analyse tout le portefeuille et prépare le
@@ -106,6 +107,27 @@ export function analyser(d: Donnees, now = new Date()): Analyse {
     }
     if (acte?.date && acte.etat === "depasse")
       points.push({ type: "alerte", titre: `${t} : acte prévu le ${dateTexte(acte.date, today)}`, detail: "S'il est signé, le noter dans le suivi de la vente pour passer le bien en « Vendu ».", lien: page });
+  }
+
+  // 3 bis. Après la vente : remercier les clients dans le mois qui suit l'acte, puis prendre de leurs nouvelles à chaque date anniversaire
+  const noms = (l: ClientVente[]) =>
+    l
+      .map((x) => d.contacts.find((c) => c.id === x.id))
+      .filter((c): c is Contact => !!c)
+      .map(nom)
+      .join(", ") || "vos clients";
+  for (const b of d.biens) {
+    const v = venteDe(b);
+    if (!v.acteSigne || v.acteSigne >= today) continue;
+    const t = b.titre || b.adresse;
+    const page = { kind: "page", id: `biens/${b.id}/vente` };
+    const a = apresAFaire(b, today);
+    if (a.merci.length) points.push({ type: "relance", titre: `${t} : remercier ${noms(a.merci)}`, detail: `Vente signée le ${dateTexte(v.acteSigne, today)} : un mot de remerciement, avec le lien pour laisser un avis.`, lien: page });
+    const ann = a.anniversaire;
+    if (ann && a.nouvelles.length && ann.date >= ajouterJours(today, -14) && ann.date <= ajouterJours(today, 3)) {
+      const quand = ann.date === today ? `a ${nAns(ann.n)} aujourd'hui` : ann.date > today ? `aura ${nAns(ann.n)} le ${dateTexte(ann.date, today)}` : `a eu ${nAns(ann.n)} le ${dateTexte(ann.date, today)}`;
+      points.push({ type: "relance", titre: `${t} : la vente ${quand}`, detail: `Prendre des nouvelles de ${noms(a.nouvelles)} : le message est prêt dans le suivi de la vente.`, lien: page });
+    }
   }
 
   // 4. Baisse de prix récente pas encore annoncée (visites, bien déjà proposé, budgets compatibles)
