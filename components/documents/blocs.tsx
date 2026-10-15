@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { C } from "./charte";
+import { C, MENTIONS } from "./charte";
 
 /* Éléments communs des actes PATRIM (offre d'achat, mandat de vente). */
 
@@ -39,7 +39,7 @@ export function Pagine({ children }: { children: ReactNode }) {
       <tfoot>
         <tr>
           <td className="p-0">
-            <div className="acte-bas">PATRIM · 45, allées Jean Jaurès – 31000 Toulouse · 05 61 99 08 08 · www.patrim.fr</div>
+            <div className="acte-bas px-[18mm] text-center leading-snug">{MENTIONS}</div>
           </td>
         </tr>
       </tfoot>
