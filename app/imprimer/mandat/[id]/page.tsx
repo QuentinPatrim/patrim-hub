@@ -63,7 +63,7 @@ export default function MandatPdf() {
   const plusieurs = m.mandants.length > 1;
   const nous = (pl: string, sg: string) => (plusieurs ? pl : sg);
   const nbManquants =
-    m.mandants.reduce((n, p) => n + manquants(p, CHAMPS_MANDAT).length, 0) + (m.netVendeur ? 0 : 1) + (m.honoraires != null ? 0 : 1) + (m.numero ? 0 : 1) + (m.signataire.email && m.signataire.tel ? 0 : 1) +
+    m.mandants.reduce((n, p) => n + manquants(p, CHAMPS_MANDAT).length, 0) + (m.netVendeur ? 0 : 1) + (m.honoraires != null ? 0 : 1) + (m.numero ? 0 : 1) + (m.signataire.email ? 0 : 1) + (m.signataire.tel ? 0 : 1) +
     (avecExclusivite(m) ? (m.actions?.trim() ? 0 : 1) + (m.comptesRendus?.trim() ? 0 : 1) : 0);
   const signataires: { nom: string; email?: string; tel?: string }[] = [...m.mandants.map((p) => ({ nom: nomOffre(p), email: p.email, tel: p.tel })), { nom: m.signataire.nom, email: m.signataire.email, tel: m.signataire.tel }];
 
@@ -118,9 +118,13 @@ export default function MandatPdf() {
                 Articles 1984 et suivants du Code civil · Articles 64 et 65 du décret du 20 juillet 1972 fixant les conditions d&apos;application de la loi du 2 janvier 1970
               </div>
             </div>
-            <div className="shrink-0 rounded-[2.5mm] px-[5mm] py-[3mm] text-center text-white" style={{ background: C.brand }}>
-              <div className="text-[7pt] uppercase tracking-[0.2em] text-white/70">Mandat n°</div>
-              <div className="font-serif text-[18pt] font-semibold leading-none">{m.numero || "—"}</div>
+            <div className="shrink-0 rounded-[2.5mm] border px-[5mm] py-[3mm] text-center" style={{ borderColor: C.line }}>
+              <div className="text-[7pt] uppercase tracking-[0.2em]" style={{ color: C.muted }}>
+                Mandat n°
+              </div>
+              <div className="font-serif text-[18pt] font-semibold leading-none" style={{ color: C.ink }}>
+                {m.numero || "—"}
+              </div>
             </div>
           </div>
 

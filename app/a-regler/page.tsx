@@ -7,7 +7,9 @@ import { Badge, Empty, PageHeader, Tabs, cx } from "@/components/ui";
 import { PointAVerifier } from "@/components/biens/DossierBlock";
 import { CATEGORIES, basculerPoint, categorie, clePoint, dossierDe, reglesDe, type Categorie } from "@/components/biens/dossier";
 import { AlertesMandats } from "@/components/mandats/AlertesMandats";
-import { alertesMandats, nomBien, registre } from "@/components/mandats/registre";
+import { STATUTS_ACTIFS, alertesMandats, nomBien, registre } from "@/components/mandats/registre";
+import { LienAvenant } from "@/components/avenant/LienAvenant";
+import { pointAvenant } from "@/components/avenant/avenant";
 import { getAll, useCollection } from "@/lib/store";
 import { STATUT_BIEN } from "@/lib/format";
 import type { Bien, BienStatut } from "@/lib/types";
@@ -186,7 +188,13 @@ export default function ARegler() {
                     </Link>
                     <ul className="px-4 pb-2 sm:px-5">
                       {points.map((p, j) => (
-                        <PointAVerifier key={`${p.cle}-${j}`} texte={p.texte} regle={p.regle} onBasculer={() => basculer(bien, p.texte)} />
+                        <PointAVerifier
+                          key={`${p.cle}-${j}`}
+                          texte={p.texte}
+                          regle={p.regle}
+                          onBasculer={() => basculer(bien, p.texte)}
+                          action={pointAvenant(p.texte) && STATUTS_ACTIFS.includes(bien.statut) ? <LienAvenant bienId={bien.id} /> : undefined}
+                        />
                       ))}
                     </ul>
                   </section>

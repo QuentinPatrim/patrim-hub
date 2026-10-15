@@ -31,7 +31,7 @@ export function avecLiens(texte: string): ReactNode {
 }
 
 /** Un point « à vérifier », avec sa case à cocher quand il peut être marqué réglé. */
-export function PointAVerifier({ texte, regle, onBasculer }: { texte: string; regle?: string; onBasculer?: () => void }) {
+export function PointAVerifier({ texte, regle, onBasculer, action }: { texte: string; regle?: string; onBasculer?: () => void; action?: ReactNode }) {
   return (
     <li className={cx("flex items-start", onBasculer ? "gap-1" : "gap-2")}>
       {onBasculer ? (
@@ -50,6 +50,7 @@ export function PointAVerifier({ texte, regle, onBasculer }: { texte: string; re
       <div className={cx("min-w-0 flex-1 text-sm", onBasculer && "py-2.5")}>
         <span className={cx("break-words", regle && "text-muted line-through decoration-muted/50")}>{avecLiens(texte)}</span>
         {regle && <span className="mt-0.5 block text-xs text-ok">Réglé le {dateCourte(regle)}</span>}
+        {!regle && action && <span className="mt-1.5 block">{action}</span>}
       </div>
     </li>
   );
@@ -70,7 +71,7 @@ function Liste({ titre, items }: { titre: string; items: string[] }) {
 
 /** Points « à vérifier » du dossier. Un point coché reste en place jusqu'à la prochaine visite de la page
     (pour pouvoir annuler d'un geste), puis rejoint les points réglés. */
-function AVerifier({ points, regles, onBasculer }: { points: string[]; regles: PointsRegles; onBasculer?: (texte: string) => void }) {
+function AVerifier({ points, regles, onBasculer, actionPoint }: { points: string[]; regles: PointsRegles; onBasculer?: (texte: string) => void; actionPoint?: (texte: string) => ReactNode }) {
   const [gardes, setGardes] = useState<Set<string>>(() => new Set());
   const [voirRegles, setVoirRegles] = useState(false);
   const ouverts = points.filter((p) => !regles[clePoint(p)]).length;
@@ -91,7 +92,7 @@ function AVerifier({ points, regles, onBasculer }: { points: string[]; regles: P
       {affiches.length > 0 && (
         <ul className="mt-1">
           {affiches.map((p) => (
-            <PointAVerifier key={p} texte={p} regle={regles[clePoint(p)]} onBasculer={basculer && (() => basculer(p))} />
+            <PointAVerifier key={p} texte={p} regle={regles[clePoint(p)]} onBasculer={basculer && (() => basculer(p))} action={actionPoint?.(p)} />
           ))}
         </ul>
       )}
@@ -113,7 +114,18 @@ function AVerifier({ points, regles, onBasculer }: { points: string[]; regles: P
   );
 }
 
-export function DossierBlock({ dossier, regles = {}, onBasculer }: { dossier?: DossierBien; regles?: PointsRegles; onBasculer?: (texte: string) => void }) {
+export function DossierBlock({
+  dossier,
+  regles = {},
+  onBasculer,
+  actionPoint,
+}: {
+  dossier?: DossierBien;
+  regles?: PointsRegles;
+  onBasculer?: (texte: string) => void;
+  /** Raccourci affiché sous un point encore à régler (ex. « Préparer l'avenant »). */
+  actionPoint?: (texte: string) => ReactNode;
+}) {
   const [show, setShow] = useState(false);
   if (!dossier || dossierVide(dossier)) return null;
   const lignes = LIGNES_DOSSIER.filter(([k]) => dossier[k]);
@@ -142,7 +154,7 @@ export function DossierBlock({ dossier, regles = {}, onBasculer }: { dossier?: D
           )}
           {!!dossier.precisions?.length && <Liste titre="Précisions" items={dossier.precisions} />}
           {!!dossier.evenements?.length && <Liste titre="Historique" items={dossier.evenements} />}
-          {!!dossier.aVerifier?.length && <AVerifier points={dossier.aVerifier} regles={regles} onBasculer={onBasculer} />}
+          {!!dossier.aVerifier?.length && <AVerifier points={dossier.aVerifier} regles={regles} onBasculer={onBasculer} actionPoint={actionPoint} />}
         </div>
       ) : (
         <button onClick={() => setShow(true)} className="mt-2 text-left text-sm text-muted">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Eye, FileSignature, FileText, Pencil, Scale, Trash2 } from "lucide-react";
+import { ChevronDown, Eye, FilePen, FileSignature, FileText, Pencil, Scale, Trash2 } from "lucide-react";
 import { Badge, Card, Empty, Sheet } from "@/components/ui";
 import { STATUT_BIEN, dateCourte, eur } from "@/lib/format";
 import { useCollection } from "@/lib/store";
@@ -11,9 +11,10 @@ import { STATUT_ESTIM } from "@/components/estimations/shared";
 import type { BienStatut } from "@/lib/types";
 import { ecrireOffre } from "@/components/offre/offre";
 import { ecrireMandat } from "@/components/mandat/mandat";
+import { ecrireAvenant, prixPresentation } from "@/components/avenant/avenant";
 import { STATUTS_ACTE, changerStatutActe, lienActe, resumeActe, statutActe, supprimerActe, titreActe, type Acte, type BienActes } from "./archive";
 
-/** Carte « Documents » de la fiche du bien : offres d'achat et mandats rédigés, avec leur statut. */
+/** Carte « Documents » de la fiche du bien : offres d'achat, mandats et avenants rédigés, avec leur statut. */
 export function DocumentsBien({ bien }: { bien: BienActes }) {
   const router = useRouter();
   const actes = [...(bien.actes ?? [])].sort((a, b) => b.maj.localeCompare(a.maj));
@@ -25,13 +26,15 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
 
   const modifier = (a: Acte) => {
     if (a.kind === "offre") ecrireOffre(a.data);
-    else ecrireMandat(a.data);
-    router.push(`/biens/${bien.id}/${a.kind}`);
+    else if (a.kind === "mandat") ecrireMandat(a.data);
+    else ecrireAvenant(a.data);
+    router.push(`/biens/${bien.id}/${a.kind}${a.kind === "avenant" ? `?acte=${a.id}` : ""}`);
   };
   const changer = (a: Acte, v: Acte["statut"]) => {
     const nouveau: BienStatut | undefined = changerStatutActe(bien.id, a.id, v);
     setChoix(null);
-    setInfo(nouveau ? `Le bien passe en « ${STATUT_BIEN[nouveau].label} ».` : null);
+    const hai = a.kind === "avenant" && v === "signe" ? prixPresentation(a.data.nouveau) : undefined;
+    setInfo(nouveau ? `Le bien passe en « ${STATUT_BIEN[nouveau].label} ».` : hai != null ? `Prix de la fiche mis à jour : ${eur(hai)} honoraires inclus.` : null);
   };
 
   return (
@@ -40,7 +43,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
       {!total ? (
         <Empty
           title="Aucun document pour l'instant"
-          text="Les offres d'achat, les mandats et les avis de valeur de ce bien sont gardés ici, avec leur statut."
+          text="Les offres d'achat, les mandats, les avenants et les avis de valeur de ce bien sont gardés ici, avec leur statut."
           action={
             <Link href={`/biens/${bien.id}/offre`} className="btn-secondary btn-sm">
               <FileSignature size={14} /> Rédiger une offre d&apos;achat
@@ -51,7 +54,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
         <ul className="divide-y divide-line">
           {actes.map((a) => {
             const st = statutActe(a);
-            const Icone = a.kind === "offre" ? FileSignature : FileText;
+            const Icone = a.kind === "offre" ? FileSignature : a.kind === "avenant" ? FilePen : FileText;
             return (
               <li key={a.id} className="px-4 sm:px-5 py-3.5">
                 <div className="flex items-start gap-3">
@@ -132,7 +135,9 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
             <p className="pt-1 text-xs text-muted">
               {choix.kind === "offre"
                 ? "Une offre acceptée met le bien « Sous offre » ; s'il n'en reste plus aucune, il repasse « En vente »."
-                : "Un mandat signé reporte son numéro, son type et ses dates sur le bien."}
+                : choix.kind === "avenant"
+                  ? "Un avenant signé reporte le nouveau prix et les honoraires sur le bien."
+                  : "Un mandat signé reporte son numéro, son type et ses dates sur le bien."}
             </p>
             <button
               className="btn-ghost btn-sm w-full text-danger"

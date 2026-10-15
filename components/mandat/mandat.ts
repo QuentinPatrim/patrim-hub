@@ -99,7 +99,13 @@ export function lireMandat(bienId: string): Mandat | null {
 export function ecrireMandat(m: Mandat) {
   try {
     localStorage.setItem(cle(m.bienId), JSON.stringify({ ...m, maj: new Date().toISOString() }));
-    localStorage.setItem(CLE_SIGNATAIRE, JSON.stringify(m.signataire));
+  } catch {}
+  retenirSignataire(m.signataire);
+}
+/** Signataire pour PATRIM gardé sur l'appareil (mandats et avenants). */
+export function retenirSignataire(s: Signataire) {
+  try {
+    localStorage.setItem(CLE_SIGNATAIRE, JSON.stringify(s));
   } catch {}
 }
 export function effacerMandat(bienId: string) {
@@ -107,7 +113,7 @@ export function effacerMandat(bienId: string) {
     localStorage.removeItem(cle(bienId));
   } catch {}
 }
-function signataireRetenu(): Signataire {
+export function signataireRetenu(): Signataire {
   try {
     const raw = localStorage.getItem(CLE_SIGNATAIRE);
     if (raw) return JSON.parse(raw) as Signataire;
