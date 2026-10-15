@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { AGENCE, C, MENTIONS, enLettres, montantComplet } from "@/components/documents/charte";
-import { ACTE_PRINT_CSS, Section, Texte, Trou, ou } from "@/components/documents/blocs";
+import { ACTE_PRINT_CSS, Pagine, Section, Texte, Trou, ou } from "@/components/documents/blocs";
 import { dateLettres, detailFinancement, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
 
 /* ============================================================
@@ -85,7 +85,8 @@ export default function OffrePdf() {
 
       <div className="flex justify-center py-4 sm:py-6">
         <article className="acte-sheet relative flex min-h-[297mm] w-[210mm] flex-col bg-white shadow-xl" style={{ zoom }}>
-          <div className="h-[2mm]" style={{ background: C.brand }} />
+          <div className="acte-barre h-[2mm]" style={{ background: C.brand }} />
+          <Pagine>
           {/* En-tête */}
           <header className="flex items-start justify-between px-[18mm] pt-[11mm]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -283,11 +284,12 @@ export default function OffrePdf() {
             </p>
           </div>
 
-          {/* Mentions de l'agence (à l'impression, un rappel court figure aussi en bas de chaque page) */}
+          {/* Mentions de l'agence (à l'impression, <Pagine> répète un rappel court en bas de chaque page) */}
           <footer className="offre-footer px-[18mm] pb-[8mm] text-center text-[7.3pt]" style={{ color: C.muted }}>
             {MENTIONS}
           </footer>
-          <div className="h-[1.5mm]" style={{ background: C.coral }} />
+          </Pagine>
+          <div className="acte-barre h-[1.5mm]" style={{ background: C.coral }} />
         </article>
       </div>
 

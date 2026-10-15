@@ -5,16 +5,18 @@ import { C } from "./charte";
 
 /* Éléments communs des actes PATRIM (offre d'achat, mandat de vente). */
 
-/** Mise en page A4 à l'impression, avec un rappel de l'agence et la pagination en bas de chaque page. */
+/** Mise en page A4 à l'impression : page sans marge du navigateur (pas de bandes blanches ni
+ *  d'en-tête ajouté par Chrome) ; le filet bordeaux en haut et le rappel de l'agence en bas
+ *  sont répétés sur chaque page par <Pagine>. */
 export const ACTE_PRINT_CSS = `
-  @page {
-    size: A4;
-    margin: 14mm 0 16mm;
-    @bottom-center { content: "PATRIM · 45, allées Jean Jaurès – 31000 Toulouse · 05 61 99 08 08 · www.patrim.fr · Page " counter(page) " / " counter(pages); font: 7pt Inter, sans-serif; color: #7a7f87; }
-  }
+  @page { size: A4; margin: 0; }
+  .acte-haut, .acte-bas { display: none; }
   @media print {
     html, body, .acte-root { background: #fff !important; }
     .acte-sheet { box-shadow: none !important; margin: 0 !important; min-height: 0 !important; width: 210mm !important; zoom: 1 !important; }
+    .acte-barre { display: none !important; }
+    .acte-haut { display: block; height: 10mm; border-top: 2mm solid ${C.brand}; }
+    .acte-bas { display: flex; height: 13mm; align-items: center; justify-content: center; font: 7pt Inter, sans-serif; color: ${C.muted}; }
     .acte-bloc { break-inside: avoid; page-break-inside: avoid; }
     .acte-saut { break-before: page; page-break-before: always; }
     .acte-titre { break-after: avoid; page-break-after: avoid; }
@@ -22,6 +24,33 @@ export const ACTE_PRINT_CSS = `
   }
   .acte-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 `;
+
+/** Contenu d'un acte : à l'impression, l'en-tête et le pied du tableau se répètent sur chaque page. */
+export function Pagine({ children }: { children: ReactNode }) {
+  return (
+    <table className="w-full flex-1 border-collapse">
+      <thead>
+        <tr>
+          <td className="p-0">
+            <div className="acte-haut" />
+          </td>
+        </tr>
+      </thead>
+      <tfoot>
+        <tr>
+          <td className="p-0">
+            <div className="acte-bas">PATRIM · 45, allées Jean Jaurès – 31000 Toulouse · 05 61 99 08 08 · www.patrim.fr</div>
+          </td>
+        </tr>
+      </tfoot>
+      <tbody>
+        <tr>
+          <td className="p-0 align-top">{children}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
 
 /** Information manquante, bien visible pour ne pas l'oublier. */
 export function Trou({ children }: { children?: ReactNode }) {
