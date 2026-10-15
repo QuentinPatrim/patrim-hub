@@ -95,7 +95,7 @@ export function FicheDocument({ f, contact = true }: { f: FichePublique; contact
         </h1>
         <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
-            <div className="font-serif text-[34px] sm:text-[28pt] font-semibold leading-none tabular-nums" style={{ fontVariantNumeric: "lining-nums" }}>
+            <div className="text-[22px] sm:text-[16pt] font-semibold leading-none tabular-nums" style={{ color: C.ink, fontVariantNumeric: "lining-nums" }}>
               {f.prix ? eur(f.prix) : "Prix sur demande"}
             </div>
             {f.prix && (

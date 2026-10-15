@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { AGENCE, C, MENTIONS, enLettres, montantComplet, telActe } from "@/components/documents/charte";
 import { useActe } from "@/components/documents/archive";
-import { ACTE_PRINT_CSS, Pagine, Section, Texte, Trou, ou } from "@/components/documents/blocs";
+import { ACTE_PRINT_CSS, Pagine, PrixBloc, Section, Texte, Trou, ou } from "@/components/documents/blocs";
 import { dateLettres, detailFinancement, ecrireOffre, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
 
 /* ============================================================
@@ -154,18 +154,10 @@ export default function OffrePdf() {
 
             {/* 04 Prix */}
             <Section num="04" titre="Le prix">
-              <div className="acte-bloc flex items-center gap-[6mm] rounded-[3mm] px-[6mm] py-[5mm] text-white" style={{ background: C.brand }}>
-                <div className="flex-1">
-                  <div className="text-[7.5pt] uppercase tracking-[0.2em] text-white/70">Prix offert, honoraires inclus</div>
-                  <div className="mt-[1mm] font-serif text-[24pt] font-semibold leading-none" style={{ fontVariantNumeric: "lining-nums" }}>
-                    {o.prix ? `${o.prix.toLocaleString("fr-FR")} €` : "—"}
-                  </div>
-                </div>
-                <div className="text-right text-[9pt] leading-relaxed text-white/85">
-                  {o.honoraires != null && <div>dont {o.honoraires.toLocaleString("fr-FR")} € d&apos;honoraires</div>}
-                  {net != null && <div className="font-semibold text-white">{net.toLocaleString("fr-FR")} € net vendeur</div>}
-                </div>
-              </div>
+              <PrixBloc label="Prix offert, honoraires inclus" montant={o.prix ? `${o.prix.toLocaleString("fr-FR")} €` : "—"}>
+                {o.honoraires != null && <div>dont {o.honoraires.toLocaleString("fr-FR")} € d&apos;honoraires</div>}
+                {net != null && <div>{net.toLocaleString("fr-FR")} € net vendeur</div>}
+              </PrixBloc>
               <p className="mt-[3.5mm]">
                 Au prix de <strong>{o.prix ? montantComplet(o.prix) : <Trou>prix</Trou>}</strong>
                 {o.charge === "acquereur" ? (
