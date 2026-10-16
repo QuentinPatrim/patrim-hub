@@ -15,6 +15,8 @@ export interface Aide {
   fichier?: string;
   /** Pour un PDF : version, pages, polices, logiciel. */
   pdf?: string;
+  /** Avancement de la lecture des pages faites d'images (impression d'écran). */
+  suivi?: (fait: number, total: number) => void;
 }
 
 const commence = (o: Uint8Array, sig: number[]) => sig.every((b, i) => o[i] === b);
