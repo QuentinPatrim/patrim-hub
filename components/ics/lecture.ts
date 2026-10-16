@@ -1,5 +1,7 @@
+import { lirePdf, PdfIllisible } from "./pdf";
+
 /* Lecture d'un export ICS (ou de n'importe quel tableur) directement sur l'appareil :
-   CSV, Excel (.xlsx), tableau HTML enregistré en .xls, Excel 2003 XML.
+   CSV, Excel (.xlsx), tableau HTML enregistré en .xls, Excel 2003 XML, liste imprimée en PDF.
    Rien n'est envoyé : le fichier est lu en mémoire puis oublié. Module pur (testable hors navigateur). */
 
 export type Tableau = string[][];
@@ -8,10 +10,25 @@ export type Tableau = string[][];
 export class ErreurLecture extends Error {}
 
 const commence = (o: Uint8Array, sig: number[]) => sig.every((b, i) => o[i] === b);
+/** « %PDF- » au début du fichier (parfois après quelques octets parasites). */
+const estPdf = (o: Uint8Array) => {
+  for (let i = 0; i + 5 <= Math.min(o.length, 1024); i++) if (o[i] === 0x25 && o[i + 1] === 0x50 && o[i + 2] === 0x44 && o[i + 3] === 0x46 && o[i + 4] === 0x2d) return true;
+  return false;
+};
 
-export async function lireTableau(octets: Uint8Array): Promise<Tableau> {
+/** `aide.pdf` reçoit, pour un PDF, un code d'aide au dépannage : la forme du fichier, jamais son contenu. */
+export async function lireTableau(octets: Uint8Array, aide?: { pdf?: string }): Promise<Tableau> {
   if (!octets.length) throw new ErreurLecture("Le fichier est vide.");
-  if (commence(octets, [0x25, 0x50, 0x44, 0x46])) throw new ErreurLecture("Un PDF ne peut pas être lu ici. Dans ICS, choisissez plutôt un export Excel ou CSV.");
+  if (estPdf(octets)) {
+    try {
+      return nettoyer(await lirePdf(octets, aide));
+    } catch (e) {
+      if (e instanceof PdfIllisible) throw new ErreurLecture(e.message);
+      // Nom de l'erreur seulement (« TypeError »…) : son message pourrait citer le contenu.
+      if (aide) aide.pdf = `${aide.pdf ?? "PDF"} ${e instanceof Error ? e.name : "?"}`;
+      throw new ErreurLecture("Ce PDF n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS, puis réessayez.");
+    }
+  }
   if (commence(octets, [0xd0, 0xcf, 0x11, 0xe0]))
     throw new ErreurLecture("Ce fichier Excel est dans un ancien format. Ouvrez-le dans Excel, enregistrez-le en « Classeur Excel (.xlsx) » ou en CSV, puis choisissez ce nouveau fichier.");
   if (commence(octets, [0x50, 0x4b, 0x03, 0x04])) return nettoyer(await lireXlsx(octets));
