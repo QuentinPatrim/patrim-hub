@@ -85,7 +85,6 @@ export default function OffrePdf() {
 
       <div className="flex justify-center py-4 sm:py-6">
         <article className="acte-sheet relative flex min-h-[297mm] w-[210mm] flex-col bg-white shadow-xl" style={{ zoom }}>
-          <div className="acte-barre h-[2mm]" style={{ background: C.brand }} />
           <Pagine>
           {/* En-tête */}
           <header className="flex items-start justify-between px-[18mm] pt-[11mm]">
@@ -281,7 +280,6 @@ export default function OffrePdf() {
             {MENTIONS}
           </footer>
           </Pagine>
-          <div className="acte-barre h-[1.5mm]" style={{ background: C.coral }} />
         </article>
       </div>
 
