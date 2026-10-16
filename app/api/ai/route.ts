@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       smart: !!b.smart,
       effort: ["low", "medium", "high"].includes(b.effort) ? b.effort : "medium",
       maxTokens: Math.min(Number(b.maxTokens) || 8000, 16000),
+      conseiller: typeof b.conseiller === "string" ? b.conseiller.replace(/[^\p{L} '-]/gu, "").slice(0, 60) || undefined : undefined,
     });
     return NextResponse.json({ text, json: b.json ? parseJson(text) : undefined });
   } catch (e) {

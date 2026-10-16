@@ -2,6 +2,7 @@ import { CalendarCheck, Calculator, Signature, KeyRound, Phone, UsersRound, type
 import type { Bien, Contact, Rdv, RdvType } from "@/lib/types";
 import { RDV_TYPE, dateLongue, heure, nomComplet } from "@/lib/format";
 import { adresseComplete, secteur } from "@/components/biens/utils";
+import { nomConseiller } from "@/lib/equipe";
 
 /* Outils du module Agenda. */
 
@@ -174,6 +175,6 @@ export function texteConfirmation(r: Rdv, bien: Bien | undefined, c: Contact) {
     "En cas d'empêchement, n'hésitez pas à me prévenir.",
     "",
     "Belle journée,",
-    "Quentin Delsol – PATRIM",
+    `${nomConseiller()} – PATRIM`,
   ].join("\n");
 }

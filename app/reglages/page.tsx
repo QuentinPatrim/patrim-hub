@@ -7,6 +7,8 @@ import { Card, Field, PageHeader } from "@/components/ui";
 import { importerMandats as importerMandatsComplets } from "@/lib/mandats";
 import { SignatureCard } from "@/components/reglages/SignatureCard";
 import { AvisCard } from "@/components/reglages/AvisCard";
+import { EquipeCard } from "@/components/reglages/EquipeCard";
+import { useMoi } from "@/lib/equipe";
 import { bulkCreate, getAll } from "@/lib/store";
 import { cloudEnabled, supabase } from "@/lib/supabase";
 import type { Kind } from "@/lib/types";
@@ -19,6 +21,16 @@ export default function Reglages() {
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
   const [mounted, setMounted] = useState(false);
+  const moi = useMoi();
+  const [mdp, setMdp] = useState("");
+  const [mdpMsg, setMdpMsg] = useState("");
+
+  async function changerMdp() {
+    if (!supabase || mdp.length < 8) return setMdpMsg("Au moins 8 caractères.");
+    const { error } = await supabase.auth.updateUser({ password: mdp });
+    setMdpMsg(error ? "Le mot de passe n'a pas pu être changé." : "Mot de passe changé.");
+    if (!error) setMdp("");
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -76,6 +88,17 @@ export default function Reglages() {
             </div>
             <button onClick={() => supabase?.auth.signOut()} className="btn-secondary btn-sm"><LogOut size={14} /> Déconnexion</button>
           </div>
+        ) : null}
+        {cloudEnabled ? (
+          <div className="mt-4 pt-4 border-t border-line/70">
+            <Field label="Nouveau mot de passe">
+              <div className="flex gap-2">
+                <input className="input min-w-0" type="password" autoComplete="new-password" value={mdp} onChange={(e) => setMdp(e.target.value)} />
+                <button className="btn-secondary shrink-0" onClick={changerMdp}><KeyRound size={15} /> Changer</button>
+              </div>
+            </Field>
+            {mdpMsg && <p className="mt-2 text-sm text-muted">{mdpMsg}</p>}
+          </div>
         ) : (
           <div className="flex items-center gap-3">
             <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-warn/10 text-warn ring-1 ring-inset ring-warn/20"><CloudOff size={19} /></span>
@@ -86,6 +109,8 @@ export default function Reglages() {
           </div>
         )}
       </Card>
+
+      <EquipeCard />
 
       <SignatureCard />
 
@@ -114,22 +139,22 @@ export default function Reglages() {
 
       <Card title="Données">
         <div className="-mx-2 space-y-1">
-          <button onClick={importerMandats} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-accent/[0.05] ring-1 ring-inset ring-accent/15 hover:bg-accent/[0.08] transition">
+          {moi.role === "titulaire" && <button onClick={importerMandats} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left bg-accent/[0.05] ring-1 ring-inset ring-accent/15 hover:bg-accent/[0.08] transition">
             <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-gradient-to-b from-brand-light to-brand text-white shadow-btn"><Building2 size={19} /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold">Importer mes mandats</span>
               <span className="block text-xs text-muted">Ajoute les biens PATRIM qui ne sont pas encore dans l&apos;appli.</span>
             </span>
             <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
-          </button>
-          <Link href="/reglages/ics" className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
+          </button>}
+          {moi.role !== "collegue" && <Link href="/reglages/ics" className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
             <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><FileSpreadsheet size={19} /></span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold">Compléter depuis ICS</span>
               <span className="block text-xs text-muted">Téléphones et e-mails des propriétaires. Le fichier reste sur cet appareil.</span>
             </span>
             <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
-          </Link>
+          </Link>}
           <button onClick={exporter} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
             <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><Download size={19} /></span>
             <span className="min-w-0 flex-1">

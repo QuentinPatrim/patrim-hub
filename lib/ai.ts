@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./supabase";
+import { nomConseiller } from "./equipe";
 
 /* Côté navigateur : appelle Claude via /api/ai (la clé reste sur le serveur). */
 
@@ -29,7 +30,7 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export async function ask<T = unknown>(o: AskOptions): Promise<{ text: string; json?: T }> {
-  const res = await fetch("/api/ai", { method: "POST", headers: await authHeaders(), body: JSON.stringify(o) });
+  const res = await fetch("/api/ai", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ ...o, conseiller: nomConseiller() }) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "L'assistant n'a pas répondu.");
   return data;

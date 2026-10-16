@@ -39,6 +39,7 @@ import { pointAvenant } from "@/components/avenant/avenant";
 import { basculerPoint, dossierDe, reglesDe } from "@/components/biens/dossier";
 import { EnvoyerFiche } from "@/components/fiche/EnvoyerFiche";
 import { DocumentsBien } from "@/components/documents/DocumentsBien";
+import { PartageBien } from "@/components/equipe/PartageBien";
 import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
 import { DiagnosticsFiche } from "@/components/diagnostics/DiagnosticsFiche";
 import { VenteFiche } from "@/components/vente/VenteFiche";
@@ -392,6 +393,8 @@ export default function BienPage() {
             onBasculer={(texte) => update({ pointsRegles: basculerPoint(reglesDe(b), texte) } as Partial<Bien>)}
             actionPoint={(texte) => (pointAvenant(texte) && STATUTS_ACTIFS.includes(b.statut) ? <LienAvenant bienId={b.id} /> : null)}
           />
+
+          <PartageBien bienId={b.id} />
 
           {(b.driveUrl || b.annonceUrl) && (
             <Card title="Liens">

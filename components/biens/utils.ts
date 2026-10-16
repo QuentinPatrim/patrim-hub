@@ -2,6 +2,7 @@ import { Building, Building2, Car, House, Store, Trees, type LucideIcon } from "
 import type { Bien, BienStatut, BienType, Contact } from "@/lib/types";
 import { ACQUEREUR_ACTIF, matchScore, topMatches } from "@/lib/matching";
 import { titrePublic } from "@/lib/titrePublic";
+import { nomConseiller } from "@/lib/equipe";
 
 /* Outils partagés du module Biens (et réutilisés par l'Agenda). */
 
@@ -102,7 +103,7 @@ export function texteProposition(b: Bien, c: Contact) {
     "Si vous souhaitez le visiter, je vous propose quelques créneaux dès cette semaine. Dites-moi ce qui vous arrange.",
     "",
     "Bien à vous,",
-    "Quentin Delsol",
+    nomConseiller(),
     "PATRIM Immobilier",
   ];
   return lignes.filter((l) => l !== null).join("\n").replace(/\n{3,}/g, "\n\n");

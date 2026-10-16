@@ -2,6 +2,7 @@ import { addDays, dateCourte, dateLongue, eur, nomComplet, today } from "@/lib/f
 import type { Bien, Contact, Rdv } from "@/lib/types";
 import { joursDepuis } from "./utils";
 import { titrePublic } from "@/lib/titrePublic";
+import { nomConseiller } from "@/lib/equipe";
 
 /* ============================================================
    Rapport vendeur hebdomadaire, calculé sans IA (instantané) :
@@ -73,7 +74,7 @@ export function rapportHebdo({ bien, rdvs, contacts, vendeurs, finSemaine = toda
     "Je reste à votre disposition pour en parler de vive voix.",
     "",
     "Bien cordialement,",
-    "Quentin Delsol",
+    nomConseiller(),
     "PATRIM Immobilier",
   ].filter((l): l is string => l !== null);
 

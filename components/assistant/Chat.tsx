@@ -9,8 +9,9 @@ import { heure } from "@/lib/format";
 import { BIEN_DISPONIBLE } from "@/lib/matching";
 import { useCollection } from "@/lib/store";
 import { copier, partager, useToast } from "./outils";
-import { buildContext, SYSTEM_ASSISTANT } from "./context";
+import { buildContext, systemAssistant } from "./context";
 import { Markdown } from "./Markdown";
+import { useMoi } from "@/lib/equipe";
 
 interface Msg {
   id: string;
@@ -67,6 +68,7 @@ function history(list: Msg[]) {
 }
 
 export function Chat() {
+  const moi = useMoi();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
@@ -117,7 +119,7 @@ export function Chat() {
     setBusy(true);
     try {
       const res = await ask({
-        system: `${SYSTEM_ASSISTANT}\n\n# Données de PATRIM Hub\n${buildContext()}`,
+        system: `${systemAssistant()}\n\n# Données de PATRIM Hub\n${buildContext()}`,
         messages: history(prev),
         prompt: userMsg.text,
         images: image ? [{ mediaType: image.mediaType, data: image.data }] : undefined,
@@ -225,7 +227,7 @@ export function Chat() {
                 <Image src="/emblem.png" alt="" width={64} height={64} className="rounded-2xl shadow-glow" />
                 <span className="absolute -right-1 -bottom-1 size-4 rounded-full border-2 border-bg bg-ok" />
               </div>
-              <h2 className="mt-4 font-serif text-2xl sm:text-3xl font-semibold">{salut} Quentin</h2>
+              <h2 className="mt-4 font-serif text-2xl sm:text-3xl font-semibold">{salut} {moi.prenom}</h2>
               <p className="mt-1 max-w-sm text-sm text-muted">Que puis-je préparer pour vous ? Je m&apos;appuie sur les données de votre espace, à jour à chaque message.</p>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-2.5 lg:grid-cols-3 max-w-3xl mx-auto">

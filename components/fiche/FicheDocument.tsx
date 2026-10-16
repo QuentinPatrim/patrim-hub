@@ -29,6 +29,8 @@ export const FICHE_PRINT_CSS = `
 
 export function FicheDocument({ f, contact = true }: { f: FichePublique; contact?: boolean }) {
   const [cover, ...autres] = f.photos;
+  // Fiches envoyées avant l'accès équipe : conseiller par défaut
+  const cs = f.conseiller ?? { nom: AGENCE.conseiller, titre: AGENCE.conseillerTitre, tel: AGENCE.conseillerTel, mail: AGENCE.conseillerMail };
   const habitable = f.type !== "terrain" && f.type !== "parking";
   const chiffres: [string, string][] = [
     ...(f.surface ? ([[f.type === "appartement" ? "Surface Carrez" : "Surface", `${nb(f.surface, 2)} m²`]] as [string, string][]) : []),
@@ -207,21 +209,21 @@ export function FicheDocument({ f, contact = true }: { f: FichePublique; contact
           <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
             <div>
               <div className="text-[11px] sm:text-[7.5pt] uppercase tracking-[0.2em] text-white/60">Votre conseiller</div>
-              <div className="mt-1 font-serif text-[24px] sm:text-[17pt] leading-tight">{AGENCE.conseiller}</div>
+              <div className="mt-1 font-serif text-[24px] sm:text-[17pt] leading-tight">{cs.nom}</div>
               <div className="text-[13px] sm:text-[9pt] text-white/80">
-                {AGENCE.conseillerTitre} · PATRIM Toulouse
+                {cs.titre} · PATRIM Toulouse
               </div>
               <div className="mt-2 text-[14px] sm:text-[10pt] font-medium">
-                {AGENCE.conseillerTel} · {AGENCE.conseillerMail}
+                {cs.tel} · {cs.mail}
               </div>
             </div>
             {contact && (
               <div className="no-print grid grid-cols-3 gap-2 sm:flex">
-                <a href={`tel:${AGENCE.conseillerTel.replace(/\s/g, "")}`} className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white px-3 text-sm font-semibold" style={{ color: C.brand }}>
+                <a href={`tel:${cs.tel.replace(/\s/g, "")}`} className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white px-3 text-sm font-semibold" style={{ color: C.brand }}>
                   <Phone size={16} /> Appeler
                 </a>
                 <a
-                  href={`https://wa.me/33${AGENCE.conseillerTel.replace(/\s/g, "").slice(1)}?text=${encodeURIComponent(message)}`}
+                  href={`https://wa.me/33${cs.tel.replace(/\s/g, "").slice(1)}?text=${encodeURIComponent(message)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white/12 px-3 text-sm font-semibold ring-1 ring-white/25"
@@ -229,7 +231,7 @@ export function FicheDocument({ f, contact = true }: { f: FichePublique; contact
                   <MessageCircle size={16} /> WhatsApp
                 </a>
                 <a
-                  href={`mailto:${AGENCE.conseillerMail}?subject=${encodeURIComponent(`Bien ${f.ref ?? f.titre}`)}&body=${encodeURIComponent(message)}`}
+                  href={`mailto:${cs.mail}?subject=${encodeURIComponent(`Bien ${f.ref ?? f.titre}`)}&body=${encodeURIComponent(message)}`}
                   className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-white/12 px-3 text-sm font-semibold ring-1 ring-white/25"
                 >
                   <Mail size={16} /> E-mail

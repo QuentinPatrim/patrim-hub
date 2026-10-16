@@ -8,6 +8,7 @@ import { Badge, Card, Field, cx } from "@/components/ui";
 import { Choix, Interrupteur, Nombre } from "@/components/estimations/controls";
 import { DEBT_LIMIT, DEFAULT_INPUTS, DURATIONS, FALLBACK_RATES, computeFinancing, notaryFees, verdict, type Duration, type FinancingInputs } from "@/lib/financing";
 import { eur } from "@/lib/format";
+import { conseiller, nomConseiller } from "@/lib/equipe";
 
 /* ============================================================
    Simulateur de financement acquéreur : mensualité, frais de
@@ -83,7 +84,7 @@ function Simulateur() {
       locatif && r.cashflow != null ? `Effort mensuel estimé (avant impôt) : ${r.cashflow >= 0 ? "+" : "−"}${eur(Math.abs(r.cashflow))}` : null,
       "",
       "Simulation indicative, hors fiscalité, à confirmer par votre banque ou votre courtier.",
-      "Quentin Delsol · PATRIM · 06 52 45 96 54",
+      [nomConseiller(), "PATRIM", conseiller().tel || "05 61 99 08 08"].join(" · "),
     ];
     return l.filter((x) => x !== null).join("\n");
   }, [i, r, budgetMax, locatif]);

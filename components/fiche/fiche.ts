@@ -10,6 +10,7 @@
 import { supabase } from "@/lib/supabase";
 import { uid, update } from "@/lib/store";
 import { titrePublic } from "@/lib/titrePublic";
+import { AGENCE } from "@/components/documents/charte";
 import type { Bien, BienStatut, BienType, ClasseDpe, Contact } from "@/lib/types";
 
 export interface FichePublique {
@@ -45,6 +46,7 @@ export interface FichePublique {
   disponible: boolean;
   sousOffre?: boolean;
   majLe: string;             // AAAA-MM-JJ
+  conseiller?: { nom: string; titre: string; tel: string; mail: string }; // celui qui envoie la fiche
 }
 
 export type BienPartage = Bien & { partageId?: string };
@@ -58,6 +60,7 @@ export function ficheDepuisBien(b: Bien, vendeurs: Contact[], opts: { adresse: b
   const acq = b.honorairesCharge === "acquereur";
   return {
     v: 1,
+    conseiller: { nom: AGENCE.conseiller, titre: AGENCE.conseillerTitre, tel: AGENCE.conseillerTel, mail: AGENCE.conseillerMail },
     titre: titrePublic(b, vendeurs.flatMap((v) => [v.nom, [v.prenom, v.nom].filter(Boolean).join(" ")])),
     type: b.type,
     ref: b.ref,

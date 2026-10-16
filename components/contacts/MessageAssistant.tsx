@@ -10,6 +10,7 @@ import { update } from "@/lib/store";
 import type { Bien, Contact, Rdv } from "@/lib/types";
 import { PickChip } from "./bits";
 import { criteresResume, HISTO_LABEL, mailHref, smsHref, waHref } from "./helpers";
+import { conseiller, nomConseiller } from "@/lib/equipe";
 
 export type Canal = "sms" | "mail" | "whatsapp";
 export type Objectif = "relance" | "proposition" | "nouvelles" | "avis";
@@ -121,12 +122,12 @@ export function MessageAssistant({
       const objTxt = OBJECTIFS.find((o) => o.v === objectif)!.desc;
       const format =
         canal === "mail"
-          ? `un mail court (6 à 10 lignes) avec une formule d'appel ("Bonjour Madame X," ou "Bonjour Prénom," si le ton de l'historique est familier) et une signature "Quentin Delsol\nPATRIM – 05 61 99 08 08". Réponds en JSON : {"objet":"…","message":"…"}`
+          ? `un mail court (6 à 10 lignes) avec une formule d'appel ("Bonjour Madame X," ou "Bonjour Prénom," si le ton de l'historique est familier) et une signature "${nomConseiller()}\nPATRIM – 05 61 99 08 08". Réponds en JSON : {"objet":"…","message":"…"}`
           : canal === "sms"
-            ? `un SMS de 2 à 4 phrases maximum (moins de 450 caractères), sans objet, signé "Quentin – PATRIM". Réponds en JSON : {"message":"…"}`
-            : `un message WhatsApp de 2 à 5 phrases, naturel, sans emoji excessif (un seul au plus), signé "Quentin – PATRIM". Réponds en JSON : {"message":"…"}`;
+            ? `un SMS de 2 à 4 phrases maximum (moins de 450 caractères), sans objet, signé "${conseiller().prenom} – PATRIM". Réponds en JSON : {"message":"…"}`
+            : `un message WhatsApp de 2 à 5 phrases, naturel, sans emoji excessif (un seul au plus), signé "${conseiller().prenom} – PATRIM". Réponds en JSON : {"message":"…"}`;
       const res = await ask<{ objet?: string; message?: string }>({
-        system: `Tu rédiges un message de Quentin Delsol (PATRIM) à un client acquéreur ou vendeur. Objectif : ${objTxt}. Rédige ${format}
+        system: `Tu rédiges un message de ${nomConseiller()} (PATRIM) à un client acquéreur ou vendeur. Objectif : ${objTxt}. Rédige ${format}
 Règles : vouvoiement, ton simple et chaleureux, une seule idée claire et une question ou proposition concrète à la fin (créneau d'appel ou de visite). N'invente aucune caractéristique d'un bien : utilise seulement les informations fournies. Ne mentionne jamais le vendeur, sa situation, le prix net vendeur, une offre ou d'autres acquéreurs. Si l'historique montre une info utile (visite, préférence), appuie-toi dessus sans en faire trop.`,
         prompt: `Contexte (JSON) :\n${JSON.stringify(ctx, null, 1)}\n\nHistorique récent :\n${histo || "(aucun)"}${consigne.trim() ? `\n\nConsigne du conseiller : ${consigne.trim()}` : ""}`,
         json: true,

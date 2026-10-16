@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { refreshAll } from "@/lib/store";
+import { chargerMoi, conseiller, viderAppareil } from "@/lib/equipe";
 
 /** Avec Supabase configuré, l'appli exige une connexion. Sinon, mode local. */
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -16,12 +17,31 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase || publique) return;
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session && !path.startsWith("/connexion")) router.replace("/connexion");
-      else setOk(true);
+      if (!data.session && !path.startsWith("/connexion")) return router.replace("/connexion");
+      // Un autre compte s'est connecté sur cet appareil : on n'affiche jamais les fiches du précédent
+      const avant = conseiller().userId;
+      if (data.session && avant && avant !== data.session.user.id) {
+        viderAppareil();
+        return window.location.reload();
+      }
+      if (data.session) void chargerMoi();
+      setOk(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") refreshAll();
-      if (event === "SIGNED_OUT") router.replace("/connexion");
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN") {
+        const avant = conseiller().userId;
+        if (avant && session && avant !== session.user.id) {
+          viderAppareil();
+          return window.location.replace("/");
+        }
+        void chargerMoi(true);
+        refreshAll();
+      }
+      if (event === "SIGNED_OUT") {
+        // Rien ne reste sur l'appareil après une déconnexion
+        viderAppareil();
+        window.location.replace("/connexion");
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [path, router, publique]);

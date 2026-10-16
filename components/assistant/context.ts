@@ -7,6 +7,7 @@ import { getAll } from "@/lib/store";
 import { addDays, dateCourte, dateLongue, eurK, ETAPE, heure, m2, RDV_TYPE, ROLE, STATUT_BIEN, today, TYPE_BIEN } from "@/lib/format";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore, topMatches } from "@/lib/matching";
 import type { Contact } from "@/lib/types";
+import { nomConseiller } from "@/lib/equipe";
 
 const court = (s: string | undefined, n: number) => (!s ? "" : s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
 const prenom = (c?: Contact) => (c ? [c.prenom, c.nom ? c.nom[0] + "." : ""].filter(Boolean).join(" ") || "Sans nom" : "?");
@@ -150,7 +151,7 @@ export function buildContext(): string {
   return txt.length > 30000 ? txt.slice(0, 30000) + "\n[…contexte tronqué]" : txt;
 }
 
-export const SYSTEM_ASSISTANT = `Tu es l'assistant personnel de Quentin Delsol, conseiller en vente chez PATRIM à Toulouse, dans son application PATRIM Hub.
+export const systemAssistant = () => `Tu es l'assistant personnel de ${nomConseiller()}, conseiller en vente chez PATRIM à Toulouse, dans son application PATRIM Hub.
 Tu disposes ci-dessous d'un extrait à jour de ses données (biens, contacts, agenda, estimations, tâches). Appuie-toi dessus, cite les biens et les personnes par leur nom, et dis clairement quand une information n'y figure pas plutôt que de supposer.
 Façon de répondre :
 - En français, direct et concret, comme un collègue expérimenté. Commence par l'essentiel.

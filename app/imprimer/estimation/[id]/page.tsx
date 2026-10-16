@@ -10,6 +10,7 @@ import { FitToPage, MAX_DENSITY } from "@/components/estimations/FitToPage";
 import { SituationMap } from "@/components/estimations/SituationMap";
 import { useCollection, useDoc } from "@/lib/store";
 import { useSignature } from "@/lib/profil";
+import { nomConseiller } from "@/lib/equipe";
 
 /* ============================================================
    Avis de valeur imprimable (A4), mise en page reprise à
@@ -21,7 +22,12 @@ import { useSignature } from "@/lib/profil";
 
 const COLORS = { primary: "#8a0e01", secondary: "#d35f52" };
 const DPE_COLORS: Record<string, string> = { A: "#00A06D", B: "#52B153", C: "#A5CC74", D: "#F3E724", E: "#F0B328", F: "#EB8235", G: "#D7221F" };
-const CONSEILLER = { nom: "Quentin Delsol", role: "Service Transaction" };
+const CONSEILLER = {
+  get nom() {
+    return nomConseiller();
+  },
+  role: "Service Transaction",
+};
 
 const nombre = (n: number) => Math.round(n).toLocaleString("fr-FR");
 const eur = (n: number) => `${nombre(n)} €`;

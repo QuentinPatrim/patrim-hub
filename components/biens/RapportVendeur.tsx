@@ -11,6 +11,7 @@ import { ask } from "@/lib/ai";
 import { dateCourte, eur, nomComplet } from "@/lib/format";
 import type { Bien, Contact, Rdv } from "@/lib/types";
 import { joursDepuis, mailHref, prixM2 } from "./utils";
+import { nomConseiller } from "@/lib/equipe";
 
 type RdvCr = Rdv & { crDetail?: { ressenti?: string; positifs?: string; negatifs?: string; suite?: string } };
 
@@ -82,7 +83,7 @@ Rédige le compte rendu adressé au vendeur${salutation ? ` (${salutation})` : "
 2. l'activité (visites, intérêt suscité) ;
 3. la synthèse des retours des visiteurs (points appréciés, réserves récurrentes) ;
 4. 2 à 4 recommandations concrètes et argumentées (présentation, prix, disponibilités, travaux…) adaptées aux retours ;
-5. la suite prévue et une formule de politesse signée « Quentin Delsol – PATRIM ».`,
+5. la suite prévue et une formule de politesse signée « ${nomConseiller()} – PATRIM ».`,
       });
       setTexte(res.text.trim());
     } catch (e) {
