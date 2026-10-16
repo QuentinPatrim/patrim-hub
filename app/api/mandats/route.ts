@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { utilisateur } from "@/lib/auth-server";
+import { roleEquipe, utilisateur } from "@/lib/auth-server";
 
 /* GET /api/mandats : fiches complètes des mandats (propriétaires, charges, DDT, photos…).
    Ces données privées sont rangées dans les variables Vercel MANDATS_JSON (base) et MANDATS_AJOUTS
    (nouveaux mandats ou corrections, qui remplacent la fiche du même propriétaire), jamais dans le code
-   (le dépôt peut être public). Réservé à l'utilisateur connecté. */
+   (le dépôt peut être public). Réservé au titulaire de l'appli (pas aux collègues). */
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,9 @@ const lire = (nom: string): Fiche[] => {
 };
 
 export async function GET(req: Request) {
-  if (!(await utilisateur(req))) return NextResponse.json({ error: "Connexion requise" }, { status: 401 });
+  const u = await utilisateur(req);
+  if (!u) return NextResponse.json({ error: "Connexion requise" }, { status: 401 });
+  if ((await roleEquipe(u.id)) !== "titulaire") return NextResponse.json({ error: "L'import des mandats est réservé à Quentin." }, { status: 403 });
   try {
     const cle = (f: Fiche) => (f.proprietaire || f.ref || f.adresse || "").toLowerCase();
     const parCle = new Map<string, Fiche>();

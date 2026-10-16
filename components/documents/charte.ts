@@ -5,6 +5,8 @@
    Uniquement des informations publiques de l'agence.
    ============================================================ */
 
+import { conseiller, nomConseiller } from "@/lib/equipe";
+
 export const C = {
   brand: "#6c191e",
   brandLight: "#8e2a30",
@@ -25,10 +27,19 @@ export const AGENCE = {
   web: "www.patrim.fr",
   cartes: "Cartes professionnelles n° 419 & 983",
   rcs: "RCS Toulouse 403 231 145",
-  conseiller: "Quentin Delsol",
-  conseillerTitre: "Conseiller en vente",
-  conseillerTel: "06 52 45 96 54",
-  conseillerMail: "quentin.delsol@patrim.fr",
+  // Conseiller connecté (Quentin, Julien, Clément…) : voir lib/equipe.ts
+  get conseiller() {
+    return nomConseiller();
+  },
+  get conseillerTitre() {
+    return conseiller().titre;
+  },
+  get conseillerTel() {
+    return conseiller().tel || "05 61 99 08 08";
+  },
+  get conseillerMail() {
+    return conseiller().mail;
+  },
 };
 
 export const MENTIONS = `${AGENCE.nom} · ${AGENCE.adresse} · Tél. ${AGENCE.tel} · ${AGENCE.web} · ${AGENCE.cartes} · ${AGENCE.rcs}`;

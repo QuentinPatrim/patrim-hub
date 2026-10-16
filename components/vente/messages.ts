@@ -30,6 +30,7 @@ import {
   type SuiviVente,
 } from "./vente";
 import { nAns, type RoleClient } from "./apres";
+import { nomConseiller } from "@/lib/equipe";
 
 const NATURE: Record<Bien["type"], { le: string; f: boolean }> = {
   appartement: { le: "l'appartement", f: false },
@@ -55,8 +56,8 @@ const satisfait = (c: Contact) => (c.civilite === "Mme" ? "satisfaite" : c.civil
 /** « appartement du 10 rue Exemple », pour « votre … ». */
 const sansArticle = (b: Bien) => nomVente(b).replace(/^(l'|la |le )/, "");
 const heureActe = (b: Bien) => (venteDe(b).acteHeure ? ` à ${venteDe(b).acteHeure!.replace(":", "h")}` : "");
-const SIGNATURE_SMS = "Quentin Delsol, PATRIM";
-const SIGNATURE_MAIL = ["Bien à vous,", "Quentin Delsol", "PATRIM Immobilier", telActe(AGENCE.conseillerTel)].filter(Boolean).join("\n");
+const signatureSms = () => `${nomConseiller()}, PATRIM`;
+const signatureMail = () => ["Bien à vous,", nomConseiller(), "PATRIM Immobilier", telActe(AGENCE.conseillerTel)].filter(Boolean).join("\n");
 
 export interface Message {
   sms: string;
@@ -65,9 +66,9 @@ export interface Message {
 }
 
 const message = (c: Contact, sujet: string, lignes: string[]): Message => ({
-  sms: [bonjour(c), ...lignes, SIGNATURE_SMS].join("\n"),
+  sms: [bonjour(c), ...lignes, signatureSms()].join("\n"),
   sujet,
-  mail: [bonjour(c), "", lignes.join("\n"), "", SIGNATURE_MAIL].join("\n"),
+  mail: [bonjour(c), "", lignes.join("\n"), "", signatureMail()].join("\n"),
 });
 
 /** Point avec l'acquéreur : son prêt tant que l'accord n'est pas là, sinon la date de l'acte. */

@@ -23,6 +23,10 @@ export async function GET(req: Request) {
   const { data: rows, error } = await db.from("hub_docs").select("id,user_id,kind,data").limit(20000);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Prénom de chaque membre de l'équipe, pour signer ses SMS
+  const { data: equipe } = await db.from("hub_equipe").select("user_id,prenom");
+  const prenoms = new Map((equipe ?? []).map((m: { user_id: string; prenom: string }) => [m.user_id, m.prenom]));
+
   const parUser = new Map<string, Donnees & { briefings: Briefing[] }>();
   for (const r of rows ?? []) {
     const d = parUser.get(r.user_id) ?? { biens: [], contacts: [], rdvs: [], estimations: [], taches: [], briefings: [] };
@@ -39,6 +43,7 @@ export async function GET(req: Request) {
     if (d.briefings.some((b) => b.date === date)) continue; // déjà fait aujourd'hui
     const a = analyser(d, now);
     let resume = resumeCourt(a);
+    const prenom = prenoms.get(user) || "Quentin";
 
     // Mot du matin + messages de relance prêts à envoyer, rédigés par Claude
     if (cleClaude() && a.points.length) {
@@ -52,10 +57,10 @@ export async function GET(req: Request) {
           smart: true,
           effort: "medium",
           maxTokens: 3000,
-          system: "Tu es l'agent de nuit de Quentin. Tu prépares sa journée.",
+          system: `Tu es l'agent de nuit de ${prenom}. Tu prépares sa journée.`,
           messages: [{
             role: "user",
-            content: `Points détectés cette nuit :\n${JSON.stringify(a.points.map((p) => ({ type: p.type, titre: p.titre, detail: p.detail })))}\n\nContacts à relancer :\n${JSON.stringify(contexte)}\n\nRéponds en JSON : {"resume": "3 phrases max : les priorités du jour, dans l'ordre", "messages": [{"id": "<id du contact>", "sms": "SMS de relance court, vouvoiement, signé Quentin – PATRIM"}]}`,
+            content: `Points détectés cette nuit :\n${JSON.stringify(a.points.map((p) => ({ type: p.type, titre: p.titre, detail: p.detail })))}\n\nContacts à relancer :\n${JSON.stringify(contexte)}\n\nRéponds en JSON : {"resume": "3 phrases max : les priorités du jour, dans l'ordre", "messages": [{"id": "<id du contact>", "sms": "SMS de relance court, vouvoiement, signé ${prenom} – PATRIM"}]}`,
           }],
         });
         const j = parseJson<{ resume?: string; messages?: { id: string; sms: string }[] }>(txt);

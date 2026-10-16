@@ -66,7 +66,11 @@ async function trouverUtilisateur(db: SupabaseClient, compte?: string) {
   const { data } = await db.auth.admin.listUsers({ perPage: 100 });
   const users = data?.users ?? [];
   const voulu = (process.env.HUB_USER_EMAIL || compte || "").toLowerCase();
-  return (users.find((u) => u.email?.toLowerCase() === voulu) ?? (users.length === 1 ? users[0] : undefined))?.id;
+  const trouve = users.find((u) => u.email?.toLowerCase() === voulu) ?? (users.length === 1 ? users[0] : undefined);
+  if (trouve) return trouve.id;
+  // Plusieurs comptes (équipe) : les leads et l'agenda vont toujours au titulaire de l'appli
+  const { data: t } = await db.from("hub_equipe").select("user_id").eq("role", "titulaire").limit(1).maybeSingle();
+  return (t as { user_id: string } | null)?.user_id;
 }
 
 /* ---------- état en mémoire ---------- */

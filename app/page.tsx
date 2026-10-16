@@ -28,6 +28,7 @@ import { create, getAll, useCollection } from "@/lib/store";
 import { Aujourdhui, aRappeler, delaiChoisi } from "@/components/accueil/Aujourdhui";
 import { honorairesPotentiels } from "@/components/chiffres/chiffres";
 import type { Briefing, EtapeAcquereur } from "@/lib/types";
+import { useMoi } from "@/lib/equipe";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
@@ -45,6 +46,7 @@ function salut() {
 }
 
 export default function Accueil() {
+  const moi = useMoi();
   const { items: biens } = useCollection("biens");
   const { items: contacts } = useCollection("contacts");
   const { items: rdvs } = useCollection("rdvs");
@@ -115,7 +117,7 @@ export default function Accueil() {
             <span className="first-letter:uppercase">{dateLongue(new Date().toISOString())}</span>
           </div>
           <h1 className="mt-3 font-serif text-[34px] sm:text-[44px] leading-[1.05] font-semibold tracking-[-0.02em]">
-            {salut()} Quentin
+            {salut()} {moi.prenom}
           </h1>
           <p className="mt-2.5 max-w-xl text-sm sm:text-[15px] leading-relaxed text-white/75 text-pretty">{resumeJour}</p>
 

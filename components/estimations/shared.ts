@@ -6,6 +6,7 @@ import type { Tone } from "@/lib/format";
 import { CONDITIONS, expressEstimate, type ExpressResult, type MarketBase } from "@/lib/expressEstimate";
 import { authHeaders } from "@/lib/ai";
 import { quartiersAround } from "@/lib/toulouseQuartiers";
+import { conseiller } from "@/lib/equipe";
 
 /* ---------- Types étendus (champs propres au module) ---------- */
 
@@ -217,7 +218,7 @@ export function promptCommentaire(o: {
       : `Marché : ${marche.count} ventes réelles comparables (DVF, actes notariés)${o.rayon ? ` dans un rayon de ${o.rayon} m` : ""}${o.periode ? ` sur ${o.periode}` : ""}. Prix médian ${marche.medianSqm} €/m², la moitié des ventes entre ${marche.p25} et ${marche.p75} €/m².`,
     `Ajustements appliqués : ${res.adjustments.length ? res.adjustments.map((a) => `${a.label} ${a.pct > 0 ? "+" : ""}${Math.round(a.pct * 100)} %`).join(", ") : "aucun"}.`,
     `Fourchette : ${res.low} € / ${res.central} € / ${res.high} € (${res.sqm} €/m² ajusté). Fiabilité : ${res.confidence}.`,
-    o.prixConseille ? `Prix de présentation conseillé par Quentin : ${o.prixConseille} €.` : "",
+    o.prixConseille ? `Prix de présentation conseillé par ${conseiller().prenom} : ${o.prixConseille} €.` : "",
   ].filter(Boolean);
   return `Rédige le commentaire argumenté d'un avis de valeur destiné au propriétaire (vouvoiement).
 ${lignes.join("\n")}

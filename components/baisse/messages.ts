@@ -12,6 +12,7 @@ import { eur, today } from "@/lib/format";
 import { titrePublic } from "@/lib/titrePublic";
 import type { Bien, Contact } from "@/lib/types";
 import type { BaissePrix, BienBaisse, Cible } from "./baisse";
+import { nomConseiller } from "@/lib/equipe";
 
 type Nom = { le: string; un: string; f: boolean };
 
@@ -94,7 +95,7 @@ export function messageBaisse(b: Bien, x: Pick<Cible, "c" | "groupe" | "aVenir" 
     suite,
     "",
     "Bien à vous,",
-    "Quentin Delsol",
+    nomConseiller(),
     "PATRIM Immobilier",
   ]
     .filter((l) => l !== null)
@@ -102,7 +103,7 @@ export function messageBaisse(b: Bien, x: Pick<Cible, "c" | "groupe" | "aVenir" 
     .replace(/\n{3,}/g, "\n\n");
 
   return {
-    sms: [bonjour(x.c), sms, annonce, "Quentin Delsol, PATRIM"].filter(Boolean).join("\n"),
+    sms: [bonjour(x.c), sms, annonce, `${nomConseiller()}, PATRIM`].filter(Boolean).join("\n"),
     sujet: `Baisse de prix : ${titrePublic(b)}`,
     mail,
   };
