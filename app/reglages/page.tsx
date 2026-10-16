@@ -1,6 +1,7 @@
 "use client";
 
-import { Cloud, CloudOff, Database, Download, KeyRound, LogOut, Upload, Building2, ChevronRight } from "lucide-react";
+import { Cloud, CloudOff, Database, Download, KeyRound, LogOut, Upload, Building2, ChevronRight, FileSpreadsheet } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, Field, PageHeader } from "@/components/ui";
 import { importerMandats as importerMandatsComplets } from "@/lib/mandats";
@@ -117,6 +118,14 @@ export default function Reglages() {
             </span>
             <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
           </button>
+          <Link href="/reglages/ics" className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
+            <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><FileSpreadsheet size={19} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Compléter depuis ICS</span>
+              <span className="block text-xs text-muted">Téléphones et e-mails des propriétaires. Le fichier reste sur cet appareil.</span>
+            </span>
+            <ChevronRight size={18} className="shrink-0 text-muted transition group-hover:translate-x-0.5" />
+          </Link>
           <button onClick={exporter} className="group w-full flex items-center gap-3 rounded-2xl p-2.5 text-left hover:bg-surface-2 transition">
             <span className="grid place-items-center size-11 shrink-0 rounded-xl bg-surface-2 text-fg ring-1 ring-inset ring-line/80"><Download size={19} /></span>
             <span className="min-w-0 flex-1">
