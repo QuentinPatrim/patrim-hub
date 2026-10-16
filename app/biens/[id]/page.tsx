@@ -42,6 +42,7 @@ import { DocumentsBien } from "@/components/documents/DocumentsBien";
 import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
 import { DiagnosticsFiche } from "@/components/diagnostics/DiagnosticsFiche";
 import { VenteFiche } from "@/components/vente/VenteFiche";
+import { ApresVenteFiche, venteSignee } from "@/components/vente/ApresVente";
 import { VENTE_EN_COURS } from "@/components/vente/vente";
 import { aPrevenir, suiviBaisse, type BienBaisse } from "@/components/baisse/baisse";
 import type { BienActes } from "@/components/documents/archive";
@@ -281,7 +282,8 @@ export default function BienPage() {
             </section>
           )}
 
-          {VENTE_EN_COURS(b) && <VenteFiche b={b} />}
+          {VENTE_EN_COURS(b) && !venteSignee(b) && <VenteFiche b={b} />}
+          {(b.statut === "vendu" || venteSignee(b)) && <ApresVenteFiche b={b} />}
 
           <AcquereursCompatibles bien={b} matches={matches} />
 
