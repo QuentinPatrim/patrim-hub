@@ -24,6 +24,8 @@ export interface PoliceBrute {
   montee: number;
   descente: number;
   espace: number;
+  /** Police d'impression (page tramée) : plusieurs dessins par lettre, jamais exactement ceux de la page. */
+  imprimee?: boolean;
   glyphes: string;
 }
 

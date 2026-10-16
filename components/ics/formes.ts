@@ -298,12 +298,44 @@ function lettresDePage(en: Encre): Page | null {
   return { l, ordre, H, bases, lettres, pasX, alignesBas: comptees ? alignesBas / comptees : 0, alignesHaut: comptees ? alignesHaut / comptees : 0 };
 }
 
+/** Deux variantes d'une même lettre : même bas, tailles à un point près, et presque les mêmes points (au mieux d'un
+ *  décalage d'un point en largeur ou en hauteur). */
+function variantes(a: Forme, b: Forme): boolean {
+  if (a.bas !== b.bas || Math.abs(a.l - b.l) > 1 || Math.abs(a.h - b.h) > 1) return false;
+  let pa = 0;
+  let pb = 0;
+  for (const v of a.points) pa += v;
+  for (const v of b.points) pb += v;
+  const tolere = 0.15 * Math.max(pa, pb);
+  // b posé sur a, bas contre bas, décalé de dx en largeur et dy en hauteur.
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      let d = 0;
+      const y0 = Math.min(0, a.h - b.h + dy);
+      const y1 = Math.max(a.h, a.h + dy);
+      const x0 = Math.min(0, dx);
+      const x1 = Math.max(a.l, b.l + dx);
+      for (let y = y0; y < y1 && d <= tolere; y++)
+        for (let x = x0; x < x1; x++) {
+          const va = y >= 0 && y < a.h && x >= 0 && x < a.l ? a.points[y * a.l + x] : 0;
+          const yb = y - (a.h - b.h) - dy;
+          const xb = x - dx;
+          const vb = yb >= 0 && yb < b.h && xb >= 0 && xb < b.l ? b.points[yb * b.l + xb] : 0;
+          if (va !== vb) d++;
+        }
+      if (d <= tolere) return true;
+    }
+  return false;
+}
+
 /** Formes de lettres de quelques pages, réunies (une forme vue sur plusieurs pages compte autant de fois).
  *  `encre` donne les points d'encre d'une image (même méthode que la lecture). */
 export class Collecte {
   private parCle = new Map<string, Forme>();
   private mesures = "";
   private haut = 0;
+  /** Sens de lecture de la première page (quarts de tour), quand il a pu être mesuré. */
+  sens: number | null = null;
 
   constructor(private readonly encre: (t: Trame) => Encre) {}
 
@@ -327,6 +359,7 @@ export class Collecte {
       page = lettresDePage(en) ?? page;
     }
     if (!page) return;
+    this.sens ??= quart;
     const { l, ordre, H, bases, lettres, pasX } = page;
     // Formes identiques regroupées.
     const avant = this.parCle.size;
@@ -388,14 +421,24 @@ export class Collecte {
     ].join(" ");
   }
 
-  /** Formes vues au moins trois fois, de la taille d'une lettre, les plus fréquentes d'abord puis rangées par taille. */
+  /** Formes vues au moins deux fois, de la taille d'une lettre. Les variantes d'une même lettre (page imprimée : un
+   *  point de plus ou de moins selon sa position) sont réunies et montrées une seule fois, pour que l'aperçu montre le
+   *  plus de lettres différentes possible ; les plus fréquentes d'abord, puis rangées par taille. */
   apercu(): Apercu | null {
     if (!this.mesures) return null;
     const h = this.haut;
-    const formes = [...this.parCle.values()]
-      .filter((f) => f.n >= 3 && f.l <= 1.8 * h && f.h <= 1.8 * h && f.l * f.h >= 4)
+    const toutes = [...this.parCle.values()].filter((f) => f.n >= 2 && f.l <= 1.8 * h && f.h <= 1.8 * h && f.l * f.h >= 4).sort((a, b) => b.n - a.n);
+    const groupes: { f: Forme; n: number }[] = [];
+    for (const f of toutes) {
+      const g = groupes.find((g) => variantes(g.f, f));
+      if (g) g.n += f.n;
+      else groupes.push({ f, n: f.n });
+    }
+    const formes = groupes
+      .filter((g) => g.n >= 3)
       .sort((a, b) => b.n - a.n)
       .slice(0, 200)
+      .map((g) => g.f)
       .sort((a, b) => b.h - a.h || b.l - a.l || a.bas - b.bas);
     return { formes, resume: this.mesures };
   }

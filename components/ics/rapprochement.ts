@@ -266,6 +266,8 @@ export interface Fiche {
   /** Nom tel qu'écrit dans le fichier. */
   libelle: string;
   mots: string[];
+  /** Liste lue sur une impression : mots du nom avec un ou deux chiffres pris pour des lettres (« LI0NEL »). */
+  motsLus?: string[];
   /** Prénoms donnés par une colonne dédiée (vide si aucune). */
   prenoms: string[];
   valeurs: Partial<Record<Champ, string>>;
@@ -365,8 +367,11 @@ function fiche(l: string[], i: number, c: Colonnes): Fiche | null {
   const complet = sansCoordonnees(un("nomComplet"));
   const libelle = (complet || [civ, nom, prenom].filter(Boolean).join(" ")).replace(ESPACES, " ").trim();
   // Un code (« P0012 ») ou un numéro n'est jamais un morceau de nom.
-  const motsNom = nomMots(complet || `${nom} ${prenom}`).filter((m) => !/\d/.test(m));
-  if (!motsNom.length) return null;
+  const tous = nomMots(complet || `${nom} ${prenom}`);
+  const motsNom = tous.filter((m) => !/\d/.test(m));
+  // Sur une impression lue lettre par lettre, un 0 ou un 1 peut remplacer un O ou un I dans un nom (« DUP0NT »).
+  const motsLus = tous.filter((m) => !/\d/.test(m) || (m.replace(/\d/g, "").length >= 3 && [...m.replace(/\D/g, "")].every((d) => d in SOSIES) && m.replace(/\D/g, "").length <= 2));
+  if (!motsNom.length && !motsLus.length) return null;
 
   const valeurs: Fiche["valeurs"] = {};
   const autres: string[] = [];
@@ -387,12 +392,13 @@ function fiche(l: string[], i: number, c: Colonnes): Fiche | null {
   const metier = un("profession");
   if (metier) valeurs.profession = metier;
 
-  return { ligne: i, libelle, mots: motsNom, prenoms: prenom ? prenom.split(PLUSIEURS).flatMap(nomMots) : [], valeurs, autres };
+  return { ligne: i, libelle, mots: motsNom, motsLus, prenoms: prenom ? prenom.split(PLUSIEURS).flatMap(nomMots) : [], valeurs, autres };
 }
 
 /* ---------- rapprochement ---------- */
 
-export type Niveau = "nomPrenom" | "nom";
+/** « proche » : liste lue sur une impression, nom à une lettre près (jamais choisi d'office). */
+export type Niveau = "nomPrenom" | "nom" | "proche";
 
 export interface Proposition {
   champ: Champ;
@@ -424,12 +430,40 @@ export interface Analyse {
   absents: Contact[];
 }
 
-const position = (meule: string[], aiguille: string[]) => {
-  for (let i = 0; i + aiguille.length <= meule.length; i++) if (aiguille.every((m, k) => meule[i + k] === m)) return i;
+const position = (meule: string[], aiguille: string[], pareils = (a: string, b: string) => a === b) => {
+  for (let i = 0; i + aiguille.length <= meule.length; i++) if (aiguille.every((m, k) => pareils(m, meule[i + k]))) return i;
   return -1;
 };
 
-function niveau(c: Contact, f: Fiche): Niveau | null {
+/** Chiffres que la lecture d'une impression peut prendre pour une lettre (Courier) : 0 pour O, 1 pour I ou L… */
+const SOSIES: Record<string, string> = { "0": "ODQ", "1": "ILT", "2": "Z", "4": "A", "5": "S", "6": "G", "8": "B" };
+
+/** Mot du Hub et mot lu sur une impression : pareils à une lettre près (mots de cinq lettres ou plus), un chiffre
+ *  sosie d'une lettre comptant pour cette lettre. */
+function proche(hub: string, lu: string): boolean {
+  if (hub === lu) return true;
+  if (hub.length !== lu.length) return false;
+  let autres = 0;
+  for (let i = 0; i < hub.length; i++) if (hub[i] !== lu[i] && !SOSIES[lu[i]]?.includes(hub[i])) autres++;
+  return autres === 0 || (autres === 1 && hub.length >= 5);
+}
+
+function niveau(c: Contact, f: Fiche, approche = false): Niveau | null {
+  const exact = niveauExact(c, f);
+  if (exact || !approche || !f.motsLus) return exact;
+  // Liste lue sur une impression : nom à une lettre près, à confirmer par l'utilisateur.
+  const nom = nomMots(c.nom);
+  if (!nom.length) return null;
+  const p = position(f.motsLus, nom, proche);
+  if (p < 0) return null;
+  if (c.civilite && f.valeurs.civilite && c.civilite !== f.valeurs.civilite) return null;
+  const prenom = nomMots(c.prenom);
+  const reste = f.motsLus.filter((_, k) => k < p || k >= p + nom.length);
+  if (!prenom.length || !reste.length || reste.some((m) => proche(prenom[0], m))) return "proche";
+  return null;
+}
+
+function niveauExact(c: Contact, f: Fiche): Niveau | null {
   const nom = nomMots(c.nom);
   if (!nom.length) return null;
   const p = position(f.mots, nom);
@@ -470,7 +504,8 @@ export function proprietaires(contacts: Contact[], biens: Bien[]) {
   return contacts.filter((c) => ids.has(c.id) || c.roles?.includes("vendeur") || c.roles?.includes("prospect_vendeur"));
 }
 
-export function analyser(t: Tableau, contacts: Contact[], biens: Bien[]): Analyse | { colonnesTrouvees: string[] } {
+/** `approche` : liste lue lettre par lettre sur une impression, où une lettre peut être mal lue. */
+export function analyser(t: Tableau, contacts: Contact[], biens: Bien[], approche = false): Analyse | { colonnesTrouvees: string[] } {
   const c = trouverColonnes(t);
   let fiches = c ? lireFiches(t, c) : [];
   let colonnes = c ? colonnesLues(t, c) : [];
@@ -491,11 +526,12 @@ export function analyser(t: Tableau, contacts: Contact[], biens: Bien[]): Analys
   for (const contact of proprietaires(contacts, biens)) {
     const candidats: Candidat[] = [];
     for (const f of fiches) {
-      const n = niveau(contact, f);
+      const n = niveau(contact, f, approche);
       if (n) candidats.push({ fiche: f, niveau: n, ...propositions(contact, f) });
     }
     // Les fiches au nom et prénom exacts passent devant ; au-delà de 5 homonymes, on n'en garde que 5.
-    candidats.sort((a, b) => Number(b.niveau === "nomPrenom") - Number(a.niveau === "nomPrenom") || b.ajouts.length - a.ajouts.length);
+    const rang = (n: Niveau) => (n === "nomPrenom" ? 2 : n === "nom" ? 1 : 0);
+    candidats.sort((a, b) => rang(b.niveau) - rang(a.niveau) || b.ajouts.length - a.ajouts.length);
     if (!candidats.length) absents.push(contact);
     else retrouves.push({ contact, biens: biens.filter((b) => b.vendeurIds?.includes(contact.id)), candidats: candidats.slice(0, 5) });
   }
