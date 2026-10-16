@@ -1,3 +1,4 @@
+import type { Codec, Espace, ImageBrute } from "./images";
 import type { Tableau } from "./lecture";
 
 /* Lecture d'un PDF directement sur l'appareil, pour la liste « Téléphones et Mails » imprimée depuis ICS
@@ -641,16 +642,44 @@ class Lecteur {
     }
   }
 
-  /** Image incluse dans un contenu de page (BI … ID données EI) : sautée. */
-  sauterImage() {
-    for (let v = this.valeur(); v !== undefined; v = this.valeur()) if (v instanceof Mot && v.v === "ID") break;
+  /** Image incluse dans un contenu de page (BI … ID données EI) : son dictionnaire et ses données. */
+  imageIncluse(): { dict: Dict; donnees: Uint8Array } {
+    const dict: Dict = new Map();
+    let cle: string | null = null;
+    for (let v = this.valeur(); v !== undefined; v = this.valeur()) {
+      if (v instanceof Mot && v.v === "ID") break;
+      if (cle === null) cle = v instanceof Nom ? v.v : null;
+      else {
+        dict.set(cle, v);
+        cle = null;
+      }
+    }
     const o = this.o;
-    for (let k = this.i + 1; k + 1 < o.length; k++)
+    const debut = this.i + 1;
+    // Sans compression, la taille est connue : plus sûr que de chercher « EI » dans des données binaires.
+    const num = (k: string, c: string) => {
+      const x = dict.get(k) ?? dict.get(c);
+      return typeof x === "number" ? x : 0;
+    };
+    const cs = dict.get("ColorSpace") ?? dict.get("CS");
+    const nCs = cs instanceof Nom ? ({ DeviceRGB: 3, RGB: 3, DeviceCMYK: 4, CMYK: 4 } as Record<string, number>)[cs.v] ?? 1 : 1;
+    const masque = (dict.get("ImageMask") ?? dict.get("IM")) === true;
+    const taille = num("Height", "H") * Math.ceil((num("Width", "W") * (masque ? 1 : nCs) * (masque ? 1 : num("BitsPerComponent", "BPC") || 8)) / 8);
+    if (!dict.has("Filter") && !dict.has("F") && taille > 0 && debut + taille <= o.length) {
+      let k = debut + taille;
+      while (k < o.length && BLANC[o[k]]) k++;
+      if (o[k] === 0x45 && o[k + 1] === 0x49) {
+        this.i = k + 2;
+        return { dict, donnees: o.subarray(debut, debut + taille) };
+      }
+    }
+    for (let k = debut; k + 1 < o.length; k++)
       if (o[k] === 0x45 && o[k + 1] === 0x49 && BLANC[o[k - 1]] && (k + 2 >= o.length || BLANC[o[k + 2]])) {
         this.i = k + 2;
-        return;
+        return { dict, donnees: o.subarray(debut, k - 1) };
       }
     this.i = o.length;
+    return { dict, donnees: o.subarray(debut) };
   }
 }
 
@@ -1143,6 +1172,15 @@ interface Page {
   ressources: Dict | null;
 }
 
+/** Image dessinée sur une page : son dictionnaire, ses données (encore compressées) et sa position. */
+interface VueImage {
+  dict: Dict;
+  brut: Uint8Array;
+  ctm: number[];
+  ressources: Dict | null;
+  incluse: boolean;
+}
+
 class Doc {
   objets = new Map<number, Val>();
   trailer: Dict = new Map();
@@ -1152,6 +1190,11 @@ class Doc {
   signes = 0;
   images = 0;
   genres = new Set<string>();
+  /** Lecture des images (pages sans texte) : résumé pour le code d'aide. */
+  ocr = "";
+  /** Images vues sur la page en cours d'interprétation, puis par page. */
+  private vues: VueImage[] | null = null;
+  private imagesPages = new Map<Page, VueImage[]>();
   private decodes = new Map<Flux, Uint8Array>();
   private polices = new Map<Dict, Police>();
 
@@ -1309,12 +1352,21 @@ class Doc {
   donnees(f: Flux): Uint8Array {
     const memo = this.decodes.get(f);
     if (memo) return memo;
-    let d = f.brut;
-    const filtres = this.r(f.dict.get("Filter"));
-    const params = this.r(f.dict.get("DecodeParms") ?? f.dict.get("DP"));
-    (Array.isArray(filtres) ? filtres : [filtres]).forEach((x, k) => {
-      const nom = this.nom(x);
-      if (!nom) return;
+    const r = this.filtrer(f.dict.get("Filter"), f.dict.get("DecodeParms") ?? f.dict.get("DP"), f.brut);
+    const d = r.codec ? new Uint8Array(0) : r.octets;
+    this.decodes.set(f, d);
+    return d;
+  }
+
+  /** Applique les filtres d'un flux ; s'arrête sur un format d'image (JPEG, fax…), laissé à images.ts. */
+  private filtrer(filtre: Val | undefined, parametres: Val | undefined, brut: Uint8Array): { octets: Uint8Array; codec: Codec; params: Dict | null } {
+    let d = brut;
+    const filtres = this.r(filtre);
+    const params = this.r(parametres);
+    const liste = Array.isArray(filtres) ? filtres : [filtres];
+    for (let k = 0; k < liste.length; k++) {
+      const nom = this.nom(liste[k]);
+      if (!nom) continue;
       const p = this.d(Array.isArray(params) ? params[k] : params);
       const pred = (r: Uint8Array) =>
         predicteur(r, this.n(p?.get("Predictor"), 1), this.n(p?.get("Colors"), 1), this.n(p?.get("BitsPerComponent"), 8), this.n(p?.get("Columns"), 1));
@@ -1323,10 +1375,90 @@ class Doc {
       else if (nom === "ASCIIHexDecode" || nom === "AHx") d = asciiHex(d);
       else if (nom === "ASCII85Decode" || nom === "A85") d = ascii85(d);
       else if (nom === "RunLengthDecode" || nom === "RL") d = runLength(d);
-      else if (nom !== "Crypt") d = new Uint8Array(0); // images : inutiles ici
-    });
-    this.decodes.set(f, d);
-    return d;
+      else if (nom === "Crypt") continue;
+      else {
+        const codec: Codec =
+          nom === "DCTDecode" || nom === "DCT" ? "DCT" : nom === "CCITTFaxDecode" || nom === "CCF" ? "CCITT" : nom === "JBIG2Decode" ? "JBIG2" : nom === "JPXDecode" ? "JPX" : "?";
+        return { octets: d, codec, params: p };
+      }
+    }
+    return { octets: d, codec: "", params: null };
+  }
+
+  /** Espace de couleurs d'une image, ramené à ce qui compte pour en tirer des niveaux de gris. */
+  private espace(v: Val | undefined, ressources: Dict | null, prof = 0): Espace {
+    const x = this.r(v);
+    if (prof > 4) return { type: "gris" };
+    if (x instanceof Nom) {
+      const n = x.v;
+      if (n === "DeviceRGB" || n === "RGB" || n === "CalRGB") return { type: "rvb" };
+      if (n === "DeviceCMYK" || n === "CMYK") return { type: "cmjn" };
+      if (n === "DeviceGray" || n === "G" || n === "CalGray") return { type: "gris" };
+      const nomme = this.d(ressources?.get("ColorSpace"))?.get(n);
+      return nomme !== undefined ? this.espace(nomme, ressources, prof + 1) : { type: "gris" };
+    }
+    if (!Array.isArray(x) || !x.length) return { type: "gris" };
+    const t = this.nom(x[0]);
+    if (t === "ICCBased") {
+      const s = this.r(x[1]);
+      const d = s instanceof Flux ? s.dict : null;
+      const n = this.n(d?.get("N"), 3);
+      return n === 1 ? { type: "gris" } : n === 4 ? { type: "cmjn" } : { type: "rvb" };
+    }
+    if (t === "Indexed" || t === "I") {
+      const l = this.r(x[3]);
+      const table = l instanceof Uint8Array ? l : l instanceof Flux ? this.donnees(l) : new Uint8Array(0);
+      return { type: "indexe", base: this.espace(x[1], ressources, prof + 1), max: Math.max(0, Math.min(255, this.n(x[2], 255))), table };
+    }
+    if (t === "Lab") return { type: "lab" };
+    if (t === "Separation") return { type: "teinte", n: 1 };
+    if (t === "DeviceN") return { type: "teinte", n: Math.max(1, this.a(x[1]).length) };
+    return this.espace(x[0], ressources, prof + 1);
+  }
+
+  /** Images d'une page (après glyphes()), prêtes à être décodées sur l'appareil. */
+  imagesDePage(p: Page): ImageBrute[] {
+    const rotation = this.n(p.dict.get("Rotate"), 0);
+    const res: ImageBrute[] = [];
+    for (const v of this.imagesPages.get(p) ?? []) {
+      const val = (long: string, court: string) => v.dict.get(long) ?? (v.incluse ? v.dict.get(court) : undefined);
+      const largeur = Math.floor(this.n(val("Width", "W"), 0));
+      const hauteur = Math.floor(this.n(val("Height", "H"), 0));
+      if (largeur < 1 || hauteur < 1 || largeur * hauteur > 16e6) continue;
+      const masque = this.r(val("ImageMask", "IM")) === true;
+      let f: ReturnType<Doc["filtrer"]>;
+      try {
+        f = this.filtrer(val("Filter", "F"), val("DecodeParms", "DP"), v.brut);
+      } catch {
+        continue; // image abîmée : les autres pages restent lisibles
+      }
+      const { octets, codec, params } = f;
+      const decode = this.a(val("Decode", "D")).map((x) => this.n(x, 0));
+      const ccitt =
+        codec === "CCITT"
+          ? {
+              k: this.n(params?.get("K"), 0),
+              colonnes: this.n(params?.get("Columns"), 1728),
+              lignes: this.n(params?.get("Rows"), 0),
+              alignement: this.r(params?.get("EncodedByteAlign")) === true,
+              noirVaut1: this.r(params?.get("BlackIs1")) === true,
+            }
+          : undefined;
+      res.push({
+        largeur,
+        hauteur,
+        bpc: masque ? 1 : this.n(val("BitsPerComponent", "BPC"), 8),
+        espace: masque ? { type: "gris" } : this.espace(val("ColorSpace", "CS"), v.ressources),
+        decode: decode.length ? decode : null,
+        masque,
+        octets,
+        codec,
+        ccitt,
+        ctm: v.ctm,
+        rotation,
+      });
+    }
+    return res;
   }
 
   pages(): Page[] {
@@ -1363,11 +1495,14 @@ class Doc {
     const c = this.r(p.dict.get("Contents"));
     const flux = (Array.isArray(c) ? c.map((x) => this.r(x)) : [c]).filter((x): x is Flux => x instanceof Flux);
     const contenu = concat(...flux.flatMap((f) => [this.donnees(f), Uint8Array.of(10)]));
+    this.vues = [];
     try {
       this.interpreter(contenu, p.ressources, { ctm: IDENTITE, police: null, tf: 0, tc: 0, tw: 0, th: 1, tl: 0, ts: 0 }, sortie, 0, new Set());
     } catch {
       /* page abîmée : on garde ce qui a été lu */
     }
+    this.imagesPages.set(p, this.vues);
+    this.vues = null;
     return sortie;
   }
 
@@ -1488,7 +1623,10 @@ class Doc {
         case "Do": {
           const n = ops[0];
           const f = n instanceof Nom ? this.r(xobjets?.get(n.v)) : null;
-          if (f instanceof Flux && this.nom(f.dict.get("Subtype")) === "Image") this.images++;
+          if (f instanceof Flux && this.nom(f.dict.get("Subtype")) === "Image") {
+            this.images++;
+            this.vues?.push({ dict: f.dict, brut: f.brut, ctm: g.ctm, ressources, incluse: false });
+          }
           if (f instanceof Flux && this.nom(f.dict.get("Subtype")) === "Form" && prof < 8 && !formes.has(f)) {
             const mat = this.a(f.dict.get("Matrix")).map((x) => this.n(x, 0));
             formes.add(f);
@@ -1497,10 +1635,12 @@ class Doc {
           }
           break;
         }
-        case "BI":
-          L.sauterImage();
+        case "BI": {
+          const im = L.imageIncluse();
           this.images++;
+          this.vues?.push({ dict: im.dict, brut: im.donnees, ctm: g.ctm, ressources, incluse: true });
           break;
+        }
       }
       ops = [];
     }
@@ -1559,7 +1699,8 @@ class Doc {
   reperes(pages: number, lignes: number): string {
     const version = /%PDF-(\d\.\d)/.exec(latin1(this.o, 0, Math.min(this.o.length, 1024)))?.[1] ?? "?";
     const l = this.logiciel();
-    return [`PDF ${version}`, `${pages} p.`, `${lignes} l.`, `${this.signes} s.`, this.illisibles ? `${this.illisibles} ill.` : "", this.images ? `${this.images} im.` : "", ...this.genres, l ? `« ${l} »` : ""].filter(Boolean).join(" ");
+    const forme = [`PDF ${version}`, `${pages} p.`, `${lignes} l.`, `${this.signes} s.`, this.illisibles ? `${this.illisibles} ill.` : "", this.images ? `${this.images} im.` : "", ...this.genres, l ? `« ${l} »` : ""];
+    return forme.filter(Boolean).join(" ") + (this.ocr ? ` · ${this.ocr}` : "");
   }
 
   private versUnicode(d: Dict): CMap | null {
@@ -1695,9 +1836,20 @@ class Doc {
   }
 }
 
+/** Lettres des pages faites d'images (module chargé seulement dans ce cas, avec ses polices). */
+async function lireImages(doc: Doc, pages: Page[], suivi?: (fait: number, total: number) => void): Promise<{ lignes: Ligne[]; ouvertes: number }> {
+  const { lirePages } = await import("./ocr");
+  const r = await lirePages(
+    pages.map((p) => doc.imagesDePage(p)),
+    suivi,
+  );
+  doc.ocr = r.resume;
+  return { lignes: r.pages.flatMap((g, k) => lignesDePage(g, k)), ouvertes: r.ouvertes };
+}
+
 /** Texte d'un PDF, rangé en tableau (une ligne par ligne imprimée, une case par colonne).
  *  `aide.pdf` reçoit le code d'aide du fichier (sa forme, jamais son texte), même en cas d'échec. */
-export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string }): Promise<Tableau> {
+export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string; suivi?: (fait: number, total: number) => void }): Promise<Tableau> {
   const doc = new Doc(octets);
   const vu = { pages: 0, lignes: 0 };
   try {
@@ -1708,7 +1860,15 @@ export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string }): Prom
     const lignes = pages.flatMap((p, k) => lignesDePage(doc.glyphes(p), k));
     vu.lignes = lignes.length;
     const texte = lignes.flatMap((l) => l.cellules.map((c) => c.texte)).join("").replace(/\s/g, "");
-    if (!texte.length && !doc.illisibles) throw new PdfIllisible("Ce PDF ne contient pas de texte à lire : ses pages sont des images. Il ne peut pas être importé tel quel.");
+    if (!texte.length && !doc.illisibles) {
+      if (!doc.images) throw new PdfIllisible("Ce PDF ne contient pas de texte à lire. Imprimez de nouveau la liste depuis ICS.");
+      // Impression d'écran : pages faites d'images, dont on reconnaît les lettres sur l'appareil.
+      const { lignes: lues, ouvertes } = await lireImages(doc, pages, aide?.suivi);
+      vu.lignes = lues.length;
+      if (lues.length) return enTableau(sansRepetitions(lues, pages.length));
+      if (!ouvertes) throw new PdfIllisible("Les pages de ce PDF sont des images dans un format qui ne peut pas être ouvert ici.");
+      throw new PdfIllisible("Les pages de ce PDF sont des images, et leur texte n'a pas pu être reconnu.");
+    }
     // Police sans table de caractères : le texte sort en signes sans lettres.
     if ((texte.match(/\p{L}/gu) ?? []).length < 0.25 * texte.length || doc.illisibles > texte.length)
       throw new PdfIllisible("Le texte de ce PDF est écrit dans un codage qui ne peut pas être lu. Il ne peut pas être importé tel quel.");

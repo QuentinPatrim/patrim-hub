@@ -16,7 +16,7 @@ import { analyser, choixParDefaut, empreinte, LIBELLE, modification, proprietair
 
 type Etat =
   | { etape: "choix"; erreur?: string; colonnes?: string[]; aide?: string }
-  | { etape: "lecture"; nom: string }
+  | { etape: "lecture"; nom: string; avancement?: string }
   | { etape: "verif"; nom: string; analyse: Analyse; aide: string }
   | { etape: "fait"; fiches: number; infos: number };
 
@@ -44,7 +44,8 @@ export function ImportIcs() {
 
   async function lire(file: File) {
     setEtat({ etape: "lecture", nom: file.name });
-    const aide: Aide = {};
+    // Impression d'écran : les lettres des images sont lues page par page, sur cet appareil.
+    const aide: Aide = { suivi: (fait, total) => setEtat({ etape: "lecture", nom: file.name, avancement: `page ${fait} sur ${total}` }) };
     try {
       if (file.size > 20 * 1024 * 1024) throw new ErreurLecture("Ce fichier dépasse 20 Mo. Exportez seulement la liste des propriétaires.");
       const tableau = await lireTableau(new Uint8Array(await file.arrayBuffer()), aide);
@@ -112,7 +113,8 @@ export function ImportIcs() {
     return (
       <Card>
         <div className="flex items-center gap-3 py-6 text-sm text-muted">
-          <Spinner /> Lecture de « {etat.nom} » sur cet appareil…
+          <Spinner />
+          {etat.avancement ? `Lecture des images de « ${etat.nom} » sur cet appareil, ${etat.avancement}…` : `Lecture de « ${etat.nom} » sur cet appareil…`}
         </div>
       </Card>
     );
