@@ -1,7 +1,6 @@
 "use client";
 
 import { authHeaders } from "./ai";
-import { MANDATS_PATRIM } from "./seed";
 import { cloudEnabled } from "./supabase";
 import { bulkCreate, create, getAll, remove, update } from "./store";
 import type { Bien, BienType, Contact } from "./types";
@@ -9,8 +8,8 @@ import type { BienDossier, DossierBien } from "@/components/biens/dossier";
 import type { ContactEtatCivil } from "@/components/offre/offre";
 
 /* Import et mise à jour des mandats.
-   Les fiches complètes (propriétaire, charges, DDT, photos…) viennent de /api/mandats
-   (données privées côté serveur) ; sans connexion, la liste publique de lib/seed.ts sert de base. */
+   Les fiches complètes (propriétaire, charges, DDT, photos…) viennent uniquement de /api/mandats
+   (données privées côté serveur) : aucune liste de biens dans le code, le dépôt peut être public. */
 
 /** Un propriétaire (une personne par fiche contact, même en indivision ou en succession). */
 type Personne = {
@@ -49,16 +48,15 @@ const norm = (s?: string) =>
     .trim();
 
 async function fiches(): Promise<Fiche[]> {
-  if (cloudEnabled) {
-    try {
-      const r = await fetch("/api/mandats", { headers: await authHeaders(), cache: "no-store" });
-      const j = (await r.json()) as { mandats?: Fiche[] };
-      if (r.ok && j.mandats?.length) return j.mandats;
-    } catch {
-      /* hors connexion : liste publique */
-    }
+  if (!cloudEnabled) return [];
+  try {
+    const r = await fetch("/api/mandats", { headers: await authHeaders(), cache: "no-store" });
+    const j = (await r.json()) as { mandats?: Fiche[] };
+    if (r.ok) return j.mandats ?? [];
+  } catch {
+    /* hors connexion : message ci-dessous */
   }
-  return MANDATS_PATRIM;
+  throw new Error("Vos mandats n'ont pas pu être chargés. Vérifiez la connexion, puis réessayez.");
 }
 
 const vide = (v: unknown) => v === undefined || v === null || v === "" || v === "[À compléter]" || (Array.isArray(v) && !v.length);
