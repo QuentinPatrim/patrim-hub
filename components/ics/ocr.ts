@@ -4,6 +4,7 @@
    polices (polices.ts). Module pur : rien n'est envoyé, rien n'est gardé. */
 
 import { POLICES } from "./polices";
+import { POLICES_IMPRIMEES } from "./policesImprimees";
 import { Collecte, type Apercu } from "./formes";
 import { enTrame, formeImage, ImageNonLue, quarts, redresser, type ImageBrute, type Trame } from "./images";
 
@@ -33,6 +34,7 @@ interface Police {
   montee: number;
   descente: number;
   espace: number;
+  imprimee: boolean;
   dessins: Dessin[];
   /** Dessins rangés par leur première colonne (lecture exacte). */
   parPremiere: Map<number, number[]>;
@@ -42,7 +44,7 @@ let polices: Police[] | null = null;
 
 function chargerPolices(): Police[] {
   if (polices) return polices;
-  polices = POLICES.map((p) => {
+  polices = [...POLICES, ...POLICES_IMPRIMEES].map((p) => {
     const o = Uint8Array.from(atob(p.glyphes), (c) => c.charCodeAt(0));
     const parCle = new Map<string, Dessin>();
     const dessins: Dessin[] = [];
@@ -77,7 +79,7 @@ function chargerPolices(): Police[] {
     }
     const parPremiere = new Map<number, number[]>();
     dessins.forEach((d, k) => parPremiere.set(d.cols[0], [...(parPremiere.get(d.cols[0]) ?? []), k]));
-    return { nom: p.nom, montee: p.montee, descente: p.descente, espace: p.espace, dessins, parPremiere };
+    return { nom: p.nom, montee: p.montee, descente: p.descente, espace: p.espace, imprimee: !!p.imprimee, dessins, parPremiere };
   });
   return polices;
 }
@@ -220,8 +222,9 @@ function reduire(t: Trame): { t: Trame; s: number } {
 }
 
 /** Traits du quadrillage (longs traits horizontaux ou verticaux) et gros dessins (icônes, boutons) effacés.
-    Renvoie les lignes de base probables : là où s'arrête le bas de beaucoup de morceaux (lettres sans jambage). */
-function nettoyer(en: Encre, hMax: number): number[] {
+    Renvoie les lignes de base probables : là où s'arrête le bas de beaucoup de morceaux (lettres sans jambage) d'au
+    moins hMin lignes (page imprimée : ni les points des i, ni les accents ne comptent). */
+function nettoyer(en: Encre, hMax: number, hMin = 3): number[] {
   const { l, h, e } = en;
   const traits: number[] = [];
   for (let y = 0; y < h; y++) {
@@ -282,7 +285,7 @@ function nettoyer(en: Encre, hMax: number): number[] {
     }
     const haut = y1 - y0 + 1;
     if (haut > hMax + 2) for (let k = 0; k < n; k++) e[pile[k]] = 0;
-    else if (haut >= 3) bas[y1 + 1]++;
+    else if (haut >= hMin) bas[y1 + 1]++;
   }
   const candidats = Array.from(bas.keys())
     .filter((y) => bas[y] >= 2)
@@ -313,22 +316,36 @@ interface LigneLue {
 const INCONNU = 2;
 const PAR_LETTRE = 0.5;
 
-/** Colonnes de la bande d'une ligne (une valeur par colonne, un bit par ligne de points). */
+/** Colonnes de la bande d'une ligne (une valeur par colonne, un bit par ligne de points).
+    Page imprimée : les points isolés (poussières de la télécopie) ne comptent pas, aucune lettre n'en a. */
 function bande(en: Encre, base: number, p: Police): Int32Array {
   const { l, h, e } = en;
   const haut = base - p.montee;
   const n = p.montee + p.descente;
   const cols = new Int32Array(l);
+  const voisin = (x: number, y: number) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      const yy = y + dy;
+      if (yy < 0 || yy >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx;
+        if ((dx || dy) && xx >= 0 && xx < l && e[yy * l + xx]) return true;
+      }
+    }
+    return false;
+  };
   for (let r = 0; r < n; r++) {
     const y = haut + r;
     if (y < 0 || y >= h) continue;
     const ligne = y * l;
-    for (let x = 0; x < l; x++) if (e[ligne + x]) cols[x] |= 1 << r;
+    for (let x = 0; x < l; x++) if (e[ligne + x] && (!p.imprimee || voisin(x, y))) cols[x] |= 1 << r;
   }
   return cols;
 }
 
-/** Meilleure suite de lettres pour expliquer les points de la bande (programmation dynamique, colonne par colonne). */
+/** Meilleure suite de lettres pour expliquer les points de la bande (programmation dynamique, colonne par colonne).
+    Police d'impression : deux lettres voisines peuvent se toucher dans une même colonne (empattements du Courier) ;
+    l'état « partagé » d'une colonne veut dire que la lettre précédente finit sur elle et que la suivante y commence. */
 function lireLigne(cols: Int32Array, p: Police, strict: boolean): Omit<LigneLue, "base" | "police"> | null {
   let x0 = 0;
   while (x0 < cols.length && !cols[x0]) x0++;
@@ -336,33 +353,39 @@ function lireLigne(cols: Int32Array, p: Police, strict: boolean): Omit<LigneLue,
   while (x1 >= x0 && !cols[x1]) x1--;
   if (x1 < x0) return null;
   const n = x1 - x0 + 2;
-  const cout = new Float64Array(n).fill(Infinity);
-  const prec = new Int32Array(n).fill(-1);
-  const quoi = new Int32Array(n).fill(-1); // -1 : colonne vide ; -2 : encre inconnue ; sinon dessin
-  const erreurs = new Float64Array(n);
+  // États 0..n-1 : colonnes avant x0 + i expliquées ; n..2n-1 : idem, et la colonne x0 + i est partagée.
+  const cout = new Float64Array(2 * n).fill(Infinity);
+  const prec = new Int32Array(2 * n).fill(-1);
+  const quoi = new Int32Array(2 * n).fill(-1); // -1 : colonne vide ; -2 : encre inconnue ; sinon dessin
+  const erreurs = new Float64Array(2 * n);
   cout[0] = 0;
-  const premier = strict ? 0 : 2;
+  const imp = p.imprimee;
+  const premier = strict ? 0 : imp ? 4 : 2;
   const dessins = p.dessins;
   let encre = 0;
   for (let x = x0; x <= x1; x++) encre += pop(cols[x]);
+  const relacher = (de: number, j: number, v: number, q: number, err: number) => {
+    if (v < cout[j]) {
+      cout[j] = v;
+      prec[j] = de;
+      quoi[j] = q;
+      erreurs[j] = err;
+    }
+  };
+  const col = (x: number) => (x <= x1 ? cols[x] : 0);
   for (let x = x0; x <= x1; x++) {
     const i = x - x0;
     const c = cout[i];
-    if (c === Infinity) continue;
+    const cp = imp ? cout[n + i] : Infinity;
+    if (c === Infinity && cp === Infinity) continue;
     const m = cols[x];
-    const relacher = (j: number, v: number, q: number, err: number) => {
-      if (v < cout[j]) {
-        cout[j] = v;
-        prec[j] = i;
-        quoi[j] = q;
-        erreurs[j] = err;
+    if (c !== Infinity) {
+      if (!m) {
+        relacher(i, i + 1, c, -1, 0);
+        continue;
       }
-    };
-    if (!m) {
-      relacher(i + 1, c, -1, 0);
-      continue;
+      relacher(i, i + 1, c + pop(m) + INCONNU, -2, 0);
     }
-    relacher(i + 1, c + pop(m) + INCONNU, -2, 0);
     const candidats = strict ? p.parPremiere.get(m) : undefined;
     if (strict && !candidats) continue;
     const nb = candidats ? candidats.length : dessins.length;
@@ -370,14 +393,30 @@ function lireLigne(cols: Int32Array, p: Police, strict: boolean): Omit<LigneLue,
       const k = candidats ? candidats[q] : q;
       const d = dessins[k];
       const dc = d.cols;
-      let err = pop(m ^ dc[0]);
-      if (err > premier) continue;
+      // Première colonne : toute l'encre compte ; colonne partagée : seuls les points du dessin absents de la page.
+      const e0 = pop(m ^ dc[0]);
+      const e0p = pop(dc[0] & ~m);
+      if ((c === Infinity || e0 > premier) && (cp === Infinity || e0p > premier)) continue;
       const w = dc.length;
       if (x + w - 1 > x1 + 1) continue;
-      const limite = strict ? Math.max(1, 0.12 * d.points) : Math.max(2, 0.34 * d.points);
-      for (let c2 = 1; c2 < w && err <= limite; c2++) err += pop((x + c2 <= x1 ? cols[x + c2] : 0) ^ dc[c2]);
-      if (err > limite) continue;
-      relacher(Math.min(i + w, n - 1), c + err + PAR_LETTRE, k, err);
+      const limite = strict ? Math.max(1, 0.12 * d.points) : imp ? Math.max(3, 0.45 * d.points) : Math.max(2, 0.34 * d.points);
+      let milieu = 0;
+      for (let c2 = 1; c2 < w - 1 && milieu <= limite; c2++) milieu += pop(col(x + c2) ^ dc[c2]);
+      if (milieu > limite) continue;
+      const fin = w > 1 ? pop(col(x + w - 1) ^ dc[w - 1]) : 0;
+      const finP = w > 1 ? pop(dc[w - 1] & ~col(x + w - 1)) : 0;
+      // Depuis l'état normal, puis depuis l'état partagé.
+      for (let partage = 0; partage < 2; partage++) {
+        const v = partage ? cp : c;
+        const debut = partage ? e0p : e0;
+        if (v === Infinity || debut > premier) continue;
+        const depart = partage ? n + i : i;
+        const err = debut + milieu + fin;
+        if (err <= limite) relacher(depart, Math.min(i + w, n - 1), v + err + PAR_LETTRE, k, err);
+        // La lettre suivante peut commencer sur la dernière colonne de celle-ci.
+        const errP = debut + milieu + finP;
+        if (imp && w > 2 && errP <= limite) relacher(depart, n + i + w - 1, v + errP + PAR_LETTRE, k, errP);
+      }
     }
   }
   const places: Place[] = [];
@@ -386,7 +425,7 @@ function lireLigne(cols: Int32Array, p: Police, strict: boolean): Omit<LigneLue,
     const q = quoi[j];
     if (q >= 0) {
       const d = dessins[q];
-      places.push({ x: x0 + prec[j], d, cout: erreurs[j] });
+      places.push({ x: x0 + (prec[j] % n), d, cout: erreurs[j] });
       expliques += d.points - erreurs[j];
     }
   }
@@ -402,7 +441,8 @@ function essayer(en: Encre, base: number, p: Police, strict: boolean): LigneLue 
     if (!r) continue;
     const l: LigneLue = { ...r, base: base + decalage, police: p };
     if (!meilleure || note(l) > note(meilleure)) meilleure = l;
-    if (r.expliques >= 0.98 * r.encre) break;
+    // Police d'impression : ses dessins couvrent déjà les positions à un point près en hauteur.
+    if (r.expliques >= 0.98 * r.encre || (p.imprimee && note(l) >= 0.5)) break;
   }
   return meilleure;
 }
@@ -474,7 +514,8 @@ function choisirPolices(en: Encre, bases: number[], toutes: Police[]): { polices
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([p]) => p);
-  return { polices: choisies, strict: lettres > 0 && exactes >= 0.97 * lettres, note: echantillon.length ? total / echantillon.length : 0 };
+  const strict = lettres > 0 && exactes >= 0.97 * lettres && !choisies.some((p) => p.imprimee);
+  return { polices: choisies, strict, note: echantillon.length ? total / echantillon.length : 0 };
 }
 
 /** Lignes de texte d'une image, avec les polices retenues. */
@@ -513,7 +554,14 @@ export interface ResultatOcr {
 /** Lit les images de chaque page. `suivi` reçoit l'avancement (page faite, nombre de pages). */
 export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, total: number) => void): Promise<ResultatOcr> {
   const toutes = chargerPolices();
-  const hMax = Math.max(...toutes.map((p) => p.montee + p.descente));
+  // Image en noir et blanc (page imprimée, télécopie) : polices d'écran et d'impression ; sinon (capture d'écran en
+  // couleur ou en gris) : polices d'écran seulement. Sur une page imprimée aux lignes serrées, deux lettres de deux
+  // lignes voisines peuvent se toucher : un morceau y reste du texte jusqu'à deux hauteurs de ligne.
+  const ecran = toutes.filter((p) => !p.imprimee);
+  const hauteurs = (ps: Police[]) => Math.max(...ps.map((p) => (p.imprimee ? 2 : 1) * (p.montee + p.descente)));
+  // Page imprimée : seuls les morceaux d'au moins 6 lignes marquent une ligne de base (pas les points des i, ni les
+  // accents, ni les poussières), sinon de fausses lignes s'intercalent entre des lignes très serrées.
+  const familles = { ecran: { polices: ecran, hMax: hauteurs(ecran), hMin: 3 }, toutes: { polices: toutes, hMax: hauteurs(toutes), hMin: 6 } };
   const sortie: GlypheLu[][] = [];
   let reglage: { quart: number; polices: Police[]; strict: boolean } | null = null;
   let forme = "";
@@ -535,6 +583,7 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
     for (const im of pages[k]) {
       if (im.largeur * im.hauteur < 2000) continue;
       if (!forme) forme = formeImage(im);
+      const { polices: candidates, hMax, hMin } = im.bpc === 1 || im.masque ? familles.toutes : familles.ecran;
       let trame: Trame;
       try {
         trame = redresser(await enTrame(im), im.ctm, im.rotation);
@@ -557,18 +606,23 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
       const preparer = (q: number) => {
         const { t, s } = reduire(quarts(trame, q));
         const en = encre(t);
-        const bases = nettoyer(en, hMax);
+        const bases = nettoyer(en, hMax, hMin);
         return { en, s, t, bases };
       };
       if (!reglage) {
         if (essais++ >= 3) break;
         let meilleur: { quart: number; polices: Police[]; strict: boolean; note: number } | null = null;
-        for (const q of [0, 1, 3, 2]) {
+        // Le sens mesuré pour l'aperçu des formes d'abord (une page imprimée en paysage est souvent tournée).
+        const sens = collecte.sens;
+        const ordre = sens === null ? [0, 1, 3, 2] : [sens, (sens + 2) % 4, (sens + 1) % 4, (sens + 3) % 4];
+        for (const q of ordre) {
           const { en, bases } = preparer(q);
-          const choix = choisirPolices(en, bases, toutes);
+          const choix = choisirPolices(en, bases, candidates);
           meilleureNote = Math.max(meilleureNote, choix.note);
           if (choix.polices.length && (!meilleur || choix.note > meilleur.note)) meilleur = { quart: q, ...choix };
-          if (meilleur && meilleur.note > 0.75) break;
+          // Police d'impression : ses dessins approchés ne sont jamais tout à fait ceux de la page ; dans un mauvais
+          // sens, elle n'explique presque rien.
+          if (meilleur && (meilleur.note > 0.75 || (meilleur.note >= 0.4 && meilleur.polices.some((p) => p.imprimee)))) break;
         }
         if (!meilleur) continue;
         reglage = meilleur;
@@ -579,7 +633,7 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
       // Ligne sélectionnée (en clair sur fond sombre) : relue en négatif.
       for (const { y0, trame: bandeInversee } of bandesSombres(t)) {
         const en2 = encre(bandeInversee);
-        const bases2 = nettoyer(en2, hMax);
+        const bases2 = nettoyer(en2, hMax, hMin);
         for (const l of lireEncre(en2, bases2, reglage.polices, reglage.strict)) {
           l.base += y0;
           if (!lu.some((g) => l.base - l.police.montee < g.base + g.police.descente && g.base - g.police.montee < l.base + l.police.descente)) lu.push(l);
