@@ -7,21 +7,32 @@ import { Badge, Card, cx, Spinner } from "@/components/ui";
 import { useCollection } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import type { Contact } from "@/lib/types";
-import { ErreurLecture, lireTableau } from "./lecture";
-import { analyser, choixParDefaut, LIBELLE, modification, proprietaires, valeurAffichee, type Analyse, type Candidat, type Champ, type Rapprochement } from "./rapprochement";
+import { ErreurLecture, lireTableau, type Tableau } from "./lecture";
+import { analyser, choixParDefaut, empreinte, LIBELLE, modification, proprietaires, valeurAffichee, type Analyse, type Candidat, type Champ, type Rapprochement } from "./rapprochement";
 
 /* « Compléter depuis ICS » : le fichier exporté d'ICS est lu sur l'appareil, rapproché des
    propriétaires du Hub, et seuls les champs vides cochés par le conseiller sont remplis.
    Le fichier n'est ni envoyé, ni gardé : il disparaît en quittant la page. */
 
 type Etat =
-  | { etape: "choix"; erreur?: string; colonnes?: string[] }
+  | { etape: "choix"; erreur?: string; colonnes?: string[]; aide?: string }
   | { etape: "lecture"; nom: string }
-  | { etape: "verif"; nom: string; analyse: Analyse }
+  | { etape: "verif"; nom: string; analyse: Analyse; aide: string }
   | { etape: "fait"; fiches: number; infos: number };
 
 const s = (n: number) => (n > 1 ? "s" : "");
-const ACCEPT = ".csv,.txt,.xls,.xlsx,.xml,.htm,.html,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const ACCEPT = ".csv,.txt,.xls,.xlsx,.xml,.htm,.html,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Code d'aide au dépannage : la forme du fichier (lignes, colonnes, polices du PDF), jamais son contenu. */
+function codeAide(t: Tableau, aide: { pdf?: string }) {
+  let forme = "";
+  try {
+    forme = empreinte(t);
+  } catch {
+    /* sans la forme du tableau */
+  }
+  return [forme, aide.pdf].filter(Boolean).join(" · ");
+}
 
 export function ImportIcs() {
   const { items: contacts, update } = useCollection("contacts");
@@ -34,12 +45,13 @@ export function ImportIcs() {
 
   async function lire(file: File) {
     setEtat({ etape: "lecture", nom: file.name });
+    const aide: { pdf?: string } = {};
     try {
       if (file.size > 20 * 1024 * 1024) throw new ErreurLecture("Ce fichier dépasse 20 Mo. Exportez seulement la liste des propriétaires.");
-      const tableau = await lireTableau(new Uint8Array(await file.arrayBuffer()));
+      const tableau = await lireTableau(new Uint8Array(await file.arrayBuffer()), aide);
       const res = analyser(tableau, contacts, biens);
       if ("colonnesTrouvees" in res) {
-        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees });
+        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees, aide: codeAide(tableau, aide) });
         return;
       }
       const c: Record<string, number> = {};
@@ -50,9 +62,9 @@ export function ImportIcs() {
       }
       setChoix(c);
       setCoches(k);
-      setEtat({ etape: "verif", nom: file.name, analyse: res });
+      setEtat({ etape: "verif", nom: file.name, analyse: res, aide: codeAide(tableau, aide) });
     } catch (e) {
-      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Dans ICS, essayez plutôt l'export CSV." });
+      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS en « PDF VIEWER », puis réessayez.", aide: aide.pdf });
     }
   }
 
@@ -181,6 +193,7 @@ export function ImportIcs() {
                 ? "Rien à ajouter : vos propriétaires retrouvés dans ce fichier sont déjà complets."
                 : "Aucun de vos propriétaires n'a été retrouvé dans ce fichier. Vérifiez qu'il s'agit bien de la liste des propriétaires d'ICS."}
             </p>
+            {!a.retrouves.length && <CodeAide code={etat.aide} />}
           </Card>
         )}
 
@@ -208,6 +221,12 @@ export function ImportIcs() {
             {total ? `Ajouter ${total === 1 ? "l'information cochée" : `les ${total} informations cochées`}` : "Cochez ce qu'il faut ajouter"}
           </button>
           <p className="text-xs text-muted">Seuls les champs vides sont remplis. Une valeur différente dans ICS est signalée, jamais remplacée.</p>
+          {a.retrouves.length > 0 && (
+            <details className="text-xs text-muted">
+              <summary className="flex min-h-[40px] cursor-pointer items-center">Un souci avec ce fichier&nbsp;?</summary>
+              <CodeAide code={etat.aide} />
+            </details>
+          )}
         </div>
       </div>
     );
@@ -228,7 +247,7 @@ export function ImportIcs() {
         </div>
         <ol className="mt-4 space-y-2.5 text-sm">
           {[
-            "Dans ICS, exportez la liste des propriétaires, en Excel ou en CSV.",
+            "Dans ICS, menu Editions › « Liste Téléphones et Mails » : choisissez les propriétaires et imprimez en « PDF VIEWER ». Un export Excel ou CSV convient aussi.",
             "Choisissez le fichier ci-dessous.",
             "Vérifiez ce qui sera ajouté, puis validez. Seuls les champs vides sont remplis.",
           ].map((t, i) => (
@@ -245,10 +264,21 @@ export function ImportIcs() {
           <div className="mt-4 rounded-xl bg-danger/10 px-3 py-2.5 text-sm text-danger ring-1 ring-inset ring-danger/20">
             {etat.erreur}
             {!!etat.colonnes?.length && <div className="mt-1.5 text-xs text-fg/80">Colonnes trouvées&nbsp;: {etat.colonnes.join(" · ")}</div>}
+            {etat.aide && <CodeAide code={etat.aide} />}
           </div>
         )}
       </Card>
     </div>
+  );
+}
+
+/** Code d'aide à transmettre en capture en cas de souci : il décrit la forme du fichier, sans aucun nom ni coordonnée. */
+function CodeAide({ code }: { code: string }) {
+  if (!code) return null;
+  return (
+    <p className="mt-2 break-words text-[11px] leading-relaxed text-fg/70">
+      Code d&apos;aide (sans aucun nom ni coordonnée, peut être transmis en capture)&nbsp;: <span className="font-mono">{code}</span>
+    </p>
   );
 }
 
