@@ -26,6 +26,7 @@ import { ETAPE, dateLongue, eurK, today } from "@/lib/format";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE } from "@/lib/matching";
 import { create, getAll, useCollection } from "@/lib/store";
 import { Aujourdhui, aRappeler, delaiChoisi } from "@/components/accueil/Aujourdhui";
+import { honorairesPotentiels } from "@/components/chiffres/chiffres";
 import type { Briefing, EtapeAcquereur } from "@/lib/types";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
@@ -56,7 +57,7 @@ export default function Accueil() {
   const jour = today();
   const enVente = biens.filter(BIEN_DISPONIBLE);
   const valeur = enVente.reduce((s, b) => s + (b.prix ?? 0), 0);
-  const honoraires = biens.filter((b) => ["en_vente", "mandat_signe", "sous_offre", "compromis"].includes(b.statut)).reduce((s, b) => s + (b.honoraires ?? 0), 0);
+  const honoraires = honorairesPotentiels(biens, jour);
   const acquereurs = contacts.filter(ACQUEREUR_ACTIF);
   const semaine = useMemo(() => {
     const now = Date.now();
@@ -130,7 +131,7 @@ export default function Accueil() {
           ) : (
             <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
               <HeroFig href="/biens" label="Biens en vente" value={enVente.length} hint={valeur ? `${eurK(valeur)} en portefeuille` : "Aucun mandat actif"} />
-              <HeroFig href="/biens" label="Honoraires potentiels" value={eurK(honoraires)} hint="Mandats en cours" />
+              <HeroFig href="/chiffres" label="Honoraires potentiels" value={eurK(honoraires)} hint="Voir mes chiffres" />
               <HeroFig href="/contacts" label="Acquéreurs actifs" value={acquereurs.length} hint={`${chauds} chaud${chauds > 1 ? "s" : ""}`} />
               <HeroFig href="/agenda" label="Rendez-vous à 7 jours" value={semaine.length} hint={`${visites} visite${visites > 1 ? "s" : ""}`} />
             </div>
