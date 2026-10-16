@@ -66,10 +66,11 @@ export function dessinerFormes(ctx: Pinceau, ap: Apercu, plan: PlanFormes) {
     for (const { x, i } of r.formes) {
       const f = ap.formes[i];
       const haut = base - (f.h - f.bas) * k;
-      // Cadre gris au milieu de la marge d'un point autour de la forme : il en donne la taille exacte.
+      // Cadre gris d'un pixel, au bord extérieur d'une marge d'un point autour de la forme : il en donne la taille
+      // exacte et ne touche ni la forme ni la ligne de base.
       ctx.strokeStyle = "#c8c8c8";
       ctx.lineWidth = 1;
-      ctx.strokeRect(x + k / 2, haut - k / 2, (f.l + 1) * k, (f.h + 1) * k);
+      ctx.strokeRect(x + 0.5, haut - k + 0.5, (f.l + 2) * k - 1, (f.h + 2) * k - 1);
       ctx.fillStyle = "#000";
       for (let py = 0; py < f.h; py++) for (let px = 0; px < f.l; px++) if (f.points[py * f.l + px]) ctx.fillRect(x + (px + 1) * k, haut + py * k, k, k);
     }
