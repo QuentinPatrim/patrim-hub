@@ -9,17 +9,48 @@ export type Tableau = string[][];
 /** Erreur à afficher telle quelle à l'utilisateur. */
 export class ErreurLecture extends Error {}
 
+/** Repères de dépannage d'une lecture : la forme du fichier, jamais son contenu. */
+export interface Aide {
+  /** Genre et taille du fichier (« PDF 85 Ko », « texte 3 Ko »…). */
+  fichier?: string;
+  /** Pour un PDF : version, pages, polices, logiciel. */
+  pdf?: string;
+}
+
 const commence = (o: Uint8Array, sig: number[]) => sig.every((b, i) => o[i] === b);
-/** « %PDF- » au début du fichier (parfois après quelques octets parasites). */
+/** « %PDF- » dans les 64 premiers Ko : un en-tête d'imprimante peut le précéder, et le nom du fichier
+ *  ne compte pas (une impression ICS « PDF VIEWER » peut se terminer par .tmp). */
 const estPdf = (o: Uint8Array) => {
-  for (let i = 0; i + 5 <= Math.min(o.length, 1024); i++) if (o[i] === 0x25 && o[i + 1] === 0x50 && o[i + 2] === 0x44 && o[i + 3] === 0x46 && o[i + 4] === 0x2d) return true;
+  for (let i = 0; i + 5 <= Math.min(o.length, 65536); i++) if (o[i] === 0x25 && o[i + 1] === 0x50 && o[i + 2] === 0x44 && o[i + 3] === 0x46 && o[i + 4] === 0x2d) return true;
   return false;
 };
+/** Fichier d'impression qui n'est pas un PDF : le texte n'y est pas lisible ici. */
+function impression(o: Uint8Array) {
+  const tete = String.fromCharCode(...o.subarray(0, 16));
+  if (tete.startsWith("%!PS")) return "PostScript";
+  if (tete.startsWith("\x1b%-12345X") || tete.startsWith("\x1bE")) return "PCL";
+  if (o.length > 44 && o[40] === 0x20 && o[41] === 0x45 && o[42] === 0x4d && o[43] === 0x46) return "EMF";
+  return undefined;
+}
+function genre(o: Uint8Array) {
+  if (estPdf(o)) return "PDF";
+  if (commence(o, [0x50, 0x4b, 0x03, 0x04])) return "zip";
+  if (commence(o, [0xd0, 0xcf, 0x11, 0xe0])) return "xls";
+  if (commence(o, [0xff, 0xfe]) || commence(o, [0xfe, 0xff])) return "texte UTF-16";
+  const imp = impression(o);
+  if (imp) return imp;
+  const n = Math.min(o.length, 4096);
+  let controles = 0;
+  for (let i = 0; i < n; i++) if (o[i] < 9 || (o[i] > 13 && o[i] < 32)) controles++;
+  return controles > 0.1 * n ? "binaire" : "texte";
+}
 
-/** `aide.pdf` reçoit, pour un PDF, un code d'aide au dépannage : la forme du fichier, jamais son contenu. */
-export async function lireTableau(octets: Uint8Array, aide?: { pdf?: string }): Promise<Tableau> {
+/** `aide` reçoit un code d'aide au dépannage : la forme du fichier, jamais son contenu. */
+export async function lireTableau(octets: Uint8Array, aide?: Aide): Promise<Tableau> {
   if (!octets.length) throw new ErreurLecture("Le fichier est vide.");
-  if (estPdf(octets)) {
+  const g = genre(octets);
+  if (aide) aide.fichier = `${g} ${Math.max(1, Math.round(octets.length / 1024))} Ko`;
+  if (g === "PDF") {
     try {
       return nettoyer(await lirePdf(octets, aide));
     } catch (e) {
@@ -29,6 +60,9 @@ export async function lireTableau(octets: Uint8Array, aide?: { pdf?: string }): 
       throw new ErreurLecture("Ce PDF n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS, puis réessayez.");
     }
   }
+  const imp = impression(octets);
+  if (imp) throw new ErreurLecture(`Ce fichier n'est pas un PDF mais un fichier d'impression (${imp}) : il ne peut pas être lu ici.`);
+  if (g === "binaire") throw new ErreurLecture("Ce fichier n'est ni un PDF, ni un tableau Excel ou CSV : il ne peut pas être lu ici.");
   if (commence(octets, [0xd0, 0xcf, 0x11, 0xe0]))
     throw new ErreurLecture("Ce fichier Excel est dans un ancien format. Ouvrez-le dans Excel, enregistrez-le en « Classeur Excel (.xlsx) » ou en CSV, puis choisissez ce nouveau fichier.");
   if (commence(octets, [0x50, 0x4b, 0x03, 0x04])) return nettoyer(await lireXlsx(octets));
