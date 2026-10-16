@@ -7,7 +7,7 @@ import { Badge, Card, cx, Spinner } from "@/components/ui";
 import { useCollection } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import type { Contact } from "@/lib/types";
-import { ErreurLecture, lireTableau, type Tableau } from "./lecture";
+import { ErreurLecture, lireTableau, type Aide, type Tableau } from "./lecture";
 import { analyser, choixParDefaut, empreinte, LIBELLE, modification, proprietaires, valeurAffichee, type Analyse, type Candidat, type Champ, type Rapprochement } from "./rapprochement";
 
 /* « Compléter depuis ICS » : le fichier exporté d'ICS est lu sur l'appareil, rapproché des
@@ -21,17 +21,16 @@ type Etat =
   | { etape: "fait"; fiches: number; infos: number };
 
 const s = (n: number) => (n > 1 ? "s" : "");
-const ACCEPT = ".csv,.txt,.xls,.xlsx,.xml,.htm,.html,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-/** Code d'aide au dépannage : la forme du fichier (lignes, colonnes, polices du PDF), jamais son contenu. */
-function codeAide(t: Tableau, aide: { pdf?: string }) {
+/** Code d'aide au dépannage : la forme du fichier (genre, lignes, colonnes, polices du PDF), jamais son contenu. */
+function codeAide(aide: Aide, t?: Tableau) {
   let forme = "";
   try {
-    forme = empreinte(t);
+    if (t) forme = empreinte(t);
   } catch {
     /* sans la forme du tableau */
   }
-  return [forme, aide.pdf].filter(Boolean).join(" · ");
+  return [aide.fichier, forme, aide.pdf].filter(Boolean).join(" · ");
 }
 
 export function ImportIcs() {
@@ -45,13 +44,13 @@ export function ImportIcs() {
 
   async function lire(file: File) {
     setEtat({ etape: "lecture", nom: file.name });
-    const aide: { pdf?: string } = {};
+    const aide: Aide = {};
     try {
       if (file.size > 20 * 1024 * 1024) throw new ErreurLecture("Ce fichier dépasse 20 Mo. Exportez seulement la liste des propriétaires.");
       const tableau = await lireTableau(new Uint8Array(await file.arrayBuffer()), aide);
       const res = analyser(tableau, contacts, biens);
       if ("colonnesTrouvees" in res) {
-        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees, aide: codeAide(tableau, aide) });
+        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees, aide: codeAide(aide, tableau) });
         return;
       }
       const c: Record<string, number> = {};
@@ -62,9 +61,9 @@ export function ImportIcs() {
       }
       setChoix(c);
       setCoches(k);
-      setEtat({ etape: "verif", nom: file.name, analyse: res, aide: codeAide(tableau, aide) });
+      setEtat({ etape: "verif", nom: file.name, analyse: res, aide: codeAide(aide, tableau) });
     } catch (e) {
-      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS en « PDF VIEWER », puis réessayez.", aide: aide.pdf });
+      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS en « PDF VIEWER », puis réessayez.", aide: codeAide(aide) });
     }
   }
 
@@ -106,7 +105,8 @@ export function ImportIcs() {
     setEtat({ etape: "fait", fiches, infos });
   }
 
-  const fichier = <input ref={input} type="file" accept={ACCEPT} className="hidden" onChange={(e) => e.target.files?.[0] && lire(e.target.files[0])} />;
+  // Aucun filtre de type : le fichier est reconnu à son contenu (une impression ICS peut finir par .tmp).
+  const fichier = <input ref={input} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && lire(e.target.files[0])} />;
 
   if (etat.etape === "lecture")
     return (
@@ -248,7 +248,7 @@ export function ImportIcs() {
         <ol className="mt-4 space-y-2.5 text-sm">
           {[
             "Dans ICS, menu Editions › « Liste Téléphones et Mails » : choisissez les propriétaires et imprimez en « PDF VIEWER ». Un export Excel ou CSV convient aussi.",
-            "Choisissez le fichier ci-dessous.",
+            "Choisissez le fichier ci-dessous, même si son nom se termine par .tmp.",
             "Vérifiez ce qui sera ajouté, puis validez. Seuls les champs vides sont remplis.",
           ].map((t, i) => (
             <li key={t} className="flex gap-3">
