@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, FileSpreadsheet, Info, RefreshCw, ShieldCheck, Upload } from "lucide-react";
 import { Badge, Card, cx, Spinner } from "@/components/ui";
 import { useCollection } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import type { Contact } from "@/lib/types";
+import { dessinerFormes, planFormes } from "./dessinFormes";
+import type { Apercu } from "./formes";
 import { ErreurLecture, lireTableau, type Aide, type Tableau } from "./lecture";
 import { analyser, choixParDefaut, empreinte, LIBELLE, modification, proprietaires, valeurAffichee, type Analyse, type Candidat, type Champ, type Rapprochement } from "./rapprochement";
 
@@ -15,9 +17,9 @@ import { analyser, choixParDefaut, empreinte, LIBELLE, modification, proprietair
    Le fichier n'est ni envoyé, ni gardé : il disparaît en quittant la page. */
 
 type Etat =
-  | { etape: "choix"; erreur?: string; colonnes?: string[]; aide?: string }
+  | { etape: "choix"; erreur?: string; colonnes?: string[]; aide?: string; apercu?: Apercu }
   | { etape: "lecture"; nom: string; avancement?: string }
-  | { etape: "verif"; nom: string; analyse: Analyse; aide: string }
+  | { etape: "verif"; nom: string; analyse: Analyse; aide: string; apercu?: Apercu }
   | { etape: "fait"; fiches: number; infos: number };
 
 const s = (n: number) => (n > 1 ? "s" : "");
@@ -51,7 +53,7 @@ export function ImportIcs() {
       const tableau = await lireTableau(new Uint8Array(await file.arrayBuffer()), aide);
       const res = analyser(tableau, contacts, biens);
       if ("colonnesTrouvees" in res) {
-        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees, aide: codeAide(aide, tableau) });
+        setEtat({ etape: "choix", erreur: "Les colonnes de nom et de coordonnées n'ont pas été reconnues dans ce fichier.", colonnes: res.colonnesTrouvees, aide: codeAide(aide, tableau), apercu: aide.apercu });
         return;
       }
       const c: Record<string, number> = {};
@@ -62,9 +64,9 @@ export function ImportIcs() {
       }
       setChoix(c);
       setCoches(k);
-      setEtat({ etape: "verif", nom: file.name, analyse: res, aide: codeAide(aide, tableau) });
+      setEtat({ etape: "verif", nom: file.name, analyse: res, aide: codeAide(aide, tableau), apercu: aide.apercu });
     } catch (e) {
-      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS en « PDF VIEWER », puis réessayez.", aide: codeAide(aide) });
+      setEtat({ etape: "choix", erreur: e instanceof ErreurLecture ? e.message : "Ce fichier n'a pas pu être lu. Imprimez de nouveau la liste depuis ICS en « PDF VIEWER », puis réessayez.", aide: codeAide(aide), apercu: aide.apercu });
     }
   }
 
@@ -196,6 +198,7 @@ export function ImportIcs() {
                 : "Aucun de vos propriétaires n'a été retrouvé dans ce fichier. Vérifiez qu'il s'agit bien de la liste des propriétaires d'ICS."}
             </p>
             {!a.retrouves.length && <CodeAide code={etat.aide} />}
+            {!a.retrouves.length && etat.apercu && <Formes apercu={etat.apercu} />}
           </Card>
         )}
 
@@ -267,6 +270,7 @@ export function ImportIcs() {
             {etat.erreur}
             {!!etat.colonnes?.length && <div className="mt-1.5 text-xs text-fg/80">Colonnes trouvées&nbsp;: {etat.colonnes.join(" · ")}</div>}
             {etat.aide && <CodeAide code={etat.aide} />}
+            {etat.apercu && <Formes apercu={etat.apercu} />}
           </div>
         )}
       </Card>
@@ -281,6 +285,36 @@ function CodeAide({ code }: { code: string }) {
     <p className="mt-2 break-words text-[11px] leading-relaxed text-fg/70">
       Code d&apos;aide (sans aucun nom ni coordonnée, peut être transmis en capture)&nbsp;: <span className="font-mono">{code}</span>
     </p>
+  );
+}
+
+/** Formes de lettres d'un PDF fait d'images, pour le dépannage : chacune une seule fois et dans le désordre, posées sur
+ *  leur ligne de base. Chaque point de l'image devient un carré net de plusieurs pixels de l'écran, pour qu'une capture
+ *  garde le dessin exact. */
+function Formes({ apercu }: { apercu: Apercu }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    const ctx = c?.getContext("2d");
+    if (!c || !ctx || !apercu.formes.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const plan = planFormes(apercu, Math.max(200, Math.floor((c.parentElement?.clientWidth || 600) * dpr)), 720 * dpr);
+    c.width = plan.L;
+    c.height = plan.H;
+    c.style.width = `${plan.L / dpr}px`;
+    c.style.height = `${plan.H / dpr}px`;
+    dessinerFormes(ctx, apercu, plan);
+  }, [apercu]);
+  if (!apercu.formes.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-[11px] leading-relaxed text-fg/70">
+        Formes des lettres des premières pages, chacune une seule fois et dans le désordre&nbsp;: aucun nom ni numéro ne peut y être relu. Comme le code d&apos;aide, cet aperçu peut être transmis en capture.
+      </p>
+      <div className="overflow-hidden rounded-lg ring-1 ring-line">
+        <canvas ref={ref} role="img" aria-label="Formes des lettres trouvées dans le fichier" style={{ imageRendering: "pixelated", display: "block", maxWidth: "100%" }} />
+      </div>
+    </div>
   );
 }
 

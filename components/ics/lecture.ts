@@ -1,3 +1,4 @@
+import type { Apercu } from "./formes";
 import { lirePdf, PdfIllisible } from "./pdf";
 
 /* Lecture d'un export ICS (ou de n'importe quel tableur) directement sur l'appareil :
@@ -17,6 +18,8 @@ export interface Aide {
   pdf?: string;
   /** Avancement de la lecture des pages faites d'images (impression d'écran). */
   suivi?: (fait: number, total: number) => void;
+  /** Pages faites d'images : formes de lettres trouvées, pour le dépannage (sans aucun nom). */
+  apercu?: Apercu;
 }
 
 const commence = (o: Uint8Array, sig: number[]) => sig.every((b, i) => o[i] === b);
