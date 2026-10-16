@@ -29,8 +29,12 @@ export default function Reglages() {
   }, []);
 
   async function importerMandats() {
-    const { crees, maj } = await importerMandatsComplets();
-    setMsg(crees || maj ? `${crees} mandat${crees > 1 ? "s" : ""} ajouté${crees > 1 ? "s" : ""}, ${maj} complété${maj > 1 ? "s" : ""}.` : "Vos mandats sont déjà à jour.");
+    try {
+      const { crees, maj } = await importerMandatsComplets();
+      setMsg(crees || maj ? `${crees} mandat${crees > 1 ? "s" : ""} ajouté${crees > 1 ? "s" : ""}, ${maj} complété${maj > 1 ? "s" : ""}.` : "Vos mandats sont déjà à jour.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Vos mandats n'ont pas pu être chargés.");
+    }
   }
 
   function exporter() {
