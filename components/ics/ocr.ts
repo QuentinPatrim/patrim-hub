@@ -4,6 +4,7 @@
    polices (polices.ts). Module pur : rien n'est envoyé, rien n'est gardé. */
 
 import { POLICES } from "./polices";
+import { Collecte, type Apercu } from "./formes";
 import { enTrame, formeImage, ImageNonLue, quarts, redresser, type ImageBrute, type Trame } from "./images";
 
 /** Caractère lu, au format des caractères d'un PDF texte (x, y : position du point de départ ; w : avance ; t : hauteur). */
@@ -505,6 +506,8 @@ export interface ResultatOcr {
   ouvertes: number;
   /** Résumé pour le code d'aide : forme des images, polices reconnues, sens, nombre de lettres (jamais le texte). */
   resume: string;
+  /** Formes de lettres de la première image, pour le dépannage (chacune une fois, dans le désordre). */
+  apercu?: Apercu;
 }
 
 /** Lit les images de chaque page. `suivi` reçoit l'avancement (page faite, nombre de pages). */
@@ -522,6 +525,8 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
   let nonLues = "";
   let ouvertes = 0;
   let essais = 0;
+  // Formes de lettres des premières pages, pour le dépannage.
+  const collecte = new Collecte(encre);
   for (let k = 0; k < pages.length; k++) {
     // Aucune police reconnue sur les premières images : inutile de chercher plus loin.
     if (!reglage && essais >= 3) break;
@@ -541,6 +546,13 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
         throw e;
       }
       ouvertes++;
+      if (k < 4 && !glyphes.length && !decalage) {
+        try {
+          collecte.ajouter(trame);
+        } catch {
+          /* sans aperçu */
+        }
+      }
       // Sens de lecture et polices : cherchés sur la première image qui contient du texte.
       const preparer = (q: number) => {
         const { t, s } = reduire(quarts(trame, q));
@@ -590,6 +602,12 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
     // Laisse respirer l'écran entre deux pages.
     await new Promise((r) => setTimeout(r, 0));
   }
+  let ap: Apercu | null = null;
+  try {
+    ap = collecte.apercu();
+  } catch {
+    /* sans aperçu */
+  }
   const pourcent = encreTotale ? Math.round((100 * encreLue) / encreTotale) : 0;
   const resume = [
     forme,
@@ -597,8 +615,9 @@ export async function lirePages(pages: ImageBrute[][], suivi?: (fait: number, to
     reglage
       ? `ocr ${reglage.polices.map((p) => p.nom).join("+")} ${reglage.quart * 90}° ×${echelles} ${lettres} c. ${pourcent} %${reglage.strict ? "" : " approx."}`
       : `ocr aucune police (${Math.round(100 * meilleureNote)} %)`,
+    ap?.resume ?? "",
   ]
     .filter(Boolean)
     .join(" · ");
-  return { pages: sortie, ouvertes, resume };
+  return { pages: sortie, ouvertes, resume, apercu: ap ?? undefined };
 }

@@ -1,3 +1,4 @@
+import type { Apercu } from "./formes";
 import type { Codec, Espace, ImageBrute } from "./images";
 import type { Tableau } from "./lecture";
 
@@ -1192,6 +1193,8 @@ class Doc {
   genres = new Set<string>();
   /** Lecture des images (pages sans texte) : résumé pour le code d'aide. */
   ocr = "";
+  /** Formes de lettres des images, pour le dépannage. */
+  apercu?: Apercu;
   /** Images vues sur la page en cours d'interprétation, puis par page. */
   private vues: VueImage[] | null = null;
   private imagesPages = new Map<Page, VueImage[]>();
@@ -1844,12 +1847,13 @@ async function lireImages(doc: Doc, pages: Page[], suivi?: (fait: number, total:
     suivi,
   );
   doc.ocr = r.resume;
+  doc.apercu = r.apercu;
   return { lignes: r.pages.flatMap((g, k) => lignesDePage(g, k)), ouvertes: r.ouvertes };
 }
 
 /** Texte d'un PDF, rangé en tableau (une ligne par ligne imprimée, une case par colonne).
  *  `aide.pdf` reçoit le code d'aide du fichier (sa forme, jamais son texte), même en cas d'échec. */
-export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string; suivi?: (fait: number, total: number) => void }): Promise<Tableau> {
+export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string; apercu?: Apercu; suivi?: (fait: number, total: number) => void }): Promise<Tableau> {
   const doc = new Doc(octets);
   const vu = { pages: 0, lignes: 0 };
   try {
@@ -1875,7 +1879,10 @@ export async function lirePdf(octets: Uint8Array, aide?: { pdf?: string; suivi?:
     return enTableau(sansRepetitions(lignes, pages.length));
   } finally {
     try {
-      if (aide) aide.pdf = doc.reperes(vu.pages, vu.lignes);
+      if (aide) {
+        aide.pdf = doc.reperes(vu.pages, vu.lignes);
+        aide.apercu = doc.apercu;
+      }
     } catch {
       /* sans code d'aide */
     }
