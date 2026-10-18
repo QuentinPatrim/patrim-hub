@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Wallet } from "lucide-react";
 import { Empty, PageHeader } from "@/components/ui";
 import { ActiviteCard, HonorairesCard, OrigineCard, TransformationCard, VentesCard } from "@/components/chiffres/Cartes";
 import { useCollection } from "@/lib/store";
 import { today } from "@/lib/format";
+import { useMoi } from "@/lib/equipe";
 
 /* « Mes chiffres » : honoraires encaissés et à venir, activité du mois, transformation
    et origine des acquéreurs, calculés à partir de ce qui est saisi dans le Hub. */
@@ -16,6 +17,7 @@ export default function MesChiffres() {
   const { items: contacts } = useCollection("contacts");
   const { items: rdvs } = useCollection("rdvs");
   const { items: estimations } = useCollection("estimations");
+  const moi = useMoi();
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
 
@@ -25,7 +27,15 @@ export default function MesChiffres() {
 
   return (
     <div>
-      <PageHeader title="Mes chiffres" subtitle="Honoraires, activité et transformation, d'après ce qui est saisi dans le Hub." back="/" />
+      <PageHeader title="Mes chiffres" subtitle="Honoraires, activité et transformation, d'après ce qui est saisi dans le Hub." back="/"
+        actions={
+          ready && moi.role === "titulaire" ? (
+            <Link href="/revenus" className="btn-secondary">
+              <Wallet size={17} /> Mes revenus
+            </Link>
+          ) : undefined
+        }
+      />
 
       {!ready ? (
         <div className="space-y-4">
