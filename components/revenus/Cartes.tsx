@@ -15,6 +15,7 @@ import {
   projection,
   type Donnees,
   type LigneMois,
+  TYPE_DOSSIER,
   type VenteRevenu,
 } from "./revenus";
 
@@ -50,7 +51,11 @@ export function AnneeCard({ d, auj }: { d: Donnees; auj: string }) {
           accent
           detail={evol != null ? <span className={evol >= 0 ? "text-ok" : "text-danger"}>{`${evol >= 0 ? "+" : ""}${Math.round(evol * 100)} % vs ${b.an - 1} à date`}</span> : `sur ${b.moisEcoules} mois`}
         />
-        <Chiffre label="Commissions" valeur={eur(b.commissions)} detail={b.ventes ? `${b.ventes} vente${s(b.ventes)} actée${s(b.ventes)}` : "aucun acte cette année"} />
+        <Chiffre
+          label="Commissions"
+          valeur={eur(b.commissions)}
+          detail={b.evolutionCommissions != null ? <span className={b.evolutionCommissions >= 0 ? "text-ok" : "text-danger"}>{`${b.evolutionCommissions >= 0 ? "+" : ""}${Math.round(b.evolutionCommissions * 100)} % vs ${b.an - 1} à date`}</span> : `${b.moisAvecCommission} mois avec commission`}
+        />
         <Chiffre label="Moyenne par mois" valeur={b.moyenne != null ? eur(b.moyenne) : "—"} detail={b.meilleur ? `record : ${eur(b.meilleur.total)} en ${MOIS[Number(b.meilleur.mois.slice(5, 7)) - 1]}` : undefined} />
         <Chiffre label="Part variable" valeur={b.partVariable != null ? pourcent(b.partVariable) : "—"} detail={`fixe ${eur(b.fixe)}`} />
       </div>
@@ -93,7 +98,7 @@ export function ObjectifCard({ d, auj, onContrat }: { d: Donnees; auj: string; o
               </li>
               {p.ventesNecessaires != null && (
                 <li className="text-muted">
-                  À ta commission moyenne ({eur(b.commissionMoyenne)}), c&apos;est environ {p.ventesNecessaires} vente{s(p.ventesNecessaires)} à acter, ou {eur(p.honorairesNecessaires)} d&apos;honoraires {d.contrat.honorairesTTC ? "TTC" : "HT"} signés chez le notaire.
+                  À ta commission moyenne sur une vente ({eur(b.commissionMoyenneVente)}), c&apos;est environ {p.ventesNecessaires} vente{s(p.ventesNecessaires)} à acter, ou {eur(p.honorairesNecessaires)} d&apos;honoraires {d.contrat.honorairesTTC ? "TTC" : "HT"} signés chez le notaire.
                 </li>
               )}
             </ul>
@@ -126,7 +131,7 @@ export function GraphiqueCard({ d, auj }: { d: Donnees; auj: string }) {
   const an = annees.includes(choix) ? choix : annees[annees.length - 1] ?? anCourant;
   const donnees = Array.from({ length: 12 }, (_, i) => {
     const m = `${an}-${String(i + 1).padStart(2, "0")}`;
-    return toutes.find((l) => l.mois === m) ?? ({ mois: m, fixe: 0, commissions: 0, primes: 0, autres: 0, total: 0, ventes: [], fixeConnu: false } as LigneMois);
+    return toutes.find((l) => l.mois === m) ?? ({ mois: m, fixe: 0, commissions: 0, primes: 0, ik: 0, autres: 0, total: 0, ventes: [], fixeConnu: false } satisfies LigneMois);
   });
   const max = Math.max(1, ...donnees.map((m) => m.total));
   const actuel = an === anCourant ? Number(auj.slice(5, 7)) - 1 : undefined;
@@ -137,7 +142,7 @@ export function GraphiqueCard({ d, auj }: { d: Donnees; auj: string }) {
       <div className="flex items-end gap-1 border-b border-line pt-5">
         {donnees.map((m, i) => {
           const variable = m.commissions + m.primes;
-          const autre = m.fixe + m.autres;
+          const autre = m.fixe + m.ik + m.autres;
           const titre = m.total ? `${majuscule(nomMois(m.mois))} : ${eur(m.total)}${variable ? `, dont ${eur(variable)} de variable` : ""}` : `${majuscule(nomMois(m.mois))} : rien`;
           return (
             <div key={m.mois} role="img" aria-label={titre} title={titre} className="flex h-32 min-w-0 flex-1 items-end justify-center">
@@ -161,7 +166,7 @@ export function GraphiqueCard({ d, auj }: { d: Donnees; auj: string }) {
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-fg/15" /> Fixe
+          <span className="size-2.5 rounded-sm bg-fg/15" /> Fixe et indemnités
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-sm bg-accent" /> Commissions et primes
@@ -182,8 +187,8 @@ export function ReperesCard({ d, auj }: { d: Donnees; auj: string }) {
     <Card title="Tes repères">
       <div className="grid grid-cols-2 gap-2">
         <Chiffre label="Depuis le début" valeur={eur(b.depuisDebut)} detail={`dont ${eur(b.commissionsDepuisDebut)} de commissions`} />
-        <Chiffre label="Ventes actées" valeur={String(b.ventesDepuisDebut)} detail={b.commissionMoyenne != null ? `${eur(b.commissionMoyenne)} en moyenne` : undefined} />
-        <Chiffre label="Honoraires apportés" valeur={eur(b.honorairesApportes)} detail="à l'agence, sur tes ventes" />
+        <Chiffre label="Commission moyenne" valeur={b.moyenneCommissions != null ? eur(b.moyenneCommissions) : "—"} detail="par mois où tu en touches" />
+        <Chiffre label="Mois payés" valeur={String(b.moisDepuisDebut)} detail={`soit ${eur(b.moisDepuisDebut ? b.depuisDebut / b.moisDepuisDebut : 0)} par mois en moyenne`} />
         <Chiffre label="1 000 € d'honoraires" valeur={eur(pour1000)} detail={`te rapportent (${Math.round(c.taux * 100)} % du HT)`} />
       </div>
       {ans.length > 0 && (
@@ -193,7 +198,7 @@ export function ReperesCard({ d, auj }: { d: Donnees; auj: string }) {
               <div className="min-w-0">
                 <div className="font-semibold">{a.an}</div>
                 <div className="text-[11px] text-muted">
-                  {a.mois} mois · {a.ventes} vente{s(a.ventes)} · {eur(a.mois ? a.total / a.mois : 0)} / mois
+                  {a.mois} mois · {eur(a.mois ? a.total / a.mois : 0)} / mois
                 </div>
               </div>
               <div className="shrink-0 text-right">
@@ -214,16 +219,26 @@ function LigneVente({ v, d, auj, onOuvrir }: { v: VenteRevenu; d: Donnees; auj: 
   const com = commissionDe(v, d.contrat);
   const attendue = v.statut !== "acte";
   const retard = attendue && v.dateActe && v.dateActe < auj;
+  const type = v.type ?? "vente";
+  const quand =
+    v.statut === "acte"
+      ? v.moisPaie
+        ? `Payée en ${nomMois(v.moisPaie)}`
+        : `Acte du ${dateFr(v.dateActe)}`
+      : v.dateActe
+        ? `${type === "vente" ? "Acte prévu" : "Prévue"} le ${dateFr(v.dateActe)}${retard ? ", à confirmer" : ""}`
+        : type === "vente"
+          ? "Date de l'acte à venir"
+          : "En attente";
   return (
     <li>
       <button onClick={() => onOuvrir(v)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-2 sm:px-5">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{v.libelle}</div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-            {attendue && <Badge tone={v.statut === "compromis" ? "brand" : "neutral"}>{v.statut === "compromis" ? "Compromis" : "Offre"}</Badge>}
-            <span className={cx(retard && "text-warn")}>
-              {v.statut === "acte" ? `Acte du ${dateFr(v.dateActe)}` : v.dateActe ? `Acte prévu le ${dateFr(v.dateActe)}${retard ? ", à confirmer" : ""}` : "Date de l'acte à venir"}
-            </span>
+            {type !== "vente" && <Badge>{TYPE_DOSSIER[type]}</Badge>}
+            {attendue && type === "vente" && <Badge tone={v.statut === "compromis" ? "brand" : "neutral"}>{v.statut === "compromis" ? "Compromis" : "Offre"}</Badge>}
+            <span className={cx(retard && "text-warn")}>{quand}</span>
             {v.partage > 1 && <span>· partagée à {v.partage}</span>}
           </div>
         </div>
@@ -239,13 +254,14 @@ function LigneVente({ v, d, auj, onOuvrir }: { v: VenteRevenu; d: Donnees; auj: 
 
 export function VentesCard({ d, auj, onOuvrir, onAjouter }: { d: Donnees; auj: string; onOuvrir: (v: VenteRevenu) => void; onAjouter: () => void }) {
   const [tout, setTout] = useState(false);
-  const enCours = d.ventes.filter((v) => v.statut !== "acte").sort((a, b) => (a.dateActe ?? "9").localeCompare(b.dateActe ?? "9"));
-  const actees = d.ventes.filter((v) => v.statut === "acte").sort((a, b) => (b.dateActe ?? "").localeCompare(a.dateActe ?? ""));
+  const quand = (v: VenteRevenu) => v.moisPaie ?? v.dateActe ?? "";
+  const enCours = d.ventes.filter((v) => v.statut !== "acte").sort((a, b) => (quand(a) || "9").localeCompare(quand(b) || "9"));
+  const actees = d.ventes.filter((v) => v.statut === "acte").sort((a, b) => quand(b).localeCompare(quand(a)));
   const visibles = tout ? actees : actees.slice(0, 5);
   return (
-    <Card title="Mes ventes" pad={false} action={<button className="btn-ghost btn-sm" onClick={onAjouter}>Ajouter</button>}>
+    <Card title="Mes dossiers" pad={false} action={<button className="btn-ghost btn-sm" onClick={onAjouter}>Ajouter</button>}>
       {!d.ventes.length ? (
-        <p className="card-pad !pt-3 text-sm text-muted">Aucune vente pour l&apos;instant.</p>
+        <p className="card-pad !pt-3 text-sm text-muted">Aucun dossier pour l&apos;instant : ajoute tes ventes, locations et mises en gestion pour suivre tes commissions.</p>
       ) : (
         <div className="pb-2">
           {enCours.length > 0 && (
@@ -260,7 +276,7 @@ export function VentesCard({ d, auj, onOuvrir, onAjouter }: { d: Donnees; auj: s
           )}
           {actees.length > 0 && (
             <>
-              <div className="eyebrow px-4 pb-1 pt-3 sm:px-5">Actées</div>
+              <div className="eyebrow px-4 pb-1 pt-3 sm:px-5">Encaissés</div>
               <ul className="divide-y divide-line/70">
                 {visibles.map((v) => (
                   <LigneVente key={v.id} v={v} d={d} auj={auj} onOuvrir={onOuvrir} />
@@ -268,7 +284,7 @@ export function VentesCard({ d, auj, onOuvrir, onAjouter }: { d: Donnees; auj: s
               </ul>
               {actees.length > visibles.length && (
                 <button className="btn-ghost btn-sm mx-4 mt-1 sm:mx-5" onClick={() => setTout(true)}>
-                  Voir les {actees.length} ventes
+                  Voir les {actees.length} dossiers
                 </button>
               )}
             </>
@@ -300,7 +316,7 @@ export function HistoriqueCard({ d, auj, onPointer }: { d: Donnees; auj: string;
                     {l.pointe ? <Badge tone="ok">Pointé</Badge> : null}
                   </div>
                   <div className="mt-0.5 truncate text-xs text-muted">
-                    {[l.fixeConnu ? `fixe ${eur(l.fixe)}` : "fixe à compléter", l.commissions && `commission ${eur(l.commissions)}`, l.primes && `primes ${eur(l.primes)}`, l.autres && `autres ${eur(l.autres)}`].filter(Boolean).join(" · ")}
+                    {[l.fixeConnu ? `fixe ${eur(l.fixe)}` : "fixe à compléter", l.commissions && `commission ${eur(l.commissions)}`, l.primes && `primes ${eur(l.primes)}`, l.ik && `IK ${eur(l.ik)}`, l.autres && `autres ${eur(l.autres)}`].filter(Boolean).join(" · ")}
                   </div>
                   {ecart != null && Math.abs(ecart) >= 1 && <div className="text-[11px] text-warn">Versé : {eur(l.pointe!.verse)} ({ecart > 0 ? "+" : ""}{eur(ecart)})</div>}
                 </div>

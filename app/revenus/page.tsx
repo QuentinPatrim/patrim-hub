@@ -42,7 +42,7 @@ export default function MesRevenus() {
       <PointerMois mois={pointer} d={d} auj={auj} onClose={() => setPointer(null)} onVente={() => setVente("nouvelle")} />
       <FicheVente vente={vente} d={d} auj={auj} onClose={() => setVente(null)} />
       <FicheContrat open={contrat} d={d} auj={auj} onClose={() => setContrat(false)} />
-      <RepriseExcel open={reprise} d={d} prenom={moi.prenom} onClose={() => setReprise(false)} />
+      <RepriseExcel open={reprise} d={d} prenom={moi.prenom} auj={auj} onClose={() => setReprise(false)} />
     </>
   );
 
@@ -63,7 +63,7 @@ export default function MesRevenus() {
                 <CalendarCheck size={17} /> Pointer {nomMois(aPointer, false)}
               </button>
               <button className="btn-secondary" onClick={() => setVente("nouvelle")}>
-                <Plus size={17} /> Vente
+                <Plus size={17} /> Dossier
               </button>
             </>
           )
@@ -81,7 +81,7 @@ export default function MesRevenus() {
           <Empty
             icon={<Wallet size={22} />}
             title="Tes revenus, mois par mois"
-            text="Reprends ton fichier Excel des commissions : toutes tes ventes passées arrivent d'un coup, sans rien retaper. Ensuite, tu pointes chaque mois en quelques secondes."
+            text="Reprends ton classeur Excel de revenus : tous tes mois depuis le début de ton contrat arrivent d'un coup, sans rien retaper. Ensuite, tu pointes chaque mois en quelques secondes."
             action={
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button className="btn-primary" onClick={() => setReprise(true)}>
@@ -100,7 +100,7 @@ export default function MesRevenus() {
             <Card>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm">
-                  <b>Ajoute ton fixe.</b> <span className="text-muted">Deux lignes suffisent (alternance, puis CDI) : il se reporte sur chaque mois depuis le début de ton contrat.</span>
+                  <b>Ajoute ton fixe.</b> <span className="text-muted">Deux lignes suffisent (alternance, puis CDI) : il se reporte sur chaque mois que tu n&apos;as pas pointé.</span>
                 </p>
                 <button className="btn-primary shrink-0" onClick={() => setContrat(true)}>
                   <Settings2 size={17} /> Mon contrat
@@ -114,7 +114,7 @@ export default function MesRevenus() {
                 <CalendarCheck size={18} />
               </span>
               <span className="min-w-0 flex-1 text-sm">
-                <b>{majuscule(nomMois(aPointer))} est terminé.</b> <span className="text-muted">Pointe-le avec ta fiche de paie : fixe, primes, et ce qui a été versé.</span>
+                <b>{majuscule(nomMois(aPointer))} est terminé.</b> <span className="text-muted">Pointe-le avec ta fiche de paie : fixe, commissions, indemnités et ce qui a été versé.</span>
               </span>
             </button>
           )}
@@ -137,7 +137,7 @@ export default function MesRevenus() {
             </button>
           </div>
           <p className="px-1 text-xs leading-relaxed text-muted">
-            Montants en {d.contrat.base}. Une commission compte le mois de l&apos;acte définitif, à {Math.round(d.contrat.taux * 100)}&nbsp;% des honoraires HT, partagée s&apos;il y a plusieurs commerciaux. Le fixe vient des périodes de ton contrat, sauf pour les mois pointés, qui reprennent ta fiche de paie. Julien et Clément ne voient jamais cette page ni ces chiffres.
+            Montants en {d.contrat.base}. Une commission de vente compte le mois de l&apos;acte définitif. Les mois pointés reprennent ta fiche de paie ; les autres, le fixe et les indemnités de ton contrat. Julien et Clément ne voient jamais cette page ni ces chiffres.
           </p>
         </div>
       )}
