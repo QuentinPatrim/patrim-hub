@@ -11,6 +11,7 @@ import { enregistrer, supprimer } from "./stockage";
 import {
   TYPE_DOSSIER,
   commissionDe,
+  delais,
   ligne,
   majuscule,
   nomMois,
@@ -169,7 +170,9 @@ const STATUTS: Record<TypeDossier, { value: StatutVente; label: string }[]> = {
 
 export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "nouvelle" | null; d: Donnees; auj: string; onClose: () => void }) {
   const v = vente && vente !== "nouvelle" ? vente : undefined;
-  const vide = { type: "vente" as TypeDossier, libelle: "", adresse: "", honoraires: "", partage: "1", statut: "acte" as StatutVente, dateCompromis: "", dateActe: auj, moisPaie: "", commission: "" };
+  /** Vente lue sur la fiche d'un bien du Hub : pas encore dans les dossiers. */
+  const duHub = !!v?.id.startsWith("hub:");
+  const vide = { type: "vente" as TypeDossier, libelle: "", adresse: "", honoraires: "", partage: "1", statut: "acte" as StatutVente, dateOffre: "", dateCompromis: "", dateActe: auj, moisPaie: "", commission: "" };
   const [f, setF] = useState(vide);
   const [msg, setMsg] = useState("");
   useEffect(() => {
@@ -183,6 +186,7 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
             honoraires: texte(v.honoraires),
             partage: String(v.partage || 1),
             statut: v.statut,
+            dateOffre: v.dateOffre ?? "",
             dateCompromis: v.dateCompromis ?? "",
             dateActe: v.dateActe ?? "",
             moisPaie: v.moisPaie ?? "",
@@ -195,7 +199,7 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
   if (!vente) return null;
 
   const brouillon: VenteRevenu = {
-    id: v?.id ?? "",
+    id: duHub ? "" : (v?.id ?? ""),
     nature: "vente",
     type: f.type,
     libelle: f.libelle.trim(),
@@ -203,6 +207,7 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
     mandat: v?.mandat,
     prixVente: v?.prixVente,
     honoraires: nb(f.honoraires),
+    dateOffre: f.type === "vente" ? f.dateOffre || undefined : undefined,
     dateCompromis: f.type === "vente" ? f.dateCompromis || undefined : undefined,
     dateActe: f.dateActe || undefined,
     moisPaie: f.moisPaie || undefined,
@@ -211,6 +216,7 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
     commission: nb(f.commission),
     source: v?.source ?? "saisie",
     cle: v?.cle,
+    bienId: v?.bienId,
     updatedAt: "",
   };
   const calculee = commissionDe({ ...brouillon, commission: undefined }, d.contrat);
@@ -230,10 +236,20 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
     if (brouillon.statut === "acte" && !brouillon.dateActe && !brouillon.moisPaie) return setMsg("Indique la date (acte ou encaissement) : c'est le mois où la commission est payée.");
     const { updatedAt: _u, ...doc } = brouillon;
     try {
-      await enregistrer([{ ...doc, id: v?.id }]);
+      await enregistrer([{ ...doc, id: doc.id || undefined }]);
       onClose();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Le dossier n'a pas pu être enregistré.");
+    }
+  }
+  async function ignorer() {
+    if (!v?.bienId) return;
+    const { updatedAt: _u, ...c } = d.contrat;
+    try {
+      await enregistrer([{ ...c, id: c.id || undefined, nature: "contrat", ignores: [...new Set([...(c.ignores ?? []), v.bienId])] }]);
+      onClose();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Le changement n'a pas pu être enregistré.");
     }
   }
   async function effacer() {
@@ -253,10 +269,16 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
       title={v ? v.libelle : "Nouveau dossier"}
       footer={
         <>
-          {v && (
-            <button className="btn-ghost mr-auto text-danger" onClick={effacer} aria-label="Retirer le dossier">
-              <Trash2 size={16} />
+          {duHub ? (
+            <button className="btn-ghost mr-auto text-muted" onClick={ignorer}>
+              Ne pas compter
             </button>
+          ) : (
+            v && (
+              <button className="btn-ghost mr-auto text-danger" onClick={effacer} aria-label="Retirer le dossier">
+                <Trash2 size={16} />
+              </button>
+            )
           )}
           <button className="btn-secondary" onClick={onClose}>
             Annuler
@@ -268,6 +290,11 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
       }
     >
       <div className="grid gap-3">
+        {duHub && (
+          <p className="rounded-xl bg-surface-2/70 px-3 py-2.5 text-sm text-muted ring-1 ring-inset ring-line/60">
+            Repris de la fiche du bien. Enregistre-le pour l&apos;ajouter à tes dossiers (tu peux préciser le partage ou la date de l&apos;acte), ou choisis « Ne pas compter » si ce n&apos;est pas ta vente.
+          </p>
+        )}
         <div className="grid grid-cols-3 gap-1 rounded-2xl bg-surface-2 p-1" role="radiogroup" aria-label="Type de dossier">
           {(Object.keys(TYPE_DOSSIER) as TypeDossier[]).map((t) => (
             <button
@@ -294,6 +321,11 @@ export function FicheVente({ vente, d, auj, onClose }: { vente: VenteRevenu | "n
           </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
+          {f.type === "vente" && f.statut === "offre" && (
+            <Field label="Offre acceptée le">
+              <input type="date" className="input" value={f.dateOffre} onChange={(e) => setF({ ...f, dateOffre: e.target.value })} />
+            </Field>
+          )}
           {f.type === "vente" && (
             <Field label="Compromis">
               <input type="date" className="input" value={f.dateCompromis} onChange={(e) => setF({ ...f, dateCompromis: e.target.value })} />
@@ -333,6 +365,9 @@ export function FicheContrat({ open, d, auj, onClose }: { open: boolean; d: Donn
   const [taux, setTaux] = useState("15");
   const [ttc, setTtc] = useState(true);
   const [objectif, setObjectif] = useState("");
+  const [delaiC, setDelaiC] = useState("1");
+  const [delaiA, setDelaiA] = useState("3");
+  const [ignores, setIgnores] = useState<string[]>([]);
   const [msg, setMsg] = useState("");
   useEffect(() => {
     if (!open) return;
@@ -347,6 +382,9 @@ export function FicheContrat({ open, d, auj, onClose }: { open: boolean; d: Donn
     setTaux(texte(c.taux * 100));
     setTtc(c.honorairesTTC);
     setObjectif(texte(c.objectifs[an]));
+    setDelaiC(String(delais(c).compromis));
+    setDelaiA(String(delais(c).acte));
+    setIgnores(c.ignores ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   if (!open) return null;
@@ -362,9 +400,15 @@ export function FicheContrat({ open, d, auj, onClose }: { open: boolean; d: Donn
     const objectifs = { ...d.contrat.objectifs };
     if (obj != null) objectifs[an] = obj;
     else delete objectifs[an];
+    const mois = (x: string, defaut: number) => {
+      const n = nb(x);
+      return n != null && n >= 0 && n <= 24 ? Math.round(n) : defaut;
+    };
     const { updatedAt: _u, ...c } = d.contrat;
     try {
-      await enregistrer([{ ...c, id: c.id || undefined, nature: "contrat", periodes: ps, base, taux: t / 100, honorairesTTC: ttc, objectifs }]);
+      await enregistrer([
+        { ...c, id: c.id || undefined, nature: "contrat", periodes: ps, base, taux: t / 100, honorairesTTC: ttc, objectifs, delaiCompromis: mois(delaiC, 1), delaiActe: mois(delaiA, 3), ignores },
+      ]);
       onClose();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Le contrat n'a pas pu être enregistré.");
@@ -439,6 +483,28 @@ export function FicheContrat({ open, d, auj, onClose }: { open: boolean; d: Donn
           </select>
         </Field>
         <Montant label={`Objectif ${an}`} value={objectif} onChange={setObjectif} hint="En commissions" />
+      </div>
+      <div className="mt-5">
+        <div className="text-sm font-semibold">Pour le prévisionnel</div>
+        <p className="mt-0.5 text-xs text-muted">Quand l&apos;acte n&apos;a pas de date, il est estimé avec ces délais.</p>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <Field label="Offre → compromis" hint="En mois">
+            <input className="input tabular-nums" inputMode="numeric" value={delaiC} onChange={(e) => setDelaiC(e.target.value)} />
+          </Field>
+          <Field label="Compromis → acte" hint="En mois">
+            <input className="input tabular-nums" inputMode="numeric" value={delaiA} onChange={(e) => setDelaiA(e.target.value)} />
+          </Field>
+        </div>
+        {ignores.length > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-3 text-sm text-muted">
+            <span>
+              {ignores.length} vente{ignores.length > 1 ? "s" : ""} du Hub non comptée{ignores.length > 1 ? "s" : ""}
+            </span>
+            <button className="btn-ghost btn-sm" onClick={() => setIgnores([])}>
+              Les recompter
+            </button>
+          </div>
+        )}
       </div>
       <Erreur msg={msg} />
     </Sheet>
