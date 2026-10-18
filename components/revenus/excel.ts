@@ -344,7 +344,9 @@ export function lireRevenus(f: Feuilles, auj: string): Reprise {
         type,
         libelle: ref || `${type === "vente" ? "Vente" : type === "location" ? "Location" : "Gestion"}${moisPaie ? ` de ${moisPaie.slice(5)}/${moisPaie.slice(0, 4)}` : ""}`,
         honoraires: nombre(val(l, H.montant)),
-        dateActe: date,
+        // En attente : la date n'est pas celle de l'acte, le prévisionnel l'estime
+        dateActe: moisPaie ? date : undefined,
+        dateOffre: moisPaie ? undefined : date,
         moisPaie,
         statut: moisPaie ? "acte" : "offre",
         partage: 1,

@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, FileSpreadsheet, Lock, Plus, Settings2, Wallet } from "lucide-react";
 import { Card, Empty, PageHeader } from "@/components/ui";
-import { AnneeCard, GraphiqueCard, HistoriqueCard, ObjectifCard, ReperesCard, VentesCard } from "@/components/revenus/Cartes";
+import { AnneeCard, GraphiqueCard, HistoriqueCard, ObjectifCard, PrevisionnelCard, ReperesCard, VentesCard } from "@/components/revenus/Cartes";
 import { FicheContrat, FicheVente, PointerMois, RepriseExcel } from "@/components/revenus/Fenetres";
+import { dossiersDuHub } from "@/components/revenus/hub";
 import { useRevenus } from "@/components/revenus/stockage";
 import { majuscule, moisAPointer, moisDe, nomMois, type VenteRevenu } from "@/components/revenus/revenus";
 import { useMoi } from "@/lib/equipe";
+import { useCollection } from "@/lib/store";
 import { today } from "@/lib/format";
 
 /* « Mes revenus » : fixe et commissions du conseiller titulaire, mois par mois.
@@ -15,7 +17,9 @@ import { today } from "@/lib/format";
 
 export default function MesRevenus() {
   const moi = useMoi();
-  const d = useRevenus();
+  const revenus = useRevenus();
+  const { items: biens } = useCollection("biens");
+  const { items: contacts } = useCollection("contacts");
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const [pointer, setPointer] = useState<string | null>(null);
@@ -24,6 +28,11 @@ export default function MesRevenus() {
   const [reprise, setReprise] = useState(false);
 
   const auj = today();
+  // Les ventes en cours des fiches du Hub complètent le prévisionnel
+  const d = useMemo(
+    () => ({ ...revenus, hub: dossiersDuHub(biens, contacts, revenus.ventes, revenus.contrat, auj) }),
+    [revenus, biens, contacts, auj]
+  );
   const aPointer = moisAPointer(d, auj) ?? moisDe(auj);
   const vide = !d.ventes.length && !d.mois.length && !d.contrat.periodes.length;
 
@@ -120,8 +129,11 @@ export default function MesRevenus() {
           )}
           <AnneeCard d={d} auj={auj} />
           <div className="grid items-start gap-4 sm:gap-5 lg:grid-cols-2">
-            <ObjectifCard d={d} auj={auj} onContrat={() => setContrat(true)} />
-            <GraphiqueCard d={d} auj={auj} />
+            <PrevisionnelCard d={d} auj={auj} onOuvrir={setVente} />
+            <div className="grid gap-4 sm:gap-5">
+              <ObjectifCard d={d} auj={auj} onContrat={() => setContrat(true)} />
+              <GraphiqueCard d={d} auj={auj} />
+            </div>
           </div>
           <div className="grid items-start gap-4 sm:gap-5 lg:grid-cols-2">
             <VentesCard d={d} auj={auj} onOuvrir={setVente} onAjouter={() => setVente("nouvelle")} />

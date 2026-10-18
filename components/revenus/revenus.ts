@@ -38,6 +38,11 @@ export interface Contrat {
   decalage: 0 | 1;
   /** Objectif de commissions par année. */
   objectifs: Record<string, number>;
+  /** Délais habituels en mois, pour le prévisionnel : offre → compromis, compromis → acte. */
+  delaiCompromis?: number;
+  delaiActe?: number;
+  /** Biens du Hub sous offre ou en compromis à ne pas compter (vente d'un collègue…). */
+  ignores?: string[];
   updatedAt: string;
 }
 
@@ -55,6 +60,7 @@ export interface VenteRevenu {
   prixVente?: number;
   /** Vente : honoraires d'agence ; location : honoraires locataire ; gestion : loyer mensuel. */
   honoraires?: number;
+  dateOffre?: string; // AAAA-MM-JJ, offre acceptée
   dateCompromis?: string; // AAAA-MM-JJ
   dateActe?: string; // signée ou prévue
   /** Mois de paie choisi à la main (AAAA-MM) ; vide = mois de l'acte. */
@@ -65,6 +71,8 @@ export interface VenteRevenu {
   commission?: number;
   source: "excel" | "saisie";
   cle?: string; // repère pour mettre à jour un dossier déjà importé
+  /** Bien du Hub d'où vient le dossier. */
+  bienId?: string;
   updatedAt: string;
 }
 
@@ -100,6 +108,8 @@ export const CONTRAT_DEFAUT: Omit<Contrat, "id" | "updatedAt"> = {
   tva: 0.2,
   decalage: 0,
   objectifs: {},
+  delaiCompromis: 1,
+  delaiActe: 3,
 };
 
 export const TYPE_DOSSIER: Record<TypeDossier, string> = { vente: "Vente", location: "Location", gestion: "Gestion" };
@@ -181,6 +191,8 @@ export interface Donnees {
   contrat: Contrat;
   ventes: VenteRevenu[];
   mois: MoisRevenu[];
+  /** Ventes en cours lues sur les fiches des biens du Hub, pas encore dans les dossiers. */
+  hub?: VenteRevenu[];
 }
 
 /** Premier mois connu : début du contrat, sinon première commission ou premier mois pointé. */
@@ -304,7 +316,7 @@ export interface Projection {
   realise: number;
   commissionsRealisees: number;
   fixeRestant: number;
-  aVenir: { v: VenteRevenu; commission?: number; mois?: string }[];
+  aVenir: Prevu[];
   commissionsAVenir: number;
   atterrissage: number;
   objectif?: number;
@@ -325,12 +337,9 @@ export function projection(d: Donnees, auj: string): Projection {
     const c = contratDuMois(m, d.contrat);
     return s + (c?.fixe ?? 0) + (c?.ik ?? 0);
   }, 0);
-  const aVenir = d.ventes
-    .filter((v) => !actee(v, auj, d.contrat))
-    .map((v) => ({ v, commission: commissionDe(v, d.contrat), mois: moisPaie(v, d.contrat) }))
-    .sort((x, y) => (x.mois ?? "9").localeCompare(y.mois ?? "9"));
-  // Acte prévu d'ici décembre (une date dépassée reste attendue)
-  const commissionsAVenir = aVenir.filter((x) => x.mois && x.mois <= `${an}-12`).reduce((s, x) => s + (x.commission ?? 0), 0);
+  const aVenir = prevus(d, auj);
+  // Acte prévu ou estimé d'ici décembre (une date dépassée reste attendue)
+  const commissionsAVenir = aVenir.filter((x) => x.mois <= `${an}-12`).reduce((s, x) => s + (x.commission ?? 0), 0);
   const objectif = d.contrat.objectifs[String(an)];
   const reste = objectif != null ? Math.max(0, objectif - b.commissions) : undefined;
   const moisRestants = restants.length + 1; // le mois en cours compte encore
@@ -350,6 +359,103 @@ export function projection(d: Donnees, auj: string): Projection {
     ventesNecessaires: reste && b.commissionMoyenneVente && b.ventesDepuisDebut >= 3 ? Math.ceil(reste / b.commissionMoyenneVente) : undefined,
     honorairesNecessaires: reste && d.contrat.taux ? ttc(reste / d.contrat.taux) : undefined,
   };
+}
+
+/* ---------- Prévisionnel ---------- */
+
+/** Un dossier en cours et le mois de paie où sa commission devrait tomber. */
+export interface Prevu {
+  v: VenteRevenu;
+  commission?: number;
+  mois: string; // AAAA-MM, jamais avant le mois en cours
+  /** Mois déduit des délais habituels (pas de date d'acte saisie). */
+  estime: boolean;
+  /** La date saisie ou estimée est passée sans acte : à confirmer. */
+  depasse: boolean;
+}
+
+export const delais = (c: Contrat) => ({ compromis: c.delaiCompromis ?? 1, acte: c.delaiActe ?? 3 });
+
+/**
+ * Mois de paie attendu d'un dossier en cours : celui choisi, sinon le mois de l'acte prévu,
+ * sinon compromis + délai de l'acte, sinon offre + délai du compromis + délai de l'acte.
+ * Sans aucune date, on part du mois en cours.
+ */
+export function prevu(v: VenteRevenu, c: Contrat, auj: string): Prevu {
+  const m = moisDe(auj);
+  const dl = delais(c);
+  const vente = (v.type ?? "vente") === "vente";
+  let mois: string;
+  let estime = false;
+  if (v.moisPaie) mois = v.moisPaie;
+  else if (v.dateActe) mois = decaler(moisDe(v.dateActe), c.decalage);
+  else {
+    estime = true;
+    const reste = !vente ? 1 : v.statut === "offre" && !v.dateCompromis ? dl.compromis + dl.acte : dl.acte;
+    const depart = vente && v.dateCompromis ? moisDe(v.dateCompromis) : vente && v.dateOffre ? moisDe(v.dateOffre) : m;
+    mois = decaler(depart, reste + c.decalage);
+  }
+  const depasse = mois < m;
+  return { v, commission: commissionDe(v, c), mois: depasse ? m : mois, estime, depasse };
+}
+
+/** Dossiers en cours (les tiens et ceux lus sur les biens du Hub), du plus proche au plus lointain. */
+export function prevus(d: Donnees, auj: string): Prevu[] {
+  return [...d.ventes, ...(d.hub ?? [])]
+    .filter((v) => !actee(v, auj, d.contrat))
+    .map((v) => prevu(v, d.contrat, auj))
+    .sort((x, y) => x.mois.localeCompare(y.mois) || (x.v.statut === "offre" ? 1 : 0) - (y.v.statut === "offre" ? 1 : 0));
+}
+
+export interface MoisPrevu {
+  mois: string;
+  /** Fixe et indemnités prévus par le contrat (mois en cours : pointés ou prévus). */
+  fixe: number;
+  /** Mois en cours : commissions et primes déjà comptées. */
+  dejaPercu: number;
+  compromis: number;
+  offres: number;
+  total: number;
+  prevus: Prevu[];
+}
+
+export interface Previsionnel {
+  mois: MoisPrevu[];
+  prevus: Prevu[];
+  compromis: number;
+  offres: number;
+  total: number;
+  /** Dossiers en cours dont la commission est inconnue (honoraires manquants). */
+  sansMontant: number;
+}
+
+/** Les mois à venir, du mois en cours jusqu'au dernier acte attendu (6 mois au moins, 12 au plus). */
+export function previsionnel(d: Donnees, auj: string, minimum = 6): Previsionnel {
+  const m = moisDe(auj);
+  const liste = prevus(d, auj);
+  const dernier = liste.reduce((x, p) => (p.mois > x ? p.mois : x), decaler(m, minimum - 1));
+  const fin = dernier > decaler(m, 11) ? decaler(m, 11) : dernier;
+  const somme = (l: Prevu[]) => l.reduce((s, p) => s + (p.commission ?? 0), 0);
+  const mois = entre(m, fin).map((x): MoisPrevu => {
+    const ps = liste.filter((p) => p.mois === x);
+    let fixe: number;
+    let dejaPercu = 0;
+    if (x === m) {
+      const l = ligne(x, d, auj);
+      fixe = l.fixe + l.ik + l.autres;
+      dejaPercu = l.commissions + l.primes;
+    } else {
+      const c = contratDuMois(x, d.contrat);
+      fixe = (c?.fixe ?? 0) + (c?.ik ?? 0);
+    }
+    const compromis = somme(ps.filter((p) => p.v.statut !== "offre"));
+    const offres = somme(ps.filter((p) => p.v.statut === "offre"));
+    return { mois: x, fixe, dejaPercu, compromis, offres, total: fixe + dejaPercu + compromis + offres, prevus: ps };
+  });
+  const dans = liste.filter((p) => p.mois <= fin);
+  const compromis = somme(dans.filter((p) => p.v.statut !== "offre"));
+  const offres = somme(dans.filter((p) => p.v.statut === "offre"));
+  return { mois, prevus: liste, compromis, offres, total: mois.reduce((s, x) => s + x.total, 0), sansMontant: liste.filter((p) => p.commission == null).length };
 }
 
 /** Le mois à pointer : le mois dernier s'il ne l'est pas encore. */

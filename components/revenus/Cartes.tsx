@@ -11,8 +11,12 @@ import {
   lignes,
   majuscule,
   nomMois,
+  delais,
   parAnnee,
+  prevu,
+  previsionnel,
   projection,
+  type Prevu,
   type Donnees,
   type LigneMois,
   TYPE_DOSSIER,
@@ -227,9 +231,7 @@ function LigneVente({ v, d, auj, onOuvrir }: { v: VenteRevenu; d: Donnees; auj: 
         : `Acte du ${dateFr(v.dateActe)}`
       : v.dateActe
         ? `${type === "vente" ? "Acte prévu" : "Prévue"} le ${dateFr(v.dateActe)}${retard ? ", à confirmer" : ""}`
-        : type === "vente"
-          ? "Date de l'acte à venir"
-          : "En attente";
+        : `${type === "vente" ? "Acte estimé" : "Estimée"} en ${nomMois(prevu(v, d.contrat, auj).mois)}`;
   return (
     <li>
       <button onClick={() => onOuvrir(v)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-2 sm:px-5">
@@ -291,6 +293,145 @@ export function VentesCard({ d, auj, onOuvrir, onAjouter }: { d: Donnees; auj: s
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+/* ---------- Prévisionnel ---------- */
+
+const moisCourt = (m: string) => new Date(`${m}-15T12:00:00`).toLocaleDateString("fr-FR", { month: "short" }).replace(".", "");
+
+function LignePrevu({ p, onOuvrir }: { p: Prevu; onOuvrir: (v: VenteRevenu) => void }) {
+  const v = p.v;
+  const type = v.type ?? "vente";
+  const quand = p.depasse
+    ? `${v.dateActe ? `Acte prévu le ${dateFr(v.dateActe)}` : "Date estimée passée"}, à confirmer`
+    : p.estime
+      ? v.dateCompromis
+        ? `Compromis du ${dateFr(v.dateCompromis)}, acte estimé`
+        : v.dateOffre
+          ? `Offre du ${dateFr(v.dateOffre)}, acte estimé`
+          : "Acte estimé"
+      : v.moisPaie
+        ? "Mois de paie choisi"
+        : `Acte prévu le ${dateFr(v.dateActe)}`;
+  return (
+    <li>
+      <button onClick={() => onOuvrir(v)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-surface-2 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{v.libelle}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+            {type !== "vente" ? <Badge>{TYPE_DOSSIER[type]}</Badge> : <Badge tone={v.statut === "offre" ? "neutral" : "brand"}>{v.statut === "offre" ? "Sous offre" : "Compromis"}</Badge>}
+            <span className={cx(p.depasse && "text-warn")}>{quand}</span>
+            {v.id.startsWith("hub:") && <span>· fiche du bien</span>}
+          </div>
+        </div>
+        <div className={cx("shrink-0 whitespace-nowrap text-right font-serif text-[15px] font-semibold tabular-nums", v.statut === "offre" && "text-muted")}>
+          {p.commission != null ? eur(p.commission) : <span className="font-sans text-xs font-normal text-warn">Honoraires ?</span>}
+        </div>
+        <ChevronRight size={16} className="shrink-0 text-muted" />
+      </button>
+    </li>
+  );
+}
+
+export function PrevisionnelCard({ d, auj, onOuvrir }: { d: Donnees; auj: string; onOuvrir: (v: VenteRevenu) => void }) {
+  const p = previsionnel(d, auj);
+  const dl = delais(d.contrat);
+  const max = Math.max(1, ...p.mois.map((m) => m.total));
+  const n = p.mois.length;
+  const commissions = p.compromis + p.offres;
+  return (
+    <Card title="Prévisionnel" pad={false}>
+      <div className="card-pad !pt-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Chiffre label={`Sur ${n} mois`} valeur={eur(p.total)} accent detail={`soit ${eur(p.total / n)} par mois`} />
+          <Chiffre
+            label="Commissions attendues"
+            valeur={eur(commissions)}
+            detail={p.offres > 0 ? `dont ${eur(p.offres)} encore sous offre` : p.prevus.length ? "toutes en compromis" : "aucune vente en cours"}
+          />
+        </div>
+
+        <div className="mt-5 flex items-end gap-1.5 border-b border-line">
+          {p.mois.map((m) => {
+            const sur = m.dejaPercu + m.compromis;
+            const titre = `${majuscule(nomMois(m.mois))} : ${eur(m.total)}${m.compromis + m.offres ? `, dont ${eur(m.compromis + m.offres)} de commissions attendues` : ""}`;
+            return (
+              <div key={m.mois} role="img" aria-label={titre} title={titre} className="flex h-32 min-w-0 flex-1 items-end justify-center">
+                {m.total > 0 && (
+                  <div className="relative flex w-full max-w-9 flex-col justify-end" style={{ height: `${Math.max(4, (m.total / max) * 100)}%` }}>
+                    {(sur > 0 || m.offres > 0) && (
+                      <span className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-accent">{court(m.total)}</span>
+                    )}
+                    {m.offres > 0 && <div className="w-full rounded-t-md bg-accent/35" style={{ height: `${(m.offres / m.total) * 100}%` }} />}
+                    {sur > 0 && <div className={cx("w-full bg-accent", !m.offres && "rounded-t-md")} style={{ height: `${(sur / m.total) * 100}%` }} />}
+                    {m.fixe > 0 && <div className={cx("w-full bg-fg/15", !sur && !m.offres && "rounded-t-md")} style={{ height: `${(m.fixe / m.total) * 100}%` }} />}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-1 flex gap-1.5" aria-hidden>
+          {p.mois.map((m, i) => (
+            <span key={m.mois} className={cx("min-w-0 flex-1 truncate text-center text-[10px] text-muted", i === 0 && "font-bold text-fg")}>
+              {moisCourt(m.mois)}
+            </span>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-fg/15" /> Fixe et indemnités
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-accent" /> Compromis
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-accent/35" /> Sous offre
+          </span>
+        </div>
+      </div>
+
+      {p.prevus.length > 0 ? (
+        <div className="pb-2">
+          {p.mois
+            .filter((m) => m.prevus.length)
+            .map((m) => (
+              <div key={m.mois}>
+                <div className="flex items-baseline justify-between gap-2 px-4 pb-1 pt-3 sm:px-5">
+                  <span className="eyebrow">{majuscule(nomMois(m.mois))}</span>
+                  <span className="text-xs tabular-nums text-muted">{eur(m.total)} au total</span>
+                </div>
+                <ul className="divide-y divide-line/70">
+                  {m.prevus.map((x) => (
+                    <LignePrevu key={x.v.id} p={x} onOuvrir={onOuvrir} />
+                  ))}
+                </ul>
+              </div>
+            ))}
+          {p.prevus.some((x) => x.mois > p.mois[n - 1].mois) && (
+            <>
+              <div className="eyebrow px-4 pb-1 pt-3 sm:px-5">Plus tard</div>
+              <ul className="divide-y divide-line/70">
+                {p.prevus
+                  .filter((x) => x.mois > p.mois[n - 1].mois)
+                  .map((x) => (
+                    <LignePrevu key={x.v.id} p={x} onOuvrir={onOuvrir} />
+                  ))}
+              </ul>
+            </>
+          )}
+        </div>
+      ) : (
+        <p className="card-pad !pt-0 text-sm text-muted">
+          Aucune vente en cours pour l&apos;instant. Dès qu&apos;un de tes biens passe sous offre dans le Hub, ou que tu ajoutes un dossier en cours, sa commission apparaît ici au mois probable de l&apos;acte.
+        </p>
+      )}
+      <p className="card-pad !pt-1 text-[11px] leading-relaxed text-muted">
+        Sans date d&apos;acte, on compte {dl.acte} mois entre compromis et acte{dl.compromis ? `, et ${dl.compromis} mois entre l'offre et le compromis` : ""} (modifiable dans « Mon contrat »). Une offre peut encore tomber : elle est en clair.
+        {p.sansMontant > 0 && ` ${p.sansMontant} vente${s(p.sansMontant)} sans honoraires connus ne ${p.sansMontant > 1 ? "sont" : "est"} pas comptée${s(p.sansMontant)}.`}
+      </p>
     </Card>
   );
 }
