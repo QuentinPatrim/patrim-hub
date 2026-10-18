@@ -7,7 +7,7 @@
    ============================================================ */
 
 import { ErreurLecture, entites, extraire, lireZip } from "@/components/ics/lecture";
-import type { StatutVente, VenteRevenu } from "./revenus";
+import { type MoisRevenu, type Periode, type StatutVente, type TypeDossier, type VenteRevenu } from "./revenus";
 
 export type Feuilles = Map<string, string[][]>;
 
@@ -109,11 +109,21 @@ const STATUTS: [RegExp, StatutVente][] = [
 ];
 
 export interface Reprise {
+  /** « suivi » : classeur des commissions de l'agence ; « revenus » : classeur personnel (saisie mensuelle). */
+  genre: "suivi" | "revenus";
   ventes: Omit<VenteRevenu, "id" | "updatedAt">[];
-  reglages: { taux?: number; honorairesTTC?: boolean; tva?: number; partageAuto: boolean };
+  mois: Omit<MoisRevenu, "id" | "updatedAt">[];
+  periodes: Periode[];
+  reglages: { taux?: number; tauxLocation?: number; tauxGestion?: number; moisGestion?: number; honorairesTTC?: boolean; tva?: number; base?: "brut" | "net"; partageAuto: boolean };
   objectifs: Record<string, number>;
   /** Lignes à son nom mais pas reprises (vendu sans date d'acte…). */
   ignorees: number;
+}
+
+/** Reconnaît le classeur et le lit : personnel (« Saisie mensuelle ») ou suivi de l'agence. */
+export function lireClasseur(f: Feuilles, prenom: string, auj: string): Reprise {
+  if ([...f.keys()].some((n) => normal(n).includes("saisie mensuelle"))) return lireRevenus(f, auj);
+  return lireSuivi(f, prenom);
 }
 
 function trouverEntete(t: string[][], mots: string[]) {
@@ -201,5 +211,149 @@ export function lireSuivi(f: Feuilles, prenom: string): Reprise {
       cle: `excel:${normal(libelle)}|${normal(val(l, C.adresse))}`,
     });
   }
-  return { ventes, reglages, objectifs, ignorees };
+  return { genre: "suivi", ventes, mois: [], periodes: [], reglages, objectifs, ignorees };
 }
+
+/* ---------- Classeur personnel : saisie mensuelle, honoraires par dossier, paramètres ---------- */
+
+const MOIS_NOMS = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+const TYPES: [RegExp, TypeDossier][] = [
+  [/locat/, "location"],
+  [/gest/, "gestion"],
+  [/vente/, "vente"],
+];
+
+function feuille(f: Feuilles, nom: string) {
+  const k = [...f.keys()].find((n) => normal(n).includes(nom));
+  return k ? f.get(k)! : undefined;
+}
+
+/** Lit le classeur personnel de revenus : les mois passés, les dossiers et les réglages du contrat. */
+export function lireRevenus(f: Feuilles, auj: string): Reprise {
+  const courant = auj.slice(0, 7);
+  const t = feuille(f, "saisie mensuelle")!;
+  const h = trouverEntete(t, ["annee", "mois", "fixe retenu"]);
+  if (h < 0) throw new ErreurLecture("Je ne trouve pas les colonnes Année, Mois et Fixe retenu dans l'onglet « Saisie mensuelle ».");
+  const ent = (t[h] ?? []).map(normal);
+  const col = (...debuts: string[]) => ent.findIndex((c) => debuts.some((d) => c.startsWith(d)));
+  const C = {
+    an: col("annee"),
+    mois: ent.findIndex((c) => c === "mois"),
+    num: ent.findIndex((c) => c === "n°" || c === "no" || c === "n"),
+    contrat: col("contrat"),
+    fixe: col("fixe retenu"),
+    manuelles: col("commissions (saisie manuelle)", "commissions (saisie"),
+    ik: ent.findIndex((c) => c === "ik"),
+    percu: col("net reellement percu"),
+  };
+  const val = (l: string[], i: number) => (i >= 0 ? (l[i] ?? "").trim() : "");
+
+  // Réglages du classeur
+  const reglages: Reprise["reglages"] = { partageAuto: false };
+  const par = feuille(f, "parametres") ?? [];
+  const parAn = new Map<number, { fixeAlt?: number; fixeCdi?: number; ikAlt?: number; ikCdi?: number; moisTreizieme?: number }>();
+  const hp = trouverEntete(par, ["annee", "fixe mensuel"]);
+  const ep = hp >= 0 ? (par[hp] ?? []).map(normal) : [];
+  const cp = (...m: string[]) => ep.findIndex((c) => m.every((x) => c.includes(x)));
+  for (const l of par) {
+    const cellules = (l ?? []).filter((c) => c !== "");
+    if (!cellules.length) continue;
+    const lib = normal(cellules[0]);
+    if (lib.includes("part sur une vente")) reglages.taux = nombre(cellules[1]);
+    else if (lib.includes("part sur une location")) reglages.tauxLocation = nombre(cellules[1]);
+    else if (lib.startsWith("honoraires de gestion")) reglages.tauxGestion = nombre(cellules[1]);
+    else if (lib.includes("mois de gestion")) reglages.moisGestion = nombre(cellules[1]);
+    else if (lib.startsWith("taux de tva")) reglages.tva = nombre(cellules[1]);
+    else if (lib.startsWith("les commissions sont saisies")) reglages.base = normal(cellules[1] ?? "").startsWith("brut") ? "brut" : "net";
+  }
+  if (hp >= 0) {
+    for (const l of par.slice(hp + 1)) {
+      const an = nombre(l?.[ep.findIndex((c) => c === "annee")]);
+      if (!an || an < 2000 || an > 2100) continue;
+      parAn.set(an, {
+        fixeAlt: nombre(l[cp("fixe", "alternance")]),
+        fixeCdi: nombre(l[cp("fixe", "cdi")]),
+        ikAlt: nombre(l[cp("ik", "alternance")]),
+        ikCdi: nombre(l[cp("ik", "cdi")]),
+        moisTreizieme: nombre(l[cp("mois du", "13")]),
+      });
+    }
+  }
+  reglages.honorairesTTC = true;
+
+  // Mois passés (le mois en cours et les mois « prévus » ne sont pas repris)
+  const mois: Reprise["mois"] = [];
+  const contrats: { mois: string; contrat: string }[] = [];
+  for (const l of t.slice(h + 1)) {
+    if (!l) continue;
+    const an = nombre(val(l, C.an));
+    let n = nombre(val(l, C.num));
+    if (n == null) n = MOIS_NOMS.indexOf(normal(val(l, C.mois))) + 1;
+    if (!an || !n || n < 1 || n > 12) continue;
+    const m = `${an}-${String(n).padStart(2, "0")}`;
+    if (m >= courant) continue; // le mois en cours se pointe dans le Hub
+    const fixe = nombre(val(l, C.fixe)) ?? 0;
+    const commissions = nombre(val(l, C.manuelles)) ?? 0;
+    const ik = nombre(val(l, C.ik)) ?? 0;
+    if (!fixe && !commissions && !ik) continue; // avant le début du contrat
+    const percu = nombre(val(l, C.percu));
+    mois.push({ nature: "mois", mois: m, fixe, commissions: commissions || undefined, ik: ik || undefined, verse: percu, source: "excel" });
+    contrats.push({ mois: m, contrat: val(l, C.contrat) || "Contrat" });
+  }
+  if (!mois.length) throw new ErreurLecture("L'onglet « Saisie mensuelle » ne contient aucun mois rempli jusqu'à aujourd'hui.");
+
+  // Périodes du contrat : mois consécutifs sous le même intitulé ; fixe et IK de la dernière année connue
+  const periodes: Periode[] = [];
+  for (const c of contrats) {
+    const der = periodes[periodes.length - 1];
+    if (der && normal(der.intitule) === normal(c.contrat)) der.fin = c.mois;
+    else periodes.push({ id: `p-${c.mois}`, intitule: c.contrat, debut: c.mois, fin: c.mois });
+  }
+  for (const p of periodes) {
+    const cdi = normal(p.intitule).includes("cdi");
+    const ans = [...parAn.entries()].filter(([an]) => an >= Number(p.debut.slice(0, 4)) && an <= Number(p.fin!.slice(0, 4))).sort((a, b) => b[0] - a[0]);
+    const v = ans.map(([, x]) => (cdi ? { fixe: x.fixeCdi, ik: x.ikCdi } : { fixe: x.fixeAlt, ik: x.ikAlt })).find((x) => x.fixe);
+    const dernier = mois.filter((m) => m.mois >= p.debut && m.mois <= p.fin! && !m.mois.endsWith("-12")).pop();
+    p.fixe = v?.fixe ?? dernier?.fixe;
+    p.ik = v?.ik ?? dernier?.ik;
+    p.treizieme = cdi && ans.some(([, x]) => x.moisTreizieme === 12);
+  }
+  const derniere = periodes[periodes.length - 1];
+  if (derniere) delete derniere.fin; // la période en cours continue
+
+  // Dossiers (honoraires affectés à un mois)
+  const ventes: Reprise["ventes"] = [];
+  const ho = feuille(f, "honoraires");
+  const hh = ho ? trouverEntete(ho, ["type", "ma commission"]) : -1;
+  if (ho && hh >= 0) {
+    const eh = (ho[hh] ?? []).map(normal);
+    const ch = (...d: string[]) => eh.findIndex((c) => d.some((x) => c.startsWith(x)));
+    const H = { date: ch("date"), an: ch("annee"), type: ch("type"), ref: ch("bien"), montant: ch("montant"), commission: ch("ma commission"), mois: ch("mois") };
+    for (const l of ho.slice(hh + 1)) {
+      if (!l) continue;
+      const commission = nombre(val(l, H.commission));
+      const type = TYPES.find(([re]) => re.test(normal(val(l, H.type))))?.[1];
+      if (!commission || !type) continue;
+      const an = nombre(val(l, H.an));
+      const n = nombre(val(l, H.mois)) ?? 0;
+      const moisPaie = an && n >= 1 && n <= 12 ? `${an}-${String(n).padStart(2, "0")}` : undefined;
+      const ref = val(l, H.ref);
+      const date = dateExcel(val(l, H.date));
+      ventes.push({
+        nature: "vente",
+        type,
+        libelle: ref || `${type === "vente" ? "Vente" : type === "location" ? "Location" : "Gestion"}${moisPaie ? ` de ${moisPaie.slice(5)}/${moisPaie.slice(0, 4)}` : ""}`,
+        honoraires: nombre(val(l, H.montant)),
+        dateActe: date,
+        moisPaie,
+        statut: moisPaie ? "acte" : "offre",
+        partage: 1,
+        commission,
+        source: "excel",
+        cle: `revenus:${type}|${normal(ref)}|${val(l, H.montant)}|${date ?? ""}`,
+      });
+    }
+  }
+  return { genre: "revenus", ventes, mois, periodes, reglages, objectifs: {}, ignorees: 0 };
+}
+
