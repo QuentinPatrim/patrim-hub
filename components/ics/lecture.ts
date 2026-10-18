@@ -100,7 +100,7 @@ const ENTITES: Record<string, string> = {
   ocirc: "ô", ouml: "ö", ugrave: "ù", ucirc: "û", uuml: "ü", Eacute: "É", Egrave: "È", Ecirc: "Ê", Agrave: "À", Acirc: "Â",
   Ccedil: "Ç", Icirc: "Î", Ocirc: "Ô", Ugrave: "Ù", Ucirc: "Û",
 };
-function entites(s: string) {
+export function entites(s: string) {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (tout, e: string) => {
     if (e[0] === "#") {
       const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
@@ -222,7 +222,7 @@ interface Entree {
   taille: number;
 }
 
-function lireZip(o: Uint8Array) {
+export function lireZip(o: Uint8Array) {
   const v = new DataView(o.buffer, o.byteOffset, o.byteLength);
   let fin = -1;
   for (let i = o.length - 22; i >= Math.max(0, o.length - 65557); i--) {
@@ -250,7 +250,7 @@ function lireZip(o: Uint8Array) {
   return entrees;
 }
 
-async function extraire(o: Uint8Array, e: Entree) {
+export async function extraire(o: Uint8Array, e: Entree) {
   const brut = o.subarray(e.offset, e.offset + e.taille);
   if (e.methode === 0) return brut;
   if (e.methode !== 8) throw new ErreurLecture("Ce fichier Excel utilise une compression inconnue. Enregistrez-le en CSV.");
