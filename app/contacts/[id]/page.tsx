@@ -677,7 +677,7 @@ function BienRow({ b, score, raisons, ecarts, dejaPropose, onPropose, onMail }: 
           ) : (
             <Home size={20} className="text-muted" />
           )}
-          <span className={cx("absolute bottom-1 left-1 rounded-md px-1.5 text-[10px] font-bold text-white", score >= 80 ? "bg-ok" : score >= 65 ? "bg-brand" : "bg-slate-patrim")}>{score}%</span>
+
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={`/biens/${b.id}`} className="block">

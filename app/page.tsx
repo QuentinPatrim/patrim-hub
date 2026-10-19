@@ -69,6 +69,7 @@ export default function Accueil() {
     .filter((r) => r.statut !== "annule" && new Date(r.debut).toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }) === jour)
     .sort((a, b) => a.debut.localeCompare(b.debut));
   const aFaire = taches.filter((t) => !t.fait).sort((a, b) => (a.priorite ?? 3) - (b.priorite ?? 3) || (a.echeance ?? "9").localeCompare(b.echeance ?? "9"));
+  const tachesFaites = taches.filter((t) => t.fait).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const relances = mounted ? aRappeler(contacts, delaiChoisi()) : [];
   const brief = [...briefings].sort((a, b) => b.date.localeCompare(a.date))[0];
   const pipeline = (["nouveau", "qualifie", "visite", "offre", "compromis"] as EtapeAcquereur[]).map((e) => ({ e, n: acquereurs.filter((c) => (c.etape ?? "nouveau") === e).length }));
@@ -234,6 +235,24 @@ export default function Accueil() {
               </ul>
             ) : (
               <p className="flex items-center gap-2 px-1 pt-2 text-sm text-muted"><CheckCircle2 size={17} className="text-ok" /> Tout est fait, beau travail.</p>
+            )}
+            {tachesFaites.length > 0 && (
+              <details className="mt-2 rounded-xl border border-line px-2">
+                <summary className="cursor-pointer list-none py-2 text-xs text-muted select-none">
+                  {tachesFaites.length} tâche{tachesFaites.length > 1 ? "s" : ""} faite{tachesFaites.length > 1 ? "s" : ""} · archivée{tachesFaites.length > 1 ? "s" : ""}
+                </summary>
+                <ul className="-mx-2 pb-2">
+                  {tachesFaites.slice(0, 20).map((t) => (
+                    <li key={t.id} className="flex items-start gap-3 rounded-xl px-2 py-2">
+                      <CheckCircle2 size={20} strokeWidth={1.8} className="mt-px shrink-0 text-ok/70" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm text-muted line-through">{t.titre}</span>
+                      </div>
+                      <button onClick={() => majTache(t.id, { fait: false })} className="btn-ghost btn-sm shrink-0 text-muted" aria-label="Remettre à faire">Remettre</button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </Card>
         </div>

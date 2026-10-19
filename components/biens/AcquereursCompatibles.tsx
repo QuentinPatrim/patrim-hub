@@ -1,9 +1,10 @@
 "use client";
 
+import { niveauMatch } from "@/lib/matching";
 import Link from "next/link";
 import { titrePublic } from "@/lib/titrePublic";
 import { useState } from "react";
-import { Check, Mail, MessageCircle, Phone, Send, Users } from "lucide-react";
+import { Check, Mail, MessageCircle, Phone, Send, Sparkles, Users } from "lucide-react";
 import { Avatar, Badge, Card, Empty, cx } from "@/components/ui";
 import { update } from "@/lib/store";
 import { ETAPE, eurK, initiales, nomComplet } from "@/lib/format";
@@ -130,12 +131,8 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
 
 function ScoreRing({ score }: { score: number }) {
   return (
-    <span className="absolute -bottom-1.5 -right-1.5 grid place-items-center size-6 rounded-full bg-surface text-[9px] font-bold text-accent ring-2 ring-surface" title={`Compatibilité ${score} %`}>
-      <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="rgb(var(--line))" strokeWidth="4" />
-        <circle cx="18" cy="18" r="15" fill="none" stroke="rgb(var(--accent))" strokeWidth="4" strokeDasharray={`${(score / 100) * 94.2} 94.2`} strokeLinecap="round" />
-      </svg>
-      <span className="relative">{score}</span>
+    <span className="absolute -bottom-1.5 -right-1.5 grid place-items-center size-6 rounded-full bg-surface ring-2 ring-surface" title={`Compatibilité : ${niveauMatch(score)}`}>
+      <Sparkles size={13} className={score >= 85 ? "text-ok" : score >= 70 ? "text-accent" : "text-muted"} />
     </span>
   );
 }
