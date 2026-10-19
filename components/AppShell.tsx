@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Calculator,
   Home,
+  KeyRound,
   LayoutGrid,
   ListChecks,
   Moon,
@@ -31,6 +32,7 @@ export const NAV = [
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/estimations", label: "Estimations", icon: Calculator },
+  { href: "/locatives", label: "Location", icon: KeyRound },
   { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
