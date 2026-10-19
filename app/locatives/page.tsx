@@ -18,6 +18,7 @@ import { ArrowLeft, ArrowRight, Building, Car, Check, FileDown, House, Info, Key
 import { Badge, Card, DpeBadge, Field, PageHeader, Spinner, cx } from "@/components/ui";
 import { AdresseInput } from "@/components/estimations/AdresseInput";
 import { Choix, Compteur, Interrupteur, Nombre } from "@/components/estimations/controls";
+import { ContactPicker } from "@/components/estimations/blocks";
 import { CONFIANCE_TONE, DPE_CLASSES, ETAT_LABEL, EXTERIEURS, quartierDe, resumeBien, type Suggestion } from "@/components/locatives/shared";
 import { ask } from "@/lib/ai";
 import { LOYERS_QUARTIER, calculerLoyer, plafondEncadrement, type LoyerInput, type LoyerResult, type LoyersMarche } from "@/lib/loyerExpress";
@@ -71,6 +72,7 @@ type Brouillon = {
   commentaire: string;
   loyerConseille?: number;
   loyerTouche?: boolean;
+  proprietaireId?: string;
 };
 
 const VIDE: Brouillon = { step: 0, saisie: { adresse: "", type: "appartement", surface: 0, parking: false, meuble: false, etat: "bon" }, comps: [], commentaire: "" };
@@ -222,6 +224,30 @@ export default function LocativesPage() {
     }
     if (loyerConseille) p.set("conseille", String(loyerConseille));
     if (b.commentaire) p.set("commentaire", b.commentaire);
+    if (s.exterieur) p.set("exterieur", s.exterieur);
+    if (s.parking) p.set("parking", "1");
+    if (s.type === "appartement" && s.etage != null) {
+      p.set("etage", String(s.etage));
+      if (s.ascenseur) p.set("ascenseur", "1");
+    }
+    if (s.dpe) p.set("dpe", s.dpe);
+    if (s.etat) p.set("etat", s.etat);
+    if (b.proprietaireId) p.set("proprio", b.proprietaireId);
+    const retenus = comps.filter((c) => !c.exclu).slice(0, 6);
+    if (retenus.length) p.set("comps", retenus.map((c) => [c.adresse, "", `${c.surface} m²${c.pieces ? ` · ${c.pieces} pièces` : ""}`, c.loyer, Math.round((c.loyer / c.surface) * 10) / 10].join("|")).join("§"));
+    const q = quartier ? LOYERS_QUARTIER[quartier] : undefined;
+    if (q) p.set("refQuartier", `${q.min}|${q.max}`);
+    if (res) {
+      const avantages = [
+        s.exterieur ? `Extérieur : ${s.exterieur.toLowerCase()}` : "",
+        s.parking ? "Stationnement" : "",
+        s.meuble ? "Location meublée (loyer majoré)" : "",
+        ...res.ajustements.filter((a) => a.pct > 0).map((a) => a.label),
+      ].filter(Boolean);
+      const vigilances = res.ajustements.filter((a) => a.pct < 0).map((a) => a.label);
+      if (avantages.length) p.set("avantages", [...new Set(avantages)].join("§"));
+      if (vigilances.length) p.set("vigilances", [...new Set(vigilances)].join("§"));
+    }
     window.open(`/imprimer/locative?${p.toString()}`, "_blank");
   };
 
@@ -605,6 +631,13 @@ export default function LocativesPage() {
                 placeholder="L'assistant rédige un argumentaire prudent et chiffré à partir des loyers. Vous pouvez aussi l'écrire vous-même."
               />
             )}
+          </Card>
+
+          <Card title="Propriétaire">
+            <ContactPicker value={b.proprietaireId} onChange={(id) => set({ proprietaireId: id })} />
+            <p className="mt-2 text-[11px] text-muted">
+              Sélectionné ici, le propriétaire reçoit l'avis par mail (un brouillon s'ouvre, rien n'est envoyé automatiquement) et son nom apparaît sur le document.
+            </p>
           </Card>
 
           <div className="flex flex-wrap gap-2 pt-1">

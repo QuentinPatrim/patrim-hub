@@ -14,6 +14,7 @@ import { enLettres } from "@/components/documents/charte";
 import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { ACTIONS_EXCLU, CHAMPS_MANDAT, COMPTES_RENDUS_EXCLU, DIAGNOSTICS, NATURES, TYPES_MANDAT, avecExclusivite, typeMandat, ecrireMandat, effacerMandat, lireMandat, mailDemandeMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
 import { enregistrerActe } from "@/components/documents/archive";
+import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 
@@ -33,11 +34,16 @@ export default function MandatPage() {
   const [etape, setEtape] = useState<"parties" | "redaction">("parties");
   const [demande, setDemande] = useState<Partie | null>(null);
   const [waited, setWaited] = useState(false);
+  const [numeroAgence, setNumeroAgence] = useState<{ numero: number; prochains: number[] } | null>(null);
+  const [numeroPris, setNumeroPris] = useState(false);
   const init = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setWaited(true), 1200);
     return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    void apercuNumero().then(setNumeroAgence);
   }, []);
 
   const vendeursDuBien = () => (b?.vendeurIds ?? []).map((v) => contacts.find((c) => c.id === v)).filter(Boolean) as ContactEtatCivil[];
@@ -154,8 +160,13 @@ export default function MandatPage() {
                   : "Le vendeur reste libre de vendre lui-même ou par d'autres agences. Premier mois irrévocable."}
             </p>
             <div className="grid grid-cols-2 items-end gap-3">
-              <Field label="N° de mandat">
-                <input className="input" inputMode="numeric" value={m.numero ?? ""} onChange={(e) => set({ numero: e.target.value })} />
+              <Field label="N° de mandat" hint={numeroAgence ? `Prochain numéro de l'agence : ${numeroAgence.numero}` : undefined}>
+                <div className="flex gap-2">
+                  <input className="input" inputMode="numeric" value={m.numero ?? ""} onChange={(e) => set({ numero: e.target.value })} placeholder={numeroAgence ? String(numeroAgence.numero) : "Ex. 1023"} />
+                  <button type="button" className="btn-secondary shrink-0" disabled={numeroPris} onClick={() => { void reserverNumero().then((n) => { if (n) { set({ numero: String(n) }); setNumeroPris(true); setNumeroAgence((x) => (x ? { numero: n + 1, prochains: [n + 2, n + 3] } : x)); } }); }}>
+                    {numeroPris ? "Réservé" : "Numéro agence"}
+                  </button>
+                </div>
               </Field>
               <Field label="Durée">
                 <NumInput value={m.dureeMois} onChange={(v) => set({ dureeMois: v ?? 12 })} suffix="mois" />
