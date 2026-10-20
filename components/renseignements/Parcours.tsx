@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, FileText, Lock, Phone, Plus, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, Lock, Phone, Plus, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { cx, Field } from "@/components/ui";
 import { PartageLien } from "./Partage";
 import {
@@ -214,7 +214,6 @@ export function Parcours({ jeton }: { jeton: string }) {
             </button>
           )}
         </div>
-        <Pieces />
       </Cadre>
     );
 
@@ -260,7 +259,6 @@ export function Parcours({ jeton }: { jeton: string }) {
           />
         )}
       </div>
-      <Pieces />
       <Confidentialite conseiller={vue.logement.conseiller} expire={vue.expire} />
     </Cadre>
   );
@@ -333,31 +331,6 @@ const STATUT: Record<PersonneDossier["statut"], { label: string; cls: string }> 
 };
 function Statut({ s }: { s: PersonneDossier["statut"] }) {
   return <span className={cx("inline-flex h-6 items-center rounded-full px-2.5 text-[11px] font-semibold", STATUT[s].cls)}>{STATUT[s].label}</span>;
-}
-
-function Pieces() {
-  return (
-    <details className="card card-pad mt-4 group">
-      <summary className="flex cursor-pointer list-none items-center gap-3">
-        <FileText size={18} className="shrink-0 text-accent" />
-        <span className="flex-1 text-sm font-semibold">Les pièces à préparer</span>
-        <ChevronRight size={16} className="text-muted transition group-open:rotate-90" />
-      </summary>
-      <div className="mt-3 space-y-3 text-sm">
-        <p className="text-muted">Votre conseiller vous dira comment les lui transmettre. Pour chaque personne :</p>
-        <ul className="space-y-1.5">
-          {["Une pièce d'identité en cours de validité", "Un justificatif de domicile (trois dernières quittances, ou avis de taxe foncière, ou attestation d'hébergement)", "Un justificatif d'activité (contrat de travail, attestation employeur, carte d'étudiant…)", "Des justificatifs de revenus (trois derniers bulletins de salaire, dernier avis d'imposition…)"].map((p) => (
-            <li key={p} className="flex gap-2">
-              <Check size={15} className="mt-0.5 shrink-0 text-ok" /> <span>{p}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="text-xs text-muted">
-          Ne nous envoyez jamais : relevé de compte bancaire, carte Vitale, photo d&apos;identité, attestation de bonne tenue de compte, chèque de réservation. La loi interdit de vous les demander.
-        </p>
-      </div>
-    </details>
-  );
 }
 
 function Confidentialite({ conseiller, expire }: { conseiller?: VuePublique["logement"]["conseiller"]; expire: string }) {
@@ -512,7 +485,6 @@ function EtapeTravail({ r, setR }: PropsEtape) {
         <>
           <Texte r={r} setR={setR} k="profession" label={r.pro === "etudiant" ? "Études suivies" : r.pro === "retraite" ? "Ancienne profession" : "Profession"} />
           {salarie && <Texte r={r} setR={setR} k="employeur" label={r.pro === "independant" ? "Entreprise (nom et ville)" : "Employeur (nom et ville)"} />}
-          {salarie && <Texte r={r} setR={setR} k="depuis" label={r.pro === "independant" ? "Activité depuis le" : "Date d'embauche"} type="date" />}
           {(r.pro === "cdd" || r.pro === "interim" || r.pro === "apprenti") && <Texte r={r} setR={setR} k="finCdd" label="Fin du contrat" type="date" />}
         </>
       )}

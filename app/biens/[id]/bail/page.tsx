@@ -24,6 +24,7 @@ import {
   QUALITES,
   alertesBail,
   bailInitial,
+  completerDepuisAnnonce,
   depotMax,
   dureeBail,
   ecrireBail,
@@ -74,7 +75,7 @@ export default function BailPage() {
     init.current = true;
     const existant = lireBail(b.id);
     if (existant) {
-      setX(existant);
+      setX(completerDepuisAnnonce(existant, b));
       if (existant.locataires.length) setEtape("redaction");
     } else setX(bailInitial(b, proprietaires()));
     // eslint-disable-next-line react-hooks/exhaustive-deps

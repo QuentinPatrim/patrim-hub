@@ -8,7 +8,7 @@ import { create, getAll, update } from "@/lib/store";
 import { conseiller, nomConseiller } from "@/lib/equipe";
 import { titrePublic } from "@/lib/titrePublic";
 import { ficheInitiale, lireFiche } from "@/components/candidat/candidat";
-import { bailInitial, ecrireBail, lireBail, type Bail } from "@/components/bail/bail";
+import { bailInitial, completerDepuisAnnonce, ecrireBail, lireBail, type Bail } from "@/components/bail/bail";
 import { cautionInitiale, ecrireCaution, nomCaution, type Caution, type Situation } from "@/components/caution/caution";
 import { partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import type { Acte, BienActes } from "@/components/documents/archive";
@@ -111,7 +111,8 @@ function partiesLocataires(b: Bien, d: Dossier) {
 /** Met les locataires du dossier dans le brouillon de bail du bien (créé s'il n'existe pas). */
 export function preparerBail(b: Bien, d: Dossier): Bail {
   const locataires = [...partiesLocataires(b, d).values()];
-  const bail = lireBail(b.id) ?? bailInitial(b, proprietaires(b));
+  const brouillon = lireBail(b.id);
+  const bail = brouillon ? completerDepuisAnnonce(brouillon, b) : bailInitial(b, proprietaires(b));
   const x = { ...bail, locataires };
   ecrireBail(x);
   return x;
