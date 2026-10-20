@@ -98,12 +98,14 @@ export function EquipeCard() {
       <div className="mt-3 -mx-1 space-y-1">
         {PREVUS.map((p) => {
           const m = autres.find((x) => x.email?.toLowerCase() === p.email);
+          const sansEmail = autres.some((x) => !x.email && `${x.prenom} ${x.nom}`.toLowerCase() === `${p.prenom} ${p.nom}`.toLowerCase());
           return (
+
             <button key={p.email} onClick={() => choisir(p)} className="w-full min-h-[52px] flex items-center gap-3 rounded-2xl px-1 py-2 text-left hover:bg-surface-2 transition">
               <span className="grid place-items-center size-10 shrink-0 rounded-xl bg-surface-2 ring-1 ring-inset ring-line/80 text-sm font-semibold">{p.prenom[0]}{p.nom[0]}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 text-sm font-semibold">
-                  {p.prenom} {p.nom} <Badge tone={m ? "ok" : "neutral"}>{m ? "Accès créé" : "Pas encore d'accès"}</Badge>
+                  {p.prenom} {p.nom} <Badge tone={m || sansEmail ? "ok" : "neutral"}>{m || sansEmail ? "Accès créé" : "Pas encore d'accès"}</Badge>
                 </span>
                 <span className="block text-xs text-muted">{ROLE_EQUIPE[p.role].label} · {ROLE_EQUIPE[p.role].detail}</span>
               </span>
@@ -111,7 +113,7 @@ export function EquipeCard() {
           );
         })}
         {autres
-          .filter((m) => !PREVUS.some((p) => p.email === m.email?.toLowerCase()))
+          .filter((m) => !PREVUS.some((p) => p.email === m.email?.toLowerCase() || (!m.email && `${p.prenom} ${p.nom}`.toLowerCase() === `${m.prenom} ${m.nom}`.toLowerCase())))
           .map((m) => (
             <div key={m.user_id} className="flex items-center gap-3 px-1 py-2 text-sm">
               <span className="grid place-items-center size-10 shrink-0 rounded-xl bg-surface-2 ring-1 ring-inset ring-line/80 font-semibold">{(m.prenom[0] ?? "") + (m.nom[0] ?? "")}</span>
