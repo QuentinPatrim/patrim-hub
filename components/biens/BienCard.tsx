@@ -7,9 +7,12 @@ import type { Bien } from "@/lib/types";
 import { STATUT_BIEN, eur, m2 } from "@/lib/format";
 import { BienCover } from "./BienVisual";
 import { joursDepuis, prixM2 } from "./utils";
+import { STATUT_LOCATION, locationDe } from "@/components/location/bienLocation";
 
-export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches: number; index?: number }) {
-  const st = STATUT_BIEN[b.statut] ?? STATUT_BIEN.estimation;
+/** `location` : carte vue côté location (statut locatif, loyer au lieu du prix). */
+export function BienCard({ bien: b, matches, index = 0, location }: { bien: Bien; matches: number; index?: number; location?: boolean }) {
+  const loc = location ? locationDe(b) : undefined;
+  const st = loc ? STATUT_LOCATION[loc.statut] : (STATUT_BIEN[b.statut] ?? STATUT_BIEN.estimation);
   const pm2 = prixM2(b);
   const jours = joursDepuis(b.dateMiseEnVente);
   const actif = b.statut !== "vendu" && b.statut !== "retire";
@@ -36,11 +39,29 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
         )}
         <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
           <div className="min-w-0 text-white drop-shadow-[0_1px_8px_rgba(0,0,0,.35)]">
-            <div className="font-serif text-[26px] font-semibold tracking-tight leading-none tabular-nums">{b.prix ? eur(b.prix) : <span className="font-sans text-sm font-medium text-white/85">Prix à définir</span>}</div>
-            {pm2 && <div className="mt-1 text-[11px] font-medium text-white/75 tabular-nums">{eur(pm2)}/m²</div>}
+            {location ? (
+              <>
+                <div className="font-serif text-[26px] font-semibold tracking-tight leading-none tabular-nums">
+                  {loc?.loyer ? (
+                    <>
+                      {eur(loc.loyer)}
+                      <span className="font-sans text-sm font-medium text-white/80"> /mois</span>
+                    </>
+                  ) : (
+                    <span className="font-sans text-sm font-medium text-white/85">Loyer à définir</span>
+                  )}
+                </div>
+                {loc?.charges ? <div className="mt-1 text-[11px] font-medium text-white/75 tabular-nums">+ {eur(loc.charges)} de charges</div> : null}
+              </>
+            ) : (
+              <>
+                <div className="font-serif text-[26px] font-semibold tracking-tight leading-none tabular-nums">{b.prix ? eur(b.prix) : <span className="font-sans text-sm font-medium text-white/85">Prix à définir</span>}</div>
+                {pm2 && <div className="mt-1 text-[11px] font-medium text-white/75 tabular-nums">{eur(pm2)}/m²</div>}
+              </>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
-            {actif && matches > 0 && (
+            {!location && actif && matches > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-2.5 h-6 text-[11px] font-semibold text-white shadow ring-1 ring-white/15">
                 <Users size={12} /> {matches} acquéreur{matches > 1 ? "s" : ""}
               </span>
@@ -87,7 +108,9 @@ export function BienCard({ bien: b, matches, index = 0 }: { bien: Bien; matches:
         <div className="mt-auto pt-3 border-t border-line/60 flex items-center justify-between text-xs text-muted">
           <span className="inline-flex items-center gap-1">
             <Clock size={12} />
-            {jours != null ? (actif ? `En vente depuis ${jours} j` : `Mis en vente il y a ${jours} j`) : `Ajouté le ${new Date(b.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
+            {location
+              ? [loc?.meuble ? "Meublé" : "Vide", loc?.gestion ? `En gestion${loc.gestion.numero ? ` n° ${loc.gestion.numero}` : ""}` : null].filter(Boolean).join(" · ")
+              : jours != null ? (actif ? `En vente depuis ${jours} j` : `Mis en vente il y a ${jours} j`) : `Ajouté le ${new Date(b.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
           </span>
           {b.ref && <span className={cx("font-mono text-[11px] text-muted/80")}>{b.ref}</span>}
         </div>

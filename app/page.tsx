@@ -29,6 +29,7 @@ import { Aujourdhui, aRappeler, delaiChoisi } from "@/components/accueil/Aujourd
 import { honorairesPotentiels } from "@/components/chiffres/chiffres";
 import type { Briefing, EtapeAcquereur } from "@/lib/types";
 import { useMoi } from "@/lib/equipe";
+import { locationDe } from "@/components/location/bienLocation";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
@@ -59,6 +60,7 @@ export default function Accueil() {
   const jour = today();
   const enVente = biens.filter(BIEN_DISPONIBLE);
   const valeur = enVente.reduce((s, b) => s + (b.prix ?? 0), 0);
+  const aLouer = biens.filter((b) => locationDe(b)?.statut === "a_louer").length;
   const honoraires = honorairesPotentiels(biens, jour);
   const acquereurs = contacts.filter(ACQUEREUR_ACTIF);
   const semaine = useMemo(() => {
@@ -133,7 +135,7 @@ export default function Accueil() {
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-              <HeroFig href="/biens" label="Biens en vente" value={enVente.length} hint={valeur ? `${eurK(valeur)} en portefeuille` : "Aucun mandat actif"} />
+              <HeroFig href="/biens" label="Biens en vente" value={enVente.length} hint={aLouer ? `${aLouer} à louer en plus` : valeur ? `${eurK(valeur)} en portefeuille` : "Aucun mandat actif"} />
               <HeroFig href="/chiffres" label="Honoraires potentiels" value={eurK(honoraires)} hint="Voir mes chiffres" />
               <HeroFig href="/contacts" label="Acquéreurs actifs" value={acquereurs.length} hint={`${chauds} chaud${chauds > 1 ? "s" : ""}`} />
               <HeroFig href="/agenda" label="Rendez-vous à 7 jours" value={semaine.length} hint={`${visites} visite${visites > 1 ? "s" : ""}`} />

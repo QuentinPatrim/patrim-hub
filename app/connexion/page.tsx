@@ -33,7 +33,7 @@ export default function Connexion() {
           <div>
             <div className="font-semibold tracking-[0.24em] text-[15px]">PATRIM</div>
             <div className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/55">
-              <span className="h-px w-3 bg-coral" /> Espace vente
+              <span className="h-px w-3 bg-coral" /> Vente &amp; location
             </div>
           </div>
         </div>

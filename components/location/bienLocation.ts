@@ -1,8 +1,15 @@
 import type { Bien } from "@/lib/types";
+import type { Tone } from "@/lib/format";
 
 /* Location d'un bien : rangée à côté des champs de vente, sans modifier lib/types.ts. */
 
 export type StatutLocation = "a_louer" | "loue" | "preavis";
+
+export const STATUT_LOCATION: Record<StatutLocation, { label: string; tone: Tone }> = {
+  a_louer: { label: "À louer", tone: "ok" },
+  loue: { label: "Loué", tone: "brand" },
+  preavis: { label: "En préavis", tone: "warn" },
+};
 
 export interface InfosLocation {
   statut: StatutLocation;
@@ -18,6 +25,8 @@ export interface InfosLocation {
   gestion?: { numero?: string; debut?: string; acteId?: string };
 }
 
-export type BienLocation = Bien & { location?: InfosLocation };
+/** `transaction: "location"` : bien entré dans le Hub seulement pour la location (pas en vente). */
+export type BienLocation = Bien & { location?: InfosLocation; transaction?: "vente" | "location" };
 
 export const locationDe = (b: Bien) => (b as BienLocation).location;
+export const locationSeule = (b: Bien) => (b as BienLocation).transaction === "location";
