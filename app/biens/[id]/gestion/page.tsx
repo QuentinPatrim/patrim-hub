@@ -13,7 +13,7 @@ import { EtapeBtn, Etat, PartieForm } from "@/components/documents/Parties";
 import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { CHAMPS_GESTION, NATURES, TARIFS, USAGES, alertesGestion, ecrireGestion, effacerGestion, gestionInitiale, lireGestion, mailDemandeGestion, ttc, type Gestion } from "@/components/gestion/gestion";
 import { locationDe } from "@/components/location/bienLocation";
-import { enregistrerActe } from "@/components/documents/archive";
+import { enregistrerActe, type BienActes } from "@/components/documents/archive";
 import { useCollection, useDoc } from "@/lib/store";
 import { nomComplet, today } from "@/lib/format";
 
@@ -30,6 +30,7 @@ export default function GestionPage() {
   const router = useRouter();
   const { doc: b } = useDoc("biens", id);
   const { items: contactsRaw } = useCollection("contacts");
+  const { items: tousBiens } = useCollection("biens");
   const contacts = contactsRaw as ContactEtatCivil[];
   const [g, setG] = useState<Gestion | null>(null);
   const [etape, setEtape] = useState<"parties" | "redaction">("parties");
@@ -83,6 +84,9 @@ export default function GestionPage() {
   }
 
   const alertes = alertesGestion(g);
+  // Registre de gestion, distinct de celui de la vente : numéro suivant d'après les mandats de gestion déjà rédigés dans le Hub.
+  const numeros = (tousBiens as BienActes[]).flatMap((x) => (x.actes ?? []).filter((a) => a.kind === "gestion" && a.id !== g.acteId).map((a) => parseInt(String((a.data as Gestion).numero ?? ""), 10))).filter((n) => !isNaN(n));
+  const prochain = numeros.length ? Math.max(...numeros) + 1 : undefined;
   const voirPdf = () => {
     enregistrerParties(g.mandants, contacts);
     const acteId = enregistrerActe(b.id, "gestion", g);
@@ -139,8 +143,15 @@ export default function GestionPage() {
 
           <Card title="Le mandat">
             <div className="grid grid-cols-2 items-end gap-3">
-              <Field label="N° de mandat" hint="Registre des mandats de gestion">
-                <input className="input" inputMode="numeric" value={g.numero ?? ""} onChange={(e) => set({ numero: e.target.value })} placeholder="Ex. 245" />
+              <Field label="N° de mandat" hint={prochain ? `Suivant au registre de gestion : ${prochain}` : "Registre des mandats de gestion"}>
+                <div className="flex gap-2">
+                  <input className="input" inputMode="numeric" value={g.numero ?? ""} onChange={(e) => set({ numero: e.target.value })} placeholder={prochain ? String(prochain) : "Ex. 245"} />
+                  {prochain && !g.numero && (
+                    <button type="button" className="btn-secondary shrink-0" onClick={() => set({ numero: String(prochain) })}>
+                      {prochain}
+                    </button>
+                  )}
+                </div>
               </Field>
               <Field label="Date du mandat">
                 <input type="date" className="input" value={g.date} onChange={(e) => set({ date: e.target.value || today() })} />
