@@ -8,6 +8,7 @@ import {
   Calculator,
   Home,
   KeyRound,
+  FileSignature,
   LayoutGrid,
   ListChecks,
   Moon,
@@ -33,6 +34,7 @@ export const NAV = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/estimations", label: "Estimations", icon: Calculator },
   { href: "/locatives", label: "Location", icon: KeyRound },
+  { href: "/rediger", label: "Rédiger", icon: FileSignature },
   { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
