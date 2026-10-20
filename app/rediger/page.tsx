@@ -10,7 +10,7 @@
    Chaque document déjà rédigé est listé ici, trié par date.
    ============================================================ */
 
-import { FileSignature, FileText, Handshake, Home, PenLine, Plus, Search } from "lucide-react";
+import { FileSignature, FileText, Handshake, Home, PenLine, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -18,6 +18,7 @@ import { Badge, Card, Empty, Field, PageHeader, Sheet, Spinner, cx } from "@/com
 import { ContactPicker } from "@/components/estimations/blocks";
 import { Choix, Interrupteur, Nombre } from "@/components/estimations/controls";
 import { actesDuBien, lienActe, resumeActe, statutActe, titreActe, type Acte, type BienActes } from "@/components/documents/rediger";
+import { supprimerActe } from "@/components/documents/archive";
 import { create, getAll, useCollection } from "@/lib/store";
 import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { today } from "@/lib/format";
@@ -38,6 +39,7 @@ export default function RedigerPage() {
   const [vue, setVue] = useState<Vue>("tous");
   const [q, setQ] = useState("");
   const [sheet, setSheet] = useState<(typeof KINDS)[number] | null>(null);
+  const [aSupprimer, setASupprimer] = useState<{ bien: BienActes; acte: Acte } | null>(null);
 
   const biensActes = biens as BienActes[];
   const documents = useMemo(() => {
@@ -134,7 +136,23 @@ export default function RedigerPage() {
                         {bien.titre || bien.adresse || "Bien sans titre"}
                       </p>
                     </div>
-                    <Badge tone={st.tone}>{st.label}</Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                      {acte.statut !== "signe" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setASupprimer({ bien, acte });
+                          }}
+                          className="btn-ghost btn-sm !px-2 text-muted hover:text-danger"
+                          aria-label="Supprimer ce brouillon"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </Link>
                 </li>
               );
@@ -144,6 +162,42 @@ export default function RedigerPage() {
       </div>
 
       {sheet && <FeuilleChoixBien kind={sheet.v} label={sheet.label} onClose={() => setSheet(null)} biens={biensActes} router={router} />}
+
+      {aSupprimer && (
+        <Sheet
+          open
+          onClose={() => setASupprimer(null)}
+          title="Supprimer ce document ?"
+          footer={
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary flex-1" onClick={() => setASupprimer(null)}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn-primary flex-1 !bg-danger !border-danger"
+                onClick={() => {
+                  supprimerActe(aSupprimer.bien.id, aSupprimer.acte.id);
+                  setASupprimer(null);
+                }}
+              >
+                <Trash2 size={16} /> Supprimer
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm">
+            <span className="font-semibold">{titreActe(aSupprimer.acte)}</span>
+            <br />
+            <span className="text-muted">
+              {resumeActe(aSupprimer.acte)} · {aSupprimer.bien.titre || aSupprimer.bien.adresse}
+            </span>
+          </p>
+          <p className="mt-3 text-xs text-muted">
+            Le document est retiré du bien. Le brouillon local de rédaction reste sur cet appareil et pourra être repris si vous rouvrez la rédaction. Un document signé ne peut pas être supprimé.
+          </p>
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -295,7 +349,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
             {erreur && <p className="text-xs text-danger">{erreur}</p>}
             {kind === "mandat" && numeroAgence && (
               <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
-                Le mandat prendra le <span className="font-semibold text-fg">n° ${numeroAgence}</span> de l'agence, réservé automatiquement à la création.
+                Le mandat prendra le <span className="font-semibold text-fg">n° {numeroAgence}</span> de l'agence, réservé automatiquement à la création.
               </p>
             )}
             <button type="button" className="btn-primary !h-12 w-full" disabled={!peutCreer || numeroCharge} onClick={() => void creerEtAller()}>
