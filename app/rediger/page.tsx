@@ -1,0 +1,310 @@
+"use client";
+
+/* ============================================================
+   Rédiger : tout ce qui s'imprime et se signe, au même endroit.
+   - Mandat de vente : sur un bien existant, ou le bien se crée
+     automatiquement à partir du mandat (nouveau dossier terrain).
+   - Offre d'achat : parmi les biens existants, ou un bien nouveau
+     saisi à la volée.
+   - Avenant (prix, durée), bon de visite : sur un bien existant.
+   Chaque document déjà rédigé est listé ici, trié par date.
+   ============================================================ */
+
+import { FileSignature, FileText, Handshake, Home, PenLine, Plus, Search } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { Badge, Card, Empty, Field, PageHeader, Sheet, Spinner, cx } from "@/components/ui";
+import { ContactPicker } from "@/components/estimations/blocks";
+import { Choix, Interrupteur, Nombre } from "@/components/estimations/controls";
+import { actesDuBien, lienActe, resumeActe, statutActe, titreActe, type Acte, type BienActes } from "@/components/documents/rediger";
+import { create, getAll, useCollection } from "@/lib/store";
+import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
+import { today } from "@/lib/format";
+import type { Bien } from "@/lib/types";
+
+type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon";
+
+const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
+  { v: "mandat", label: "Mandat de vente", icon: FileSignature, desc: "Simple, semi-exclusif ou exclusif. Le bien peut être créé automatiquement." },
+  { v: "offre", label: "Offre d'achat", icon: Handshake, desc: "Sur un bien existant, ou un bien saisi à la volée." },
+  { v: "avenant", label: "Avenant", icon: PenLine, desc: "Nouveau prix, durée, sur un bien déjà en mandat." },
+  { v: "bon", label: "Bon de visite", icon: FileText, desc: "Fait signer les visiteurs d'un bien en vente." },
+];
+
+export default function RedigerPage() {
+  const router = useRouter();
+  const { items: biens } = useCollection("biens");
+  const [vue, setVue] = useState<Vue>("tous");
+  const [q, setQ] = useState("");
+  const [sheet, setSheet] = useState<(typeof KINDS)[number] | null>(null);
+
+  const biensActes = biens as BienActes[];
+  const documents = useMemo(() => {
+    const out: { bien: BienActes; acte: Acte }[] = [];
+    for (const b of biensActes) for (const a of actesDuBien(b)) out.push({ bien: b, acte: a });
+    return out.sort((x, y) => y.acte.maj.localeCompare(x.acte.maj));
+  }, [biensActes]);
+
+  const filtres = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return documents
+      .filter(({ acte }) => vue === "tous" || acte.kind === vue)
+      .filter(({ bien, acte }) => !s || [titreActe(acte), bien.adresse, bien.ville, bien.titre].filter(Boolean).join(" ").toLowerCase().includes(s));
+  }, [documents, vue, q]);
+
+  const compteur = (v: Vue) => (v === "tous" ? documents.length : documents.filter((d) => d.acte.kind === v).length);
+
+  return (
+    <div>
+      <PageHeader title="Rédiger" subtitle="Mandats, offres d'achat, avenants et bons de visite : tout ce qui se rédige et se signe, au même endroit." />
+
+      {/* Créer */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 animate-fade-up">
+        {KINDS.map((k) => (
+          <button
+            key={k.v}
+            type="button"
+            onClick={() => setSheet(k)}
+            className="card card-pad card-hover group text-left"
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
+                <k.icon size={19} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold leading-tight">{k.label}</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-muted">{k.desc}</p>
+              </div>
+              <Plus size={16} className="ml-auto shrink-0 text-muted group-hover:text-accent" />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Liste */}
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap gap-1.5">
+          {(["tous", "mandat", "offre", "avenant", "bon"] as Vue[]).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setVue(v)}
+              className={cx("chip !h-9 !px-3.5 capitalize", vue === v && "!border-accent !text-accent")}
+            >
+              {v === "tous" ? "Tous" : KINDS.find((k) => k.v === v)?.label}
+              <span className="ml-1.5 tabular-nums opacity-60">{compteur(v)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative sm:ml-auto sm:w-64">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input className="input pl-9" placeholder="Bien, adresse, acquéreur…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        {documents.length === 0 ? (
+          <div className="card">
+            <Empty
+              icon={<FileText size={22} />}
+              title="Aucun document pour le moment"
+              text="Rédigez un mandat, une offre d'achat ou un bon de visite : tout est gardé ici, avec son statut."
+            />
+          </div>
+        ) : filtres.length === 0 ? (
+          <div className="card">
+            <Empty icon={<Search size={20} />} title="Aucun document ici" text="Changez de filtre ou de recherche." />
+          </div>
+        ) : (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {filtres.map(({ bien, acte }) => {
+              const st = statutActe(acte);
+              return (
+                <li key={acte.id}>
+                  <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-4 min-w-0">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-brand">
+                      {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : <PenLine size={18} />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold group-hover:text-accent">{titreActe(acte)}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{resumeActe(acte)}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted">
+                        <Home size={11} className="mr-1 inline" />
+                        {bien.titre || bien.adresse || "Bien sans titre"}
+                      </p>
+                    </div>
+                    <Badge tone={st.tone}>{st.label}</Badge>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {sheet && <FeuilleChoixBien kind={sheet.v} label={sheet.label} onClose={() => setSheet(null)} biens={biensActes} router={router} />}
+    </div>
+  );
+}
+
+/* ---------- Choix du bien : existant, ou création directe ---------- */
+
+function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; label: string; biens: BienActes[]; router: ReturnType<typeof useRouter>; onClose: () => void }) {
+  const enVente = biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
+  const [mode, setMode] = useState<"existant" | "nouveau">(kind === "offre" ? "existant" : "existant");
+  const [choisi, setChoisi] = useState<string>("");
+  const [q, setQ] = useState("");
+
+  // Nouveau bien (mandat terrain / offre sur un bien pas encore créé)
+  const [adresse, setAdresse] = useState("");
+  const [ville, setVille] = useState("");
+  const [type, setType] = useState<"appartement" | "maison">("appartement");
+  const [surface, setSurface] = useState<number>();
+  const [pieces, setPieces] = useState<number>();
+  const [prix, setPrix] = useState<number>();
+  const [proprietaireId, setProprietaireId] = useState<string>();
+  const [erreur, setErreur] = useState("");
+  const [numeroAgence, setNumeroAgence] = useState<number | null>(null);
+  const [numeroCharge, setNumeroCharge] = useState(false);
+
+  const liste = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return enVente.filter((b) => !s || [b.titre, b.adresse, b.ville].filter(Boolean).join(" ").toLowerCase().includes(s)).slice(0, 8);
+  }, [enVente, q]);
+
+  // Aperçu du prochain numéro de mandat de l'agence (rien n'est consommé)
+  useMemo(() => {
+    if (kind === "mandat") void apercuNumero().then((a) => a && setNumeroAgence(a.numero));
+  }, [kind]);
+
+  const creerEtAller = async () => {
+    setErreur("");
+    setNumeroCharge(true);
+    // Mandat : le numéro de l'agence est réservé tout de suite, personne ne peut le prendre entre-temps
+    let numeroMandat: string | undefined;
+    if (kind === "mandat") {
+      const n = await reserverNumero();
+      if (n) numeroMandat = String(n);
+    }
+    const nouveau: Partial<Bien> = {
+      titre: [type === "appartement" ? "Appartement" : "Maison", pieces ? `${pieces} pièce${pieces > 1 ? "s" : ""}` : null, surface ? `${surface} m²` : null].filter(Boolean).join(" "),
+      type,
+      adresse: adresse.trim() || "[À compléter]",
+      ville: ville.trim() || undefined,
+      surface,
+      pieces,
+      prix,
+      statut: "estimation",
+      dateMiseEnVente: today(),
+    };
+    if (proprietaireId) nouveau.vendeurIds = [proprietaireId];
+    if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
+    const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
+    onClose();
+    router.push(`/biens/${b.id}/${kind === "tous" ? "mandat" : kind}`);
+  };
+
+  const peutCreer = mode === "nouveau" && (adresse.trim().length > 3 || (surface ?? 0) > 0);
+
+  return (
+    <Sheet open onClose={onClose} title={`Rédiger : ${label}`}>
+      <div className="space-y-4">
+        <Choix
+          size="lg"
+          value={mode}
+          onChange={(v) => v && setMode(v)}
+          options={[
+            { value: "existant", label: <><Home size={16} /> Bien existant</> },
+            { value: "nouveau", label: <><Plus size={16} /> Créer le bien</> },
+          ]}
+        />
+
+        {mode === "existant" ? (
+          <div className="space-y-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <input className="input pl-9" placeholder="Rechercher un bien…" value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
+            {liste.length === 0 ? (
+              <Empty icon={<Search size={18} />} title="Aucun bien trouvé" text={kind === "offre" ? "Créez le bien à la volée avec l'onglet « Créer le bien »." : undefined} />
+            ) : (
+              <ul className="space-y-1.5">
+                {liste.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        router.push(`/biens/${b.id}/${kind === "tous" ? "mandat" : kind}`);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left transition hover:bg-surface-2"
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-2 text-brand">
+                        <Home size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{b.titre || b.adresse}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          {[b.adresse, b.ville].filter(Boolean).join(", ")}
+                          {b.mandat?.numero ? ` · mandat n°${b.mandat.numero}` : ""}
+                        </p>
+                      </div>
+                      <PenLine size={15} className="shrink-0 text-muted" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              {kind === "mandat"
+                ? "Le bien sera créé automatiquement avec le mandat, prêt à compléter ensuite."
+                : "Le bien sera créé maintenant, puis l'offre se rédige dessus."}
+            </p>
+            <Field label="Adresse du bien">
+              <input className="input" value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="12 rue des Amidonniers, 31000 Toulouse" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Ville">
+                <input className="input" value={ville} onChange={(e) => setVille(e.target.value)} placeholder="Toulouse" />
+              </Field>
+              <Field label="Type">
+                <Choix value={type} onChange={(v) => v && setType(v)} options={[{ value: "appartement", label: "Appartement" }, { value: "maison", label: "Maison" }]} />
+              </Field>
+              <Field label="Surface">
+                <Nombre value={surface} onChange={setSurface} unit="m²" decimal placeholder="65" />
+              </Field>
+              <Field label="Pièces">
+                <Nombre value={pieces} onChange={setPieces} placeholder="3" />
+              </Field>
+            </div>
+            {kind === "offre" && (
+              <Field label="Prix affiché (honoraires inclus)">
+                <Nombre value={prix} onChange={setPrix} unit="€" placeholder="295 000" />
+              </Field>
+            )}
+            {kind === "mandat" && (
+              <div>
+                <span className="label">Propriétaire (facultatif)</span>
+                <ContactPicker value={proprietaireId} onChange={setProprietaireId} />
+              </div>
+            )}
+            {erreur && <p className="text-xs text-danger">{erreur}</p>}
+            {kind === "mandat" && numeroAgence && (
+              <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+                Le mandat prendra le <span className="font-semibold text-fg">n° ${numeroAgence}</span> de l'agence, réservé automatiquement à la création.
+              </p>
+            )}
+            <button type="button" className="btn-primary !h-12 w-full" disabled={!peutCreer || numeroCharge} onClick={() => void creerEtAller()}>
+              {numeroCharge ? <Spinner /> : <Plus size={16} />} Créer le bien et rédiger {label.toLowerCase()}
+            </button>
+            {!peutCreer && <p className="text-center text-[11px] text-muted">L'adresse ou la surface suffit pour créer.</p>}
+          </div>
+        )}
+      </div>
+    </Sheet>
+  );
+}
