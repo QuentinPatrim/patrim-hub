@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ClipboardList, Mail, RotateCcw } from "lucide-react";
+import { ClipboardList, Link2, Mail, RotateCcw } from "lucide-react";
 import { Card, Empty, Field, PageHeader } from "@/components/ui";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { NumInput } from "@/components/contacts/CriteresEditor";
@@ -57,6 +57,15 @@ export default function CandidatPage() {
       <p className="text-sm text-muted animate-fade-up">
         La fiche part vierge : c&apos;est le candidat qui la remplit. Elle rappelle le logement, les sommes à prévoir et les pièces à fournir.
       </p>
+      <Link href={`/biens/${b.id}/renseignements?nouveau=1`} className="card card-pad card-hover flex items-center gap-3 animate-fade-up">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+          <Link2 size={18} />
+        </span>
+        <span className="min-w-0 flex-1 text-sm">
+          <span className="block font-semibold">Plus simple : la fiche à remplir en ligne</span>
+          <span className="block text-muted">Un lien par SMS ou mail, rempli sur téléphone, qui prépare le bail et la caution.</span>
+        </span>
+      </Link>
 
       <Card title="Le logement">
         <div className="space-y-3">
