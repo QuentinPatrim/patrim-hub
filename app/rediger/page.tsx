@@ -7,10 +7,12 @@
    - Offre d'achat : parmi les biens existants, ou un bien nouveau
      saisi à la volée.
    - Avenant (prix, durée), bon de visite : sur un bien existant.
+   - Bail vide ou meublé : sur un bien existant, ou un logement
+     saisi à la volée.
    Chaque document déjà rédigé est listé ici, trié par date.
    ============================================================ */
 
-import { FileSignature, FileText, Handshake, Home, PenLine, Plus, Search, Trash2 } from "lucide-react";
+import { FileSignature, FileText, Handshake, Home, KeyRound, PenLine, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -24,13 +26,14 @@ import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 
-type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon";
+type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "bail";
 
 const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
   { v: "mandat", label: "Mandat de vente", icon: FileSignature, desc: "Simple, semi-exclusif ou exclusif. Le bien peut être créé automatiquement." },
   { v: "offre", label: "Offre d'achat", icon: Handshake, desc: "Sur un bien existant, ou un bien saisi à la volée." },
   { v: "avenant", label: "Avenant", icon: PenLine, desc: "Nouveau prix, durée, sur un bien déjà en mandat." },
   { v: "bon", label: "Bon de visite", icon: FileText, desc: "Fait signer les visiteurs d'un bien en vente." },
+  { v: "bail", label: "Bail de location", icon: KeyRound, desc: "Logement vide ou meublé, avec ses annexes, prêt pour ICSIGN." },
 ];
 
 export default function RedigerPage() {
@@ -87,7 +90,7 @@ export default function RedigerPage() {
       {/* Liste */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-1.5">
-          {(["tous", "mandat", "offre", "avenant", "bon"] as Vue[]).map((v) => (
+          {(["tous", "mandat", "offre", "avenant", "bon", "bail"] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -126,7 +129,7 @@ export default function RedigerPage() {
                 <li key={acte.id}>
                   <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-4 min-w-0">
                     <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-brand">
-                      {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : <PenLine size={18} />}
+                      {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : acte.kind === "bail" ? <KeyRound size={18} /> : <PenLine size={18} />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold group-hover:text-accent">{titreActe(acte)}</p>
@@ -205,7 +208,8 @@ export default function RedigerPage() {
 /* ---------- Choix du bien : existant, ou création directe ---------- */
 
 function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; label: string; biens: BienActes[]; router: ReturnType<typeof useRouter>; onClose: () => void }) {
-  const enVente = biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
+  // Un bail peut se faire sur n'importe quel bien, même vendu ou retiré de la vente.
+  const enVente = kind === "bail" ? biens : biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
   const [mode, setMode] = useState<"existant" | "nouveau">(kind === "offre" ? "existant" : "existant");
   const [choisi, setChoisi] = useState<string>("");
   const [q, setQ] = useState("");
@@ -253,6 +257,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
       dateMiseEnVente: today(),
     };
     if (proprietaireId) nouveau.vendeurIds = [proprietaireId];
+    if (kind === "bail") Object.assign(nouveau, { transaction: "location", location: { statut: "a_louer" } });
     if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
     const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
     onClose();
@@ -316,6 +321,8 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
             <p className="text-sm text-muted">
               {kind === "mandat"
                 ? "Le bien sera créé automatiquement avec le mandat, prêt à compléter ensuite."
+                : kind === "bail"
+                ? "Le logement sera créé maintenant, puis le bail se rédige dessus."
                 : "Le bien sera créé maintenant, puis l'offre se rédige dessus."}
             </p>
             <Field label="Adresse du bien">
@@ -340,7 +347,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
                 <Nombre value={prix} onChange={setPrix} unit="€" placeholder="295 000" />
               </Field>
             )}
-            {kind === "mandat" && (
+            {(kind === "mandat" || kind === "bail") && (
               <div>
                 <span className="label">Propriétaire (facultatif)</span>
                 <ContactPicker value={proprietaireId} onChange={setProprietaireId} />

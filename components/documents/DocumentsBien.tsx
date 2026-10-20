@@ -11,6 +11,7 @@ import { STATUT_ESTIM } from "@/components/estimations/shared";
 import type { BienStatut } from "@/lib/types";
 import { ecrireOffre } from "@/components/offre/offre";
 import { ecrireMandat } from "@/components/mandat/mandat";
+import { ecrireBail } from "@/components/bail/bail";
 import { ecrireAvenant, prixPresentation } from "@/components/avenant/avenant";
 import { STATUTS_ACTE, changerStatutActe, lienActe, resumeActe, statutActe, supprimerActe, titreActe, type Acte, type BienActes } from "./archive";
 
@@ -32,6 +33,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
     if (a.kind === "bon") return router.push(`/agenda/bon/${a.data.rdvId}`);
     if (a.kind === "offre") ecrireOffre(a.data);
     else if (a.kind === "mandat") ecrireMandat(a.data);
+    else if (a.kind === "bail") ecrireBail(a.data);
     else ecrireAvenant(a.data);
     router.push(`/biens/${bien.id}/${a.kind}${a.kind === "avenant" ? `?acte=${a.id}` : ""}`);
   };
@@ -204,7 +206,9 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                 ? "Une offre acceptée met le bien « Sous offre » ; s'il n'en reste plus aucune, il repasse « En vente »."
                 : choix.kind === "avenant"
                   ? "Un avenant signé reporte le nouveau prix et les honoraires sur le bien."
-                  : choix.kind === "bon"
+                  : choix.kind === "bail"
+                    ? "Un bail signé passe le bien « Loué » avec le loyer, les charges et les locataires."
+                    : choix.kind === "bon"
                     ? "Un bon de visite signé prouve que le visiteur a découvert le bien grâce à l'agence."
                     : "Un mandat signé reporte son numéro, son type et ses dates sur le bien."}
             </p>
