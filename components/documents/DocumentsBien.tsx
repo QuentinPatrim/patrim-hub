@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronDown, Eye, FilePen, FileSignature, FileText, KeyRound, Landmark, Pencil, Scale, Trash2 } from "lucide-react";
+import { ChevronDown, Eye, FilePen, FileSignature, FileText, KeyRound, Landmark, Pencil, Scale, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge, Card, Empty, Sheet } from "@/components/ui";
 import { STATUT_BIEN, dateCourte, eur, nomComplet } from "@/lib/format";
 import { useCollection } from "@/lib/store";
@@ -12,6 +12,7 @@ import type { BienStatut } from "@/lib/types";
 import { ecrireOffre } from "@/components/offre/offre";
 import { ecrireMandat } from "@/components/mandat/mandat";
 import { ecrireBail } from "@/components/bail/bail";
+import { ecrireCaution } from "@/components/caution/caution";
 import { ecrireAvenant, prixPresentation } from "@/components/avenant/avenant";
 import { STATUTS_ACTE, changerStatutActe, lienActe, resumeActe, statutActe, supprimerActe, titreActe, type Acte, type BienActes } from "./archive";
 
@@ -34,6 +35,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
     if (a.kind === "offre") ecrireOffre(a.data);
     else if (a.kind === "mandat") ecrireMandat(a.data);
     else if (a.kind === "bail") ecrireBail(a.data);
+    else if (a.kind === "caution") ecrireCaution(a.data);
     else ecrireAvenant(a.data);
     router.push(`/biens/${bien.id}/${a.kind}${a.kind === "avenant" ? `?acte=${a.id}` : ""}`);
   };
@@ -108,6 +110,11 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                   <button className="btn-ghost btn-sm" onClick={() => modifier(a)}>
                     <Pencil size={14} /> Modifier
                   </button>
+                  {a.kind === "bail" && a.statut !== "refuse" && (
+                    <Link href={`/biens/${bien.id}/caution?bail=${a.id}&nouvelle=1`} className="btn-ghost btn-sm">
+                      <ShieldCheck size={14} /> Caution
+                    </Link>
+                  )}
                   {a.kind === "offre" && a.statut === "signe" && (
                     <Link href={`/biens/${bien.id}/notaire?offre=${a.id}`} className="btn-ghost btn-sm">
                       <Landmark size={14} /> Notaire
@@ -206,7 +213,9 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                 ? "Une offre acceptée met le bien « Sous offre » ; s'il n'en reste plus aucune, il repasse « En vente »."
                 : choix.kind === "avenant"
                   ? "Un avenant signé reporte le nouveau prix et les honoraires sur le bien."
-                  : choix.kind === "bail"
+                  : choix.kind === "caution"
+                    ? "Un acte de cautionnement par caution (un seul pour un couple marié)."
+                    : choix.kind === "bail"
                     ? "Un bail signé passe le bien « Loué » avec le loyer, les charges et les locataires."
                     : choix.kind === "bon"
                     ? "Un bon de visite signé prouve que le visiteur a découvert le bien grâce à l'agence."

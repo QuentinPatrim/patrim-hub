@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, FileSignature, PenLine, RotateCcw, TriangleAlert } from "lucide-react";
+import { ArrowRight, Check, FileSignature, PenLine, RotateCcw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Card, Empty, Field, PageHeader, cx } from "@/components/ui";
 import { ContactPicker } from "@/components/biens/ContactPicker";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
@@ -573,6 +573,9 @@ export default function BailPage() {
             <button className="btn-primary w-full !h-12" onClick={voirPdf}>
               <FileSignature size={17} /> Voir le bail et créer le PDF
             </button>
+            <Link href={`/biens/${b.id}/caution${x.acteId ? `?bail=${x.acteId}&nouvelle=1` : ""}`} className="btn-secondary w-full">
+              <ShieldCheck size={16} /> Préparer un acte de cautionnement
+            </Link>
             {totalManquants > 0 && <p className="text-center text-xs text-warn">{totalManquants} information{totalManquants > 1 ? "s" : ""} manquante{totalManquants > 1 ? "s" : ""} : elles apparaîtront en [À compléter].</p>}
             <button
               className="btn-ghost btn-sm w-full text-muted"
