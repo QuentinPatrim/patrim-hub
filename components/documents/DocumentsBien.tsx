@@ -13,6 +13,7 @@ import { ecrireOffre } from "@/components/offre/offre";
 import { ecrireMandat } from "@/components/mandat/mandat";
 import { ecrireBail } from "@/components/bail/bail";
 import { ecrireCaution } from "@/components/caution/caution";
+import { ecrireGestion } from "@/components/gestion/gestion";
 import { ecrireAvenant, prixPresentation } from "@/components/avenant/avenant";
 import { STATUTS_ACTE, changerStatutActe, lienActe, resumeActe, statutActe, supprimerActe, titreActe, type Acte, type BienActes } from "./archive";
 
@@ -36,6 +37,7 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
     else if (a.kind === "mandat") ecrireMandat(a.data);
     else if (a.kind === "bail") ecrireBail(a.data);
     else if (a.kind === "caution") ecrireCaution(a.data);
+    else if (a.kind === "gestion") ecrireGestion(a.data);
     else ecrireAvenant(a.data);
     router.push(`/biens/${bien.id}/${a.kind}${a.kind === "avenant" ? `?acte=${a.id}` : ""}`);
   };
@@ -213,7 +215,9 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
                 ? "Une offre acceptée met le bien « Sous offre » ; s'il n'en reste plus aucune, il repasse « En vente »."
                 : choix.kind === "avenant"
                   ? "Un avenant signé reporte le nouveau prix et les honoraires sur le bien."
-                  : choix.kind === "caution"
+                  : choix.kind === "gestion"
+                    ? "Un mandat de gestion signé indique sur le bien qu'il est géré par l'agence."
+                    : choix.kind === "caution"
                     ? "Un acte de cautionnement par caution (un seul pour un couple marié)."
                     : choix.kind === "bail"
                     ? "Un bail signé passe le bien « Loué » avec le loyer, les charges et les locataires."

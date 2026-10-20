@@ -14,6 +14,8 @@ export interface InfosLocation {
   locataireIds?: string[];
   /** Bail signé dont viennent ces informations. */
   bailActeId?: string;
+  /** Mandat de gestion signé avec l'agence. */
+  gestion?: { numero?: string; debut?: string; acteId?: string };
 }
 
 export type BienLocation = Bien & { location?: InfosLocation };

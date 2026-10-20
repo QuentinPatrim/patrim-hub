@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
+  Building2,
   CalendarPlus,
   ChevronDown,
   ClipboardCheck,
+  ClipboardList,
   ExternalLink,
   Eye,
   EyeOff,
@@ -245,6 +247,14 @@ export default function BienPage() {
         <Link href={`/biens/${b.id}/bail`} className="btn-secondary shrink-0">
           <KeyRound size={16} /> <span className="sm:hidden">Bail</span>
           <span className="hidden sm:inline">Rédiger un bail de location</span>
+        </Link>
+        <Link href={`/biens/${b.id}/gestion`} className="btn-secondary shrink-0">
+          <Building2 size={16} /> <span className="sm:hidden">Gestion</span>
+          <span className="hidden sm:inline">Mandat de gestion</span>
+        </Link>
+        <Link href={`/biens/${b.id}/candidat`} className="btn-secondary shrink-0">
+          <ClipboardList size={16} /> <span className="sm:hidden">Fiche candidat</span>
+          <span className="hidden sm:inline">Fiche de renseignements</span>
         </Link>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />

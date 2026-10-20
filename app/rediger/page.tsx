@@ -12,7 +12,7 @@
    Chaque document déjà rédigé est listé ici, trié par date.
    ============================================================ */
 
-import { FileSignature, FileText, Handshake, Home, KeyRound, PenLine, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Building2, ClipboardList, FileSignature, FileText, Handshake, Home, KeyRound, PenLine, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -26,7 +26,7 @@ import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 
-type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "bail" | "caution";
+type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "bail" | "caution" | "gestion" | "candidat";
 
 const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
   { v: "mandat", label: "Mandat de vente", icon: FileSignature, desc: "Simple, semi-exclusif ou exclusif. Le bien peut être créé automatiquement." },
@@ -35,6 +35,8 @@ const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
   { v: "bon", label: "Bon de visite", icon: FileText, desc: "Fait signer les visiteurs d'un bien en vente." },
   { v: "bail", label: "Bail de location", icon: KeyRound, desc: "Logement vide ou meublé, avec ses annexes, prêt pour ICSIGN." },
   { v: "caution", label: "Acte de cautionnement", icon: ShieldCheck, desc: "Une caution par acte (couple marié : un seul), reprend le bail du bien." },
+  { v: "gestion", label: "Mandat de gestion", icon: Building2, desc: "Gestion locative d'un bien, avec les tarifs de l'agence et la rétractation." },
+  { v: "candidat", label: "Fiche de renseignements", icon: ClipboardList, desc: "À remettre aux candidats locataires et à leurs garants, avec la liste des pièces." },
 ];
 
 export default function RedigerPage() {
@@ -63,7 +65,7 @@ export default function RedigerPage() {
 
   return (
     <div>
-      <PageHeader title="Rédiger" subtitle="Mandats, offres d'achat, avenants et bons de visite : tout ce qui se rédige et se signe, au même endroit." />
+      <PageHeader title="Rédiger" subtitle="Vente et location : mandats, offres, baux, cautions et mandats de gestion. Tout ce qui se rédige et se signe, au même endroit." />
 
       {/* Créer */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 animate-fade-up">
@@ -91,7 +93,7 @@ export default function RedigerPage() {
       {/* Liste */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-1.5">
-          {(["tous", "mandat", "offre", "avenant", "bon", "bail", "caution"] as Vue[]).map((v) => (
+          {(["tous", "mandat", "offre", "avenant", "bon", "bail", "caution", "gestion"] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -130,7 +132,7 @@ export default function RedigerPage() {
                 <li key={acte.id}>
                   <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-4 min-w-0">
                     <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-brand">
-                      {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : acte.kind === "bail" ? <KeyRound size={18} /> : acte.kind === "caution" ? <ShieldCheck size={18} /> : <PenLine size={18} />}
+                      {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : acte.kind === "bail" ? <KeyRound size={18} /> : acte.kind === "caution" ? <ShieldCheck size={18} /> : acte.kind === "gestion" ? <Building2 size={18} /> : <PenLine size={18} />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold group-hover:text-accent">{titreActe(acte)}</p>
@@ -210,7 +212,7 @@ export default function RedigerPage() {
 
 function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; label: string; biens: BienActes[]; router: ReturnType<typeof useRouter>; onClose: () => void }) {
   // Un bail peut se faire sur n'importe quel bien, même vendu ou retiré de la vente.
-  const enVente = kind === "bail" || kind === "caution" ? biens : biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
+  const enVente = kind === "bail" || kind === "caution" || kind === "gestion" || kind === "candidat" ? biens : biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
   const [mode, setMode] = useState<"existant" | "nouveau">(kind === "offre" ? "existant" : "existant");
   const [choisi, setChoisi] = useState<string>("");
   const [q, setQ] = useState("");
@@ -258,7 +260,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
       dateMiseEnVente: today(),
     };
     if (proprietaireId) nouveau.vendeurIds = [proprietaireId];
-    if (kind === "bail") Object.assign(nouveau, { transaction: "location", location: { statut: "a_louer" } });
+    if (kind === "bail" || kind === "gestion" || kind === "candidat") Object.assign(nouveau, { transaction: "location", location: { statut: "a_louer" } });
     if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
     const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
     onClose();
