@@ -14,6 +14,7 @@ import {
   FileSignature,
   FileText,
   FolderOpen,
+  KeyRound,
   Landmark,
   Lock,
   Mail,
@@ -240,6 +241,10 @@ export default function BienPage() {
         <Link href={`/biens/${b.id}/mandat`} className="btn-secondary shrink-0">
           <FileText size={16} /> <span className="sm:hidden">Mandat</span>
           <span className="hidden sm:inline">Rédiger le mandat de vente</span>
+        </Link>
+        <Link href={`/biens/${b.id}/bail`} className="btn-secondary shrink-0">
+          <KeyRound size={16} /> <span className="sm:hidden">Bail</span>
+          <span className="hidden sm:inline">Rédiger un bail de location</span>
         </Link>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />
