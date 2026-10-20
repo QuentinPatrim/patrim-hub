@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, Building2, FileSignature, KeyRound, Plus, Search, X } from "lucide-react";
-import { Empty, PageHeader, Tabs, cx } from "@/components/ui";
+import { Empty, PageHeader, Tabs } from "@/components/ui";
 import { BienCard, BienCardSkeleton } from "@/components/biens/BienCard";
 import { STATUTS, acquereursCompatibles, prixM2 } from "@/components/biens/utils";
 import { STATUT_LOCATION, locationDe, locationSeule, type StatutLocation } from "@/components/location/bienLocation";
 import { useCollection } from "@/lib/store";
+import { useEspace } from "@/components/espace/espace";
+import { ActualiserLocations } from "@/components/location/Actualiser";
 import { STATUT_BIEN, eurK } from "@/lib/format";
 import type { Bien, BienStatut } from "@/lib/types";
 
@@ -33,7 +35,7 @@ export default function BiensPage() {
   const [q, setQ] = useState("");
   const [filtre, setFiltre] = useState<Filtre>("actifs");
   const [tri, setTri] = useState<Tri>("recent");
-  const [mode, setMode] = useState<Mode>("vente");
+  const mode: Mode = useEspace() === "location" ? "location" : "vente";
   const [filtreLoc, setFiltreLoc] = useState<FiltreLoc>("tous");
   const [ready, setReady] = useState(false);
 
@@ -43,19 +45,18 @@ export default function BiensPage() {
       const saved = JSON.parse(sessionStorage.getItem("patrim-hub:biens-vue") || "{}");
       if (saved.filtre) setFiltre(saved.filtre);
       if (saved.tri) setTri(saved.tri);
-      if (saved.mode) setMode(saved.mode);
       if (saved.filtreLoc) setFiltreLoc(saved.filtreLoc);
     } catch {}
   }, []);
   useEffect(() => {
     try {
-      sessionStorage.setItem("patrim-hub:biens-vue", JSON.stringify({ filtre, tri, mode, filtreLoc }));
+      sessionStorage.setItem("patrim-hub:biens-vue", JSON.stringify({ filtre, tri, filtreLoc }));
     } catch {}
-  }, [filtre, tri, mode, filtreLoc]);
+  }, [filtre, tri, filtreLoc]);
 
-  // Vente : tout sauf les biens entrés seulement pour la location. Location : les biens qui ont une location.
+  // Hub Transaction : les biens en vente. Hub Location : les biens à louer, communs à toute l'équipe.
   const biensVente = useMemo(() => biens.filter((b) => !locationSeule(b)), [biens]);
-  const biensLoc = useMemo(() => biens.filter((b) => locationDe(b)), [biens]);
+  const biensLoc = useMemo(() => biens.filter((b) => locationSeule(b) && locationDe(b)), [biens]);
 
   const matchCount = useMemo(() => {
     const m = new Map<string, number>();
@@ -123,43 +124,33 @@ export default function BiensPage() {
   return (
     <div>
       <PageHeader
-        title="Biens"
+        title={mode === "location" ? "Biens à louer" : "Biens"}
         subtitle={
-          !biens.length
-            ? "Votre portefeuille, en vente et en location"
-            : mode === "location"
-              ? `${countsLoc.a_louer} à louer · ${countsLoc.loue + countsLoc.preavis} loué${countsLoc.loue + countsLoc.preavis > 1 ? "s" : ""}`
+          mode === "location"
+            ? biensLoc.length
+              ? `${countsLoc.a_louer} à louer · ${countsLoc.loue + countsLoc.preavis} loué${countsLoc.loue + countsLoc.preavis > 1 ? "s" : ""} · communs à toute l'équipe`
+              : "Les annonces de location de patrim.fr, communes à toute l'équipe"
+            : !biensVente.length
+              ? "Votre portefeuille de mandats"
               : `${counts.actifs} mandat${counts.actifs > 1 ? "s" : ""} en cours`
         }
         actions={
           <>
-            <Link href="/mandats" className="btn-secondary">
-              <FileSignature size={16} /> Registre des mandats
-            </Link>
+            {mode === "vente" && (
+              <Link href="/mandats" className="btn-secondary">
+                <FileSignature size={16} /> Registre des mandats
+              </Link>
+            )}
             <Link href="/biens/nouveau" className="btn-primary">
-              <Plus size={16} /> Nouveau bien
+              <Plus size={16} /> {mode === "location" ? "Ajouter un bien à louer" : "Nouveau bien"}
             </Link>
           </>
         }
       />
 
-      {biens.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 gap-2 animate-fade-up">
-          {(
-            [
-              ["vente", "Vente", Building2, biensVente.length],
-              ["location", "Location", KeyRound, biensLoc.length],
-            ] as const
-          ).map(([v, label, Icon, n]) => (
-            <button key={v} type="button" onClick={() => setMode(v)} className={cx("flex h-11 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition", mode === v ? "border-brand bg-brand text-white" : "border-line bg-surface text-fg")}>
-              <Icon size={16} /> {label}
-              <span className={cx("tabular-nums text-xs font-medium", mode === v ? "text-white/75" : "text-muted")}>{n}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {mode === "location" && <ActualiserLocations className="mb-4" />}
 
-      {biens.length > 0 &&
+      {(mode === "location" ? biensLoc.length : biensVente.length) > 0 &&
         (mode === "location" ? (
           <div className="mb-5 card grid grid-cols-3 divide-x divide-line/70 animate-fade-up">
             <MiniStat label="À louer" value={String(countsLoc.a_louer)} />
@@ -174,7 +165,7 @@ export default function BiensPage() {
           </div>
         ))}
 
-      {biens.length > 0 && (
+      {(mode === "location" ? biensLoc.length : biensVente.length) > 0 && (
         <div className="mb-5 space-y-3">
           <div className="flex gap-2">
             <div className="relative flex-1 min-w-0">
@@ -208,7 +199,7 @@ export default function BiensPage() {
             <BienCardSkeleton key={i} />
           ))}
         </div>
-      ) : !biens.length ? (
+      ) : mode === "vente" && !biensVente.length ? (
         <div className="card">
           <Empty
             icon={<Building2 size={22} />}
@@ -225,11 +216,11 @@ export default function BiensPage() {
         <div className="card">
           <Empty
             icon={<KeyRound size={22} />}
-            title="Aucun bien en location"
-            text="Ouvrez un bien et touchez « Mettre en location », ou rédigez directement un bail ou un mandat de gestion depuis « Rédiger »."
+            title="Aucun bien à louer pour l'instant"
+            text="Touchez « Actualiser » ci-dessus : les annonces de location de patrim.fr arrivent ici, pour toute l'équipe. Vous pouvez aussi ajouter un bien à la main."
             action={
-              <Link href="/rediger" className="btn-primary">
-                <KeyRound size={16} /> Rédiger un bail ou un mandat de gestion
+              <Link href="/biens/nouveau" className="btn-primary">
+                <KeyRound size={16} /> Ajouter un bien à louer
               </Link>
             }
           />

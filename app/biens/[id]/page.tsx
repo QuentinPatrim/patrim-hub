@@ -56,6 +56,7 @@ import { STATUT_BIEN, TYPE_BIEN, dateCourte, dateLongue, eur, heure, m2, nomComp
 import type { Bien, BienStatut, Contact } from "@/lib/types";
 
 import { LocationBien } from "@/components/location/LocationBien";
+import { choisirEspace, useEspace } from "@/components/espace/espace";
 import { STATUT_LOCATION, locationDe, locationSeule } from "@/components/location/bienLocation";
 /** Champ manquant → section du formulaire. */
 const SECTION_DE: Record<string, string> = {
@@ -96,6 +97,12 @@ export default function BienPage() {
   const [crId, setCrId] = useState<string>();
   const [delConfirm, setDelConfirm] = useState(false);
   const [waited, setWaited] = useState(false);
+  const espace = useEspace();
+  const aLouer = !!b && locationSeule(b);
+  // Un bien à louer s'ouvre dans le Hub Location, un bien en vente dans le Hub Transaction
+  useEffect(() => {
+    if (b && espace !== undefined && espace !== (aLouer ? "location" : "vente")) choisirEspace(aLouer ? "location" : "vente");
+  }, [b, aLouer, espace]);
 
   useEffect(() => {
     const t = setTimeout(() => setWaited(true), 1200);
@@ -227,6 +234,13 @@ export default function BienPage() {
         <button className="btn-primary shrink-0 col-span-2" onClick={() => setRdvForm({ bienId: b.id, type: "visite", jour: today() })}>
           <CalendarPlus size={16} /> Planifier une visite
         </button>
+        {aLouer && b.annonceUrl && (
+          <a href={b.annonceUrl} target="_blank" rel="noreferrer" className="btn-secondary shrink-0">
+            <ExternalLink size={16} /> Annonce patrim.fr
+          </a>
+        )}
+        {!aLouer && (
+          <>
         <button className="btn-secondary shrink-0" onClick={() => setEnvoi(true)}>
           <Send size={16} /> Envoyer la fiche
         </button>
@@ -250,6 +264,8 @@ export default function BienPage() {
         <button className="btn-secondary shrink-0" onClick={() => setRapport(true)}>
           <FileText size={16} /> Rapport vendeur
         </button>
+          </>
+        )}
         <button className="btn-secondary shrink-0" onClick={() => setEditing("")}>
           <Pencil size={16} /> Modifier
         </button>
@@ -291,7 +307,7 @@ export default function BienPage() {
 
           {!locationSeule(b) && <AcquereursCompatibles bien={b} matches={matches} />}
 
-          <LocationBien b={b} />
+          {aLouer && <LocationBien b={b} />}
 
           <DocumentsBien bien={b as BienActes} />
 
@@ -399,7 +415,7 @@ export default function BienPage() {
             actionPoint={(texte) => (pointAvenant(texte) && STATUTS_ACTIFS.includes(b.statut) ? <LienAvenant bienId={b.id} /> : null)}
           />
 
-          <PartageBien bienId={b.id} />
+          {!aLouer && <PartageBien bienId={b.id} />}
 
           {(b.driveUrl || b.annonceUrl) && (
             <Card title="Liens">

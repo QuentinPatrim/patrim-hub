@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Building2, ClipboardList, KeyRound, Pencil, ShieldCheck } from "lucide-react";
+import { Building2, ClipboardList, KeyRound, Pencil, ShieldCheck, UserPlus, X } from "lucide-react";
+import { ContactPicker } from "@/components/estimations/blocks";
 import { Badge, Card, Field, Sheet } from "@/components/ui";
 import { NumInput } from "@/components/contacts/CriteresEditor";
 import { PickChip } from "@/components/contacts/bits";
@@ -88,6 +89,11 @@ export function LocationBien({ b }: { b: Bien }) {
               ))
             : "—"}
         </Ligne>
+        <Ligne label="Propriétaire(s)">
+          <Proprietaires b={b} />
+        </Ligne>
+        {loc.honoraires ? <Ligne label="Honoraires locataire">{eur(loc.honoraires)}</Ligne> : null}
+        {loc.site && <Ligne label="Annonce patrim.fr">{loc.site.enLigne ? "En ligne" : "Plus en ligne"}</Ligne>}
         <Ligne label="Gestion">{loc.gestion ? `Mandat${loc.gestion.numero ? ` n° ${loc.gestion.numero}` : ""}${loc.gestion.debut ? ` du ${dateActe(loc.gestion.debut, { majuscule: false })}` : ""}` : "Non confiée à l'agence"}</Ligne>
       </dl>
       <div className="mt-4">{actions}</div>
@@ -99,9 +105,13 @@ export function LocationBien({ b }: { b: Bien }) {
           title="Location"
           footer={
             <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-              <button className="btn-ghost text-danger" onClick={() => { setEdit(null); setRetirer(true); }}>
-                Retirer de la location
-              </button>
+              {loc.site ? (
+                <span />
+              ) : (
+                <button className="btn-ghost text-danger" onClick={() => { setEdit(null); setRetirer(true); }}>
+                  Retirer de la location
+                </button>
+              )}
               <button className="btn-primary" onClick={() => { enregistrer(edit); setEdit(null); }}>
                 Enregistrer
               </button>
@@ -184,5 +194,43 @@ function Ligne({ label, children }: { label: string; children: React.ReactNode }
       <dt className="text-muted">{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>
+  );
+}
+
+/** Propriétaires du bien à louer, choisis dans l'annuaire commun. Rien n'est relié à un bien en vente. */
+function Proprietaires({ b }: { b: Bien }) {
+  const { items: contacts } = useCollection("contacts");
+  const [ajout, setAjout] = useState(false);
+  const ids = b.vendeurIds ?? [];
+  const liste = ids.map((id) => contacts.find((c) => c.id === id)).filter(Boolean) as typeof contacts;
+  const ecrire = (v: string[]) => update("biens", b.id, { vendeurIds: v });
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+      {liste.map((c) => (
+        <span key={c.id} className="inline-flex items-center gap-1">
+          <Link href={`/contacts/${c.id}`} className="font-medium text-accent">
+            {nomComplet(c)}
+          </Link>
+          <button type="button" className="grid size-6 place-items-center rounded-full text-muted hover:bg-surface-2" aria-label={`Retirer ${nomComplet(c)}`} onClick={() => ecrire(ids.filter((i) => i !== c.id))}>
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      <button type="button" className="btn-ghost btn-sm !h-8 !px-2" onClick={() => setAjout(true)}>
+        <UserPlus size={14} /> {liste.length ? "Ajouter" : "Choisir"}
+      </button>
+      {ajout && (
+        <Sheet open onClose={() => setAjout(false)} title="Propriétaire du bien à louer">
+          <p className="mb-3 text-sm text-muted">L&apos;annuaire des propriétaires est commun à la vente et à la location. Le choisir ici ne touche à aucun bien en vente.</p>
+          <ContactPicker
+            value={undefined}
+            onChange={(id) => {
+              if (id && !ids.includes(id)) ecrire([...ids, id]);
+              setAjout(false);
+            }}
+          />
+        </Sheet>
+      )}
+    </span>
   );
 }

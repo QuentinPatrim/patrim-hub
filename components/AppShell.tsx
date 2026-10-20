@@ -26,18 +26,28 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getAll } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
+import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
 
-export const NAV = [
+export const NAV_VENTE = [
   { href: "/", label: "Accueil", icon: Home },
   { href: "/biens", label: "Biens", icon: Building2 },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/estimations", label: "Estimations", icon: Calculator },
-  { href: "/locatives", label: "Location", icon: KeyRound },
   { href: "/rediger", label: "Rédiger", icon: FileSignature },
   { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
+export const NAV_LOCATION = [
+  { href: "/", label: "Accueil", icon: Home },
+  { href: "/biens", label: "Biens à louer", icon: Building2 },
+  { href: "/contacts", label: "Contacts", icon: Users },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/locatives", label: "Estimation locative", icon: KeyRound },
+  { href: "/rediger", label: "Rédiger", icon: FileSignature },
+  { href: "/assistant", label: "Assistant", icon: Sparkles },
+];
+export const NAV = NAV_VENTE;
 // Barre du bas sur mobile : 4 raccourcis + « Plus »
 const MOBILE = ["/", "/biens", "/contacts", "/agenda"];
 
@@ -46,6 +56,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const [search, setSearch] = useState(false);
   const { theme, toggle } = useTheme();
+  const router = useRouter();
+  const choisi = useEspace();
+  const espace = choisi ?? "vente";
+  const nav = espace === "location" ? NAV_LOCATION : NAV_VENTE;
+  const autre = espace === "location" ? "vente" : "location";
+  const changer = () => {
+    choisirEspace(autre);
+    router.push("/");
+  };
   const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   useEffect(() => {
@@ -62,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (path.startsWith("/connexion") || path.startsWith("/imprimer")) return <>{children}</>;
 
-  const moreItems = [...NAV.filter((n) => !MOBILE.includes(n.href)), { href: "/reglages", label: "Réglages", icon: Settings }];
+  const moreItems = [...nav.filter((n) => !MOBILE.includes(n.href)), { href: "/reglages", label: "Réglages", icon: Settings }];
   const moreActive = moreItems.some((n) => active(n.href));
 
   return (
@@ -77,17 +96,22 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div>
               <div className="font-semibold tracking-[0.24em] text-[15px] text-white">PATRIM</div>
               <div className="mt-0.5 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/45">
-                <span className="h-px w-3 bg-coral" /> Vente &amp; location
+                <span className="h-px w-3 bg-coral" /> Hub {NOM_ESPACE[espace]}
               </div>
             </div>
           </Link>
+          {choisi && (
+            <button onClick={changer} className="mt-4 flex w-full items-center gap-2 h-9 rounded-xl px-3 text-[12.5px] font-medium text-white/60 ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.06] hover:text-white transition">
+              {autre === "location" ? <KeyRound size={14} /> : <Building2 size={14} />} Aller sur Hub {NOM_ESPACE[autre]}
+            </button>
+          )}
         </div>
         <button onClick={() => setSearch(true)} className="relative mx-4 mb-5 flex items-center gap-2 h-10 rounded-xl bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] px-3 text-[13px] text-white/50 hover:bg-white/10 hover:text-white/70 transition">
           <Search size={15} /> Rechercher <span className="ml-auto rounded-md border border-white/15 px-1.5 py-px text-[10px] font-medium">⌘K</span>
         </button>
         <div className="relative px-6 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Menu</div>
         <nav className="relative flex-1 px-3 space-y-0.5">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {nav.map(({ href, label, icon: Icon }) => {
             const on = active(href);
             return (
               <Link
@@ -128,6 +152,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="mt-1 block h-[2px] w-6 rounded-full bg-coral" />
             </span>
           </Link>
+          {choisi && (
+            <button onClick={changer} className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-fg/80 active:scale-[.97]" aria-label={`Aller sur Hub ${NOM_ESPACE[autre]}`}>
+              {espace === "location" ? <KeyRound size={13} className="text-accent" /> : <Building2 size={13} className="text-accent" />} {NOM_ESPACE[espace]}
+            </button>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <button onClick={() => setSearch(true)} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Rechercher">
               <Search size={19} />
@@ -144,7 +173,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Barre d'onglets mobile */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
         <div className="grid grid-cols-5 h-[62px] px-1">
-          {NAV.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => {
+          {nav.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => {
             const on = active(href);
             return (
               <Link key={href} href={href} aria-current={on ? "page" : undefined} className={clsx("group flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors", on ? "text-accent" : "text-muted")}>
@@ -200,13 +229,14 @@ function SearchPalette({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return NAV.map((n) => ({ href: n.href, title: n.label, sub: "Aller à la page" }));
+    const pages = [...NAV_VENTE, ...NAV_LOCATION.filter((n) => !NAV_VENTE.some((v) => v.href === n.href))];
+    if (!s) return pages.map((n) => ({ href: n.href, title: n.label, sub: "Aller à la page" }));
     const has = (...v: (string | number | undefined)[]) => v.some((x) => x != null && String(x).toLowerCase().includes(s));
     const out: { href: string; title: string; sub: string }[] = [];
     getAll("biens").forEach((b) => has(b.titre, b.adresse, b.ref, b.quartier, b.ville) && out.push({ href: `/biens/${b.id}`, title: b.titre || b.adresse, sub: `Bien · ${b.adresse}` }));
     getAll("contacts").forEach((c) => has(c.nom, c.prenom, c.email, c.tel) && out.push({ href: `/contacts/${c.id}`, title: nomComplet(c), sub: `Contact · ${c.tel ?? c.email ?? ""}` }));
     getAll("estimations").forEach((e) => has(e.adresse, e.ville) && out.push({ href: `/estimations/${e.id}`, title: e.adresse, sub: "Estimation" }));
-    NAV.forEach((n) => has(n.label) && out.push({ href: n.href, title: n.label, sub: "Page" }));
+    pages.forEach((n) => has(n.label) && out.push({ href: n.href, title: n.label, sub: "Page" }));
     return out.slice(0, 30);
   }, [q]);
 

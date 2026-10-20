@@ -25,6 +25,11 @@ import { create, getAll, useCollection } from "@/lib/store";
 import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
+import { useEspace } from "@/components/espace/espace";
+import { locationSeule } from "@/components/location/bienLocation";
+
+const LOCATION: Vue[] = ["bail", "caution", "gestion", "candidat"];
+const deLocation = (v: Vue) => LOCATION.includes(v);
 
 type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "bail" | "caution" | "gestion" | "candidat";
 
@@ -41,7 +46,11 @@ const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
 
 export default function RedigerPage() {
   const router = useRouter();
-  const { items: biens } = useCollection("biens");
+  const { items: tous } = useCollection("biens");
+  const loc = useEspace() === "location";
+  // Chaque espace ne voit que ses biens et ses documents
+  const biens = useMemo(() => tous.filter((b) => locationSeule(b) === loc), [tous, loc]);
+  const kinds = KINDS.filter((k) => deLocation(k.v) === loc);
   const [vue, setVue] = useState<Vue>("tous");
   const [q, setQ] = useState("");
   const [sheet, setSheet] = useState<(typeof KINDS)[number] | null>(null);
@@ -57,19 +66,19 @@ export default function RedigerPage() {
   const filtres = useMemo(() => {
     const s = q.trim().toLowerCase();
     return documents
-      .filter(({ acte }) => vue === "tous" || acte.kind === vue)
+      .filter(({ acte }) => (vue === "tous" ? deLocation(acte.kind as Vue) === loc : acte.kind === vue))
       .filter(({ bien, acte }) => !s || [titreActe(acte), bien.adresse, bien.ville, bien.titre].filter(Boolean).join(" ").toLowerCase().includes(s));
   }, [documents, vue, q]);
 
-  const compteur = (v: Vue) => (v === "tous" ? documents.length : documents.filter((d) => d.acte.kind === v).length);
+  const compteur = (v: Vue) => documents.filter((d) => (v === "tous" ? deLocation(d.acte.kind as Vue) === loc : d.acte.kind === v)).length;
 
   return (
     <div>
-      <PageHeader title="Rédiger" subtitle="Vente et location : mandats, offres, baux, cautions et mandats de gestion. Tout ce qui se rédige et se signe, au même endroit." />
+      <PageHeader title="Rédiger" subtitle={loc ? "Location : fiches candidat, baux, cautions et mandats de gestion, prêts à signer." : "Transaction : mandats, offres, avenants et bons de visite, prêts à signer."} />
 
       {/* Créer */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 animate-fade-up">
-        {KINDS.map((k) => (
+        {kinds.map((k) => (
           <button
             key={k.v}
             type="button"
@@ -93,7 +102,7 @@ export default function RedigerPage() {
       {/* Liste */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-wrap gap-1.5">
-          {(["tous", "mandat", "offre", "avenant", "bon", "bail", "caution", "gestion"] as Vue[]).map((v) => (
+          {(["tous", ...kinds.map((k) => k.v)] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -112,12 +121,12 @@ export default function RedigerPage() {
       </div>
 
       <div className="mt-4">
-        {documents.length === 0 ? (
+        {compteur("tous") === 0 ? (
           <div className="card">
             <Empty
               icon={<FileText size={22} />}
               title="Aucun document pour le moment"
-              text="Rédigez un mandat, une offre d'achat ou un bon de visite : tout est gardé ici, avec son statut."
+              text={loc ? "Rédigez une fiche candidat, un bail, une caution ou un mandat de gestion : tout est gardé ici, avec son statut." : "Rédigez un mandat, une offre d'achat ou un bon de visite : tout est gardé ici, avec son statut."}
             />
           </div>
         ) : filtres.length === 0 ? (
@@ -212,7 +221,8 @@ export default function RedigerPage() {
 
 function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; label: string; biens: BienActes[]; router: ReturnType<typeof useRouter>; onClose: () => void }) {
   // Un bail peut se faire sur n'importe quel bien, même vendu ou retiré de la vente.
-  const enVente = kind === "bail" || kind === "caution" || kind === "gestion" || kind === "candidat" ? biens : biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
+  // Location : tous les biens à louer. Vente : les biens encore en cours.
+  const enVente = deLocation(kind) ? biens : biens.filter((b) => b.statut !== "retire" && b.statut !== "vendu");
   const [mode, setMode] = useState<"existant" | "nouveau">(kind === "offre" ? "existant" : "existant");
   const [choisi, setChoisi] = useState<string>("");
   const [q, setQ] = useState("");
@@ -260,7 +270,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
       dateMiseEnVente: today(),
     };
     if (proprietaireId) nouveau.vendeurIds = [proprietaireId];
-    if (kind === "bail" || kind === "gestion" || kind === "candidat") Object.assign(nouveau, { transaction: "location", location: { statut: "a_louer" } });
+    if (deLocation(kind)) Object.assign(nouveau, { transaction: "location", statut: "retire", dateMiseEnVente: undefined, prix: undefined, location: { statut: "a_louer" } });
     if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
     const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
     onClose();
@@ -350,7 +360,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
                 <Nombre value={prix} onChange={setPrix} unit="€" placeholder="295 000" />
               </Field>
             )}
-            {(kind === "mandat" || kind === "bail") && (
+            {(kind === "mandat" || kind === "bail" || kind === "gestion") && (
               <div>
                 <span className="label">Propriétaire (facultatif)</span>
                 <ContactPicker value={proprietaireId} onChange={setProprietaireId} />

@@ -1,3 +1,12 @@
 {
-  "crons": [{ "path": "/api/agents/nuit", "schedule": "0 4 * * *" }]
+  "crons": [
+    {
+      "path": "/api/agents/nuit",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/locations-site",
+      "schedule": "0 5 * * *"
+    }
+  ]
 }

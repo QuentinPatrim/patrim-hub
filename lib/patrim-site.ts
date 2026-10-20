@@ -1,5 +1,5 @@
-/* Lecture des photos d'une fiche annonce du site patrim.fr (adresses absolues, relatives ou sans protocole). */
-const PHOTO = /(?:https?:)?(?:\/\/www\.patrim\.fr)?\/photobox\/[^"'()\s<>]+?\/transaction\/photo\/(?!vignettes\/)[^"'()\s<>/?]+?\.(?:jpe?g|png|webp)/gi;
+/* Lecture des photos d'une fiche annonce du site patrim.fr, vente ou location (adresses absolues, relatives ou sans protocole). */
+const PHOTO = /(?:https?:)?(?:\/\/www\.patrim\.fr)?\/photobox\/[^"'()\s<>]+?\/(?:transaction|location)\/photo\/(?!vignettes\/)[^"'()\s<>/?]+?\.(?:jpe?g|png|webp)/gi;
 
 export function photosDansPage(html: string): string[] {
   const brut = html.replace(/&amp;/g, "&").replace(/\\\//g, "/").match(PHOTO) ?? [];
