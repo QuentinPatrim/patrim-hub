@@ -197,7 +197,7 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
     const x = acte.data;
     const loc = (b as BienLocation).location;
     if (statut === "signe")
-      patch.location = { statut: "loue", meuble: x.type === "meuble", loyer: x.loyer, charges: x.charges, depot: x.depot, debut: x.debut, locataireIds: x.locataires.map((p) => p.contactId!).filter(Boolean), bailActeId: acte.id };
+      patch.location = { ...loc, statut: "loue", meuble: x.type === "meuble", loyer: x.loyer, charges: x.charges, depot: x.depot, debut: x.debut, locataireIds: x.locataires.map((p) => p.contactId!).filter(Boolean), bailActeId: acte.id };
     else if (loc?.bailActeId === acte.id) patch.location = { ...loc, statut: "a_louer", bailActeId: undefined };
   } else if (acte.kind === "gestion") {
     const loc = (b as BienLocation).location;

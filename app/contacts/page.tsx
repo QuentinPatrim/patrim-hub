@@ -15,7 +15,7 @@ import { useCollection } from "@/lib/store";
 import type { Contact, ContactRole } from "@/lib/types";
 
 type Vue = "liste" | "pipeline";
-type Filtre = "tous" | "acquereur" | "vendeur" | "prospect_vendeur";
+type Filtre = "tous" | "acquereur" | "vendeur" | "prospect_vendeur" | "locataire";
 const VUE_KEY = "patrim-hub:contacts-vue";
 
 export default function Page() {
@@ -75,6 +75,7 @@ function ContactsPage() {
       acquereur: has("acquereur"),
       vendeur: has("vendeur"),
       prospect_vendeur: has("prospect_vendeur"),
+      locataire: has("locataire"),
       relance: items.filter(relanceDue).length,
       chauds: items.filter((c) => c.chaleur === 3).length,
     };
@@ -114,11 +115,12 @@ function ContactsPage() {
         subtitle={
           items.length ? (
             <>
-              {counts.acquereur} acquéreur{counts.acquereur > 1 ? "s" : ""} · {counts.vendeur + counts.prospect_vendeur} vendeur{counts.vendeur + counts.prospect_vendeur > 1 ? "s" : ""}
+              {counts.acquereur} acquéreur{counts.acquereur > 1 ? "s" : ""} · {counts.vendeur + counts.prospect_vendeur} propriétaire{counts.vendeur + counts.prospect_vendeur > 1 ? "s" : ""}
+              {counts.locataire > 0 && <> · {counts.locataire} locataire{counts.locataire > 1 ? "s" : ""}</>}
               {counts.relance > 0 && <span className="text-danger font-medium"> · {counts.relance} à relancer</span>}
             </>
           ) : (
-            "Acquéreurs, vendeurs et prospects"
+            "Acquéreurs, propriétaires, locataires et prospects"
           )
         }
         actions={
@@ -179,7 +181,8 @@ function ContactsPage() {
               items={[
                 { value: "tous", label: "Tous", count: counts.tous },
                 { value: "acquereur", label: "Acquéreurs", count: counts.acquereur },
-                { value: "vendeur", label: "Vendeurs", count: counts.vendeur },
+                { value: "vendeur", label: "Propriétaires", count: counts.vendeur },
+                { value: "locataire", label: "Locataires", count: counts.locataire },
                 { value: "prospect_vendeur", label: "Prospects vendeurs", count: counts.prospect_vendeur },
               ]}
             />
@@ -258,7 +261,7 @@ function ContactsPage() {
         </>
       )}
 
-      <ContactForm open={nouveau} onClose={() => setNouveau(false)} defaultRole={filtre === "vendeur" || filtre === "prospect_vendeur" ? filtre : undefined} />
+      <ContactForm open={nouveau} onClose={() => setNouveau(false)} defaultRole={filtre === "vendeur" || filtre === "prospect_vendeur" || filtre === "locataire" ? filtre : undefined} />
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );

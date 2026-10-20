@@ -5,18 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
-  Building2,
   CalendarPlus,
   ChevronDown,
   ClipboardCheck,
-  ClipboardList,
   ExternalLink,
   Eye,
   EyeOff,
   FileSignature,
   FileText,
   FolderOpen,
-  KeyRound,
   Landmark,
   Lock,
   Mail,
@@ -58,6 +55,8 @@ import { remove, useCollection, useDoc } from "@/lib/store";
 import { STATUT_BIEN, TYPE_BIEN, dateCourte, dateLongue, eur, heure, m2, nomComplet, today } from "@/lib/format";
 import type { Bien, BienStatut, Contact } from "@/lib/types";
 
+import { LocationBien } from "@/components/location/LocationBien";
+import { STATUT_LOCATION, locationDe, locationSeule } from "@/components/location/bienLocation";
 /** Champ manquant → section du formulaire. */
 const SECTION_DE: Record<string, string> = {
   prix: "prix",
@@ -158,10 +157,11 @@ export default function BienPage() {
       </div>
     );
 
-  const st = STATUT_BIEN[b.statut];
+  const st = locationSeule(b) && locationDe(b) ? STATUT_LOCATION[locationDe(b)!.statut] : STATUT_BIEN[b.statut];
   const pm2 = prixM2(b);
   const jours = joursDepuis(b.dateMiseEnVente);
-  const manquants = champsACompleter(b);
+  // Bien seulement en location : pas de prix de vente ni de mandat de vente à réclamer.
+  const manquants = champsACompleter(b).filter((m) => !locationSeule(b) || !["prix", "netVendeur", "mandat"].includes(m.key));
   const nbVisitesFaites = visites.filter((v) => v.statut !== "annule" && new Date(v.debut).getTime() < Date.now()).length;
   const honoraires = b.honoraires ?? (b.prix && b.netVendeur ? b.prix - b.netVendeur : undefined);
   const habitable = b.type !== "terrain" && b.type !== "parking";
@@ -244,18 +244,6 @@ export default function BienPage() {
           <FileText size={16} /> <span className="sm:hidden">Mandat</span>
           <span className="hidden sm:inline">Rédiger le mandat de vente</span>
         </Link>
-        <Link href={`/biens/${b.id}/bail`} className="btn-secondary shrink-0">
-          <KeyRound size={16} /> <span className="sm:hidden">Bail</span>
-          <span className="hidden sm:inline">Rédiger un bail de location</span>
-        </Link>
-        <Link href={`/biens/${b.id}/gestion`} className="btn-secondary shrink-0">
-          <Building2 size={16} /> <span className="sm:hidden">Gestion</span>
-          <span className="hidden sm:inline">Mandat de gestion</span>
-        </Link>
-        <Link href={`/biens/${b.id}/candidat`} className="btn-secondary shrink-0">
-          <ClipboardList size={16} /> <span className="sm:hidden">Fiche candidat</span>
-          <span className="hidden sm:inline">Fiche de renseignements</span>
-        </Link>
         <button className="btn-secondary shrink-0" onClick={() => setStatutOpen(true)}>
           <Tag size={16} /> Statut <ChevronDown size={14} className="-ml-1 text-muted" />
         </button>
@@ -301,7 +289,9 @@ export default function BienPage() {
           {VENTE_EN_COURS(b) && !venteSignee(b) && <VenteFiche b={b} />}
           {(b.statut === "vendu" || venteSignee(b)) && <ApresVenteFiche b={b} />}
 
-          <AcquereursCompatibles bien={b} matches={matches} />
+          {!locationSeule(b) && <AcquereursCompatibles bien={b} matches={matches} />}
+
+          <LocationBien b={b} />
 
           <DocumentsBien bien={b as BienActes} />
 
