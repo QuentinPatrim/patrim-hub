@@ -20,8 +20,9 @@ import type { BonVisite } from "@/components/bon/bon";
 import { titreBail, type Bail } from "@/components/bail/bail";
 import type { BienLocation } from "@/components/location/bienLocation";
 import { dureeMaxAns, montantMax, titreCaution, type Caution } from "@/components/caution/caution";
+import { titreGestion, type Gestion } from "@/components/gestion/gestion";
 
-export type ActeKind = "offre" | "mandat" | "avenant" | "bon" | "bail" | "caution";
+export type ActeKind = "offre" | "mandat" | "avenant" | "bon" | "bail" | "caution" | "gestion";
 export type ActeStatut = "brouillon" | "envoye" | "signe" | "refuse";
 
 interface ActeBase {
@@ -36,7 +37,8 @@ export type Acte =
   | (ActeBase & { kind: "avenant"; data: Avenant })
   | (ActeBase & { kind: "bon"; data: BonVisite })
   | (ActeBase & { kind: "bail"; data: Bail })
-  | (ActeBase & { kind: "caution"; data: Caution });
+  | (ActeBase & { kind: "caution"; data: Caution })
+  | (ActeBase & { kind: "gestion"; data: Gestion });
 export type BienActes = Bien & { actes?: Acte[] };
 
 export const STATUTS_ACTE: Record<ActeKind, { v: ActeStatut; label: string; tone: "neutral" | "info" | "ok" | "danger" }[]> = {
@@ -59,6 +61,12 @@ export const STATUTS_ACTE: Record<ActeKind, { v: ActeStatut; label: string; tone
     { v: "refuse", label: "Abandonné", tone: "danger" },
   ],
   bail: [
+    { v: "brouillon", label: "Brouillon", tone: "neutral" },
+    { v: "envoye", label: "Envoyé pour signature", tone: "info" },
+    { v: "signe", label: "Signé", tone: "ok" },
+    { v: "refuse", label: "Abandonné", tone: "danger" },
+  ],
+  gestion: [
     { v: "brouillon", label: "Brouillon", tone: "neutral" },
     { v: "envoye", label: "Envoyé pour signature", tone: "info" },
     { v: "signe", label: "Signé", tone: "ok" },
@@ -90,6 +98,7 @@ export function titreActe(a: Acte) {
     return `Bon de visite${noms ? ` de ${noms}` : ""}`;
   }
   if (a.kind === "caution") return titreCaution(a.data);
+  if (a.kind === "gestion") return titreGestion(a.data);
   if (a.kind === "bail") {
     const noms = a.data.locataires.map(nomOffre).filter(Boolean).join(" et ");
     return `${titreBail(a.data)}${noms ? ` de ${noms}` : ""}`;
@@ -102,6 +111,7 @@ export function resumeActe(a: Acte) {
     const hai = prixPresentation(a.data.nouveau);
     return hai != null ? `Nouveau prix : ${eur(hai)} honoraires inclus` : a.data.nouveau.netVendeur ? `Nouveau prix : ${eur(a.data.nouveau.netVendeur)} net vendeur` : "Prix à compléter";
   }
+  if (a.kind === "gestion") return [`${a.data.tauxHt.toLocaleString("fr-FR")} % HT + ${a.data.fixeHt.toLocaleString("fr-FR")} € HT par mois`, a.data.mandants.map(nomOffre).filter(Boolean).join(" et ")].filter(Boolean).join(" · ");
   if (a.kind === "caution") return a.data.bail.loyer ? `Jusqu'à ${eur(montantMax(a.data.bail))} pendant ${dureeMaxAns(a.data.bail)} ans au plus` : "Loyer du bail à compléter";
   if (a.kind === "bail")
     return a.data.loyer ? `Loyer ${eur(a.data.loyer)} + ${eur(a.data.charges ?? 0)} de charges${a.data.debut ? ` · à partir du ${dateCourte(a.data.debut)}` : ""}` : "Loyer à compléter";
@@ -120,7 +130,8 @@ export function enregistrerActe(bienId: string, kind: "avenant", data: Avenant):
 export function enregistrerActe(bienId: string, kind: "bon", data: BonVisite, statut?: ActeStatut): string;
 export function enregistrerActe(bienId: string, kind: "bail", data: Bail): string;
 export function enregistrerActe(bienId: string, kind: "caution", data: Caution): string;
-export function enregistrerActe(bienId: string, kind: ActeKind, data: Offre | Mandat | Avenant | BonVisite | Bail | Caution, statut?: ActeStatut): string {
+export function enregistrerActe(bienId: string, kind: "gestion", data: Gestion): string;
+export function enregistrerActe(bienId: string, kind: ActeKind, data: Offre | Mandat | Avenant | BonVisite | Bail | Caution | Gestion, statut?: ActeStatut): string {
   const actes = actesDu(bienId);
   const now = new Date().toISOString();
   const id = data.acteId && actes.some((a) => a.id === data.acteId) ? data.acteId : uid();
@@ -148,7 +159,8 @@ function ajouterMois(iso: string, mois: number) {
  * offre acceptée → « Sous offre » ; plus aucune offre acceptée → retour « En vente » ;
  * mandat signé → n° et type du mandat repris sur le bien, « Mandat signé » s'il était en estimation ;
  * avenant signé → nouveau prix, honoraires et charge des honoraires repris sur le bien ;
- * bail signé → bien « Loué » avec le loyer, les charges, le dépôt et les locataires.
+ * bail signé → bien « Loué » avec le loyer, les charges, le dépôt et les locataires ;
+ * mandat de gestion signé → bien géré par l'agence (numéro et date du mandat).
  * Renvoie le nouveau statut du bien quand il a changé.
  */
 export function changerStatutActe(bienId: string, acteId: string, statut: ActeStatut): BienStatut | undefined {
@@ -187,6 +199,10 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
     if (statut === "signe")
       patch.location = { statut: "loue", meuble: x.type === "meuble", loyer: x.loyer, charges: x.charges, depot: x.depot, debut: x.debut, locataireIds: x.locataires.map((p) => p.contactId!).filter(Boolean), bailActeId: acte.id };
     else if (loc?.bailActeId === acte.id) patch.location = { ...loc, statut: "a_louer", bailActeId: undefined };
+  } else if (acte.kind === "gestion") {
+    const loc = (b as BienLocation).location;
+    if (statut === "signe") patch.location = { ...(loc ?? { statut: "a_louer" }), gestion: { numero: acte.data.numero, debut: acte.data.date, acteId: acte.id } };
+    else if (loc?.gestion?.acteId === acte.id) patch.location = { ...loc, gestion: undefined };
   } else if (acte.kind === "mandat" && statut === "signe") {
     const m = acte.data;
     patch.mandat = { ...b.mandat, numero: m.numero || b.mandat?.numero, type: m.type ?? "simple", debut: m.date, fin: m.date ? ajouterMois(m.date, m.dureeMois) : b.mandat?.fin };
@@ -200,7 +216,7 @@ export function changerStatutActe(bienId: string, acteId: string, statut: ActeSt
  * Pour les pages d'impression : l'acte gardé sur la fiche (lien « ?acte=… »), sinon le brouillon
  * de cet appareil. undefined tant que ce n'est pas chargé, null si rien n'est trouvé.
  */
-export function useActe<T extends Offre | Mandat | Avenant | BonVisite | Bail | Caution>(bienId: string, kind: ActeKind, brouillon: (bienId: string) => T | null): T | null | undefined {
+export function useActe<T extends Offre | Mandat | Avenant | BonVisite | Bail | Caution | Gestion>(bienId: string, kind: ActeKind, brouillon: (bienId: string) => T | null): T | null | undefined {
   const { doc: bien } = useDoc("biens", bienId);
   const [acteId, setActeId] = useState<string | null | undefined>(undefined);
   const [attente, setAttente] = useState(true);
