@@ -15,6 +15,7 @@ import { CHAMPS, civiliteLongue, manquants, partieDepuisContact, type Champ, typ
 import { signataireRetenu, retenirSignataire, type Signataire } from "@/components/mandat/mandat";
 import { PLAFONDS, decenceEnergetique, irlConnu, loyerGele, periodeConstruction, plafondsLocataire, ventilerHonoraires, type Irl, type Zone } from "@/components/location/loi";
 import { today } from "@/lib/format";
+import { locationDe } from "@/components/location/bienLocation";
 import type { Bien } from "@/lib/types";
 
 export type TypeBail = "nu" | "meuble";
@@ -205,8 +206,11 @@ export function effacerBail(bienId: string) {
 
 const contient = (t: string | undefined, ...mots: string[]) => !!t && mots.some((m) => t.toLowerCase().includes(m));
 
-export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], type: TypeBail = "nu"): Bail {
+export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], typeVoulu?: TypeBail): Bail {
   const d = dossierDe(b);
+  // Bien à louer : montants de l'annonce patrim.fr (loyer hors charges, charges, dépôt, honoraires locataire)
+  const loc = locationDe(b);
+  const type: TypeBail = typeVoulu ?? (loc?.meuble ? "meuble" : "nu");
   const localisation = [adresseComplete(b), d?.complementAdresse, b.type === "appartement" && b.etage != null ? (b.etage === 0 ? "rez-de-chaussée" : `${b.etage}e étage`) : ""]
     .filter(Boolean)
     .join(", ");
@@ -233,6 +237,9 @@ export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], type: Ty
     privatifs: [b.cave && "Cave", b.parking && (contient(b.parking, "garage", "box") ? "Garage" : "Parking")].filter(Boolean) as string[],
     communs: [b.ascenseur && "Ascenseur"].filter(Boolean) as string[],
     debut: undefined,
+    loyer: loc?.loyer,
+    charges: loc?.charges,
+    depot: loc?.depot,
     zone: "tendue",
     decretRelocation: true,
     encadrement: false,
@@ -242,7 +249,7 @@ export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], type: Ty
     chargesDetail: DETAIL_CHARGES,
     paiement: "echoir",
     jourPaiement: "avant le 10 de chaque mois",
-    honorairesLocataire: {},
+    honorairesLocataire: loc?.honoraires ? ventilerHonoraires(loc.honoraires, b.surface) : {},
     honorairesBailleur: {},
     memeHonoraires: true,
     catnat: false,
@@ -253,6 +260,14 @@ export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], type: Ty
     date: today(),
     maj: new Date().toISOString(),
   };
+}
+
+/** Brouillon commencé avant : complète les montants restés vides avec ceux de l'annonce (rien n'est écrasé). */
+export function completerDepuisAnnonce(x: Bail, b: Bien): Bail {
+  const loc = locationDe(b);
+  if (!loc) return x;
+  const hono = !x.honorairesLocataire.bail && !x.honorairesLocataire.edl && loc.honoraires ? ventilerHonoraires(loc.honoraires, b.surface) : x.honorairesLocataire;
+  return { ...x, loyer: x.loyer ?? loc.loyer, charges: x.charges ?? loc.charges, depot: x.depot ?? loc.depot, honorairesLocataire: hono };
 }
 
 /* ---------- Règles ---------- */
