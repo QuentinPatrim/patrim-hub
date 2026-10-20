@@ -14,11 +14,12 @@ import { FileSignature, FileText, Handshake, Home, PenLine, Plus, Search } from 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Badge, Card, Empty, Field, PageHeader, Sheet, cx } from "@/components/ui";
+import { Badge, Card, Empty, Field, PageHeader, Sheet, Spinner, cx } from "@/components/ui";
 import { ContactPicker } from "@/components/estimations/blocks";
 import { Choix, Interrupteur, Nombre } from "@/components/estimations/controls";
 import { actesDuBien, lienActe, resumeActe, statutActe, titreActe, type Acte, type BienActes } from "@/components/documents/rediger";
 import { create, getAll, useCollection } from "@/lib/store";
+import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
 import { today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 
@@ -164,14 +165,28 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
   const [prix, setPrix] = useState<number>();
   const [proprietaireId, setProprietaireId] = useState<string>();
   const [erreur, setErreur] = useState("");
+  const [numeroAgence, setNumeroAgence] = useState<number | null>(null);
+  const [numeroCharge, setNumeroCharge] = useState(false);
 
   const liste = useMemo(() => {
     const s = q.trim().toLowerCase();
     return enVente.filter((b) => !s || [b.titre, b.adresse, b.ville].filter(Boolean).join(" ").toLowerCase().includes(s)).slice(0, 8);
   }, [enVente, q]);
 
-  const creerEtAller = () => {
+  // Aperçu du prochain numéro de mandat de l'agence (rien n'est consommé)
+  useMemo(() => {
+    if (kind === "mandat") void apercuNumero().then((a) => a && setNumeroAgence(a.numero));
+  }, [kind]);
+
+  const creerEtAller = async () => {
     setErreur("");
+    setNumeroCharge(true);
+    // Mandat : le numéro de l'agence est réservé tout de suite, personne ne peut le prendre entre-temps
+    let numeroMandat: string | undefined;
+    if (kind === "mandat") {
+      const n = await reserverNumero();
+      if (n) numeroMandat = String(n);
+    }
     const nouveau: Partial<Bien> = {
       titre: [type === "appartement" ? "Appartement" : "Maison", pieces ? `${pieces} pièce${pieces > 1 ? "s" : ""}` : null, surface ? `${surface} m²` : null].filter(Boolean).join(" "),
       type,
@@ -184,6 +199,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
       dateMiseEnVente: today(),
     };
     if (proprietaireId) nouveau.vendeurIds = [proprietaireId];
+    if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
     const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
     onClose();
     router.push(`/biens/${b.id}/${kind === "tous" ? "mandat" : kind}`);
@@ -277,8 +293,13 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
               </div>
             )}
             {erreur && <p className="text-xs text-danger">{erreur}</p>}
-            <button type="button" className="btn-primary !h-12 w-full" disabled={!peutCreer} onClick={creerEtAller}>
-              <Plus size={16} /> Créer le bien et rédiger {label.toLowerCase()}
+            {kind === "mandat" && numeroAgence && (
+              <p className="rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+                Le mandat prendra le <span className="font-semibold text-fg">n° ${numeroAgence}</span> de l'agence, réservé automatiquement à la création.
+              </p>
+            )}
+            <button type="button" className="btn-primary !h-12 w-full" disabled={!peutCreer || numeroCharge} onClick={() => void creerEtAller()}>
+              {numeroCharge ? <Spinner /> : <Plus size={16} />} Créer le bien et rédiger {label.toLowerCase()}
             </button>
             {!peutCreer && <p className="text-center text-[11px] text-muted">L'adresse ou la surface suffit pour créer.</p>}
           </div>
