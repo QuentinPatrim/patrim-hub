@@ -74,32 +74,32 @@ export default function RedigerPage() {
               <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
                 <k.icon size={19} />
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="font-semibold leading-tight">{k.label}</p>
                 <p className="mt-0.5 text-[11px] leading-snug text-muted">{k.desc}</p>
               </div>
-              <Plus size={16} className="ml-auto shrink-0 text-muted group-hover:text-accent" />
+              <Plus size={16} className="shrink-0 text-muted group-hover:text-accent" />
             </div>
           </button>
         ))}
       </div>
 
       {/* Liste */}
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center">
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto no-scrollbar px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {(["tous", "mandat", "offre", "avenant", "bon"] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setVue(v)}
-              className={cx("chip !h-9 !px-3.5 capitalize", vue === v && "!border-accent !text-accent")}
+              className={cx("chip !h-9 shrink-0 !px-3.5 capitalize", vue === v && "!border-accent !text-accent")}
             >
               {v === "tous" ? "Tous" : KINDS.find((k) => k.v === v)?.label}
               <span className="ml-1.5 tabular-nums opacity-60">{compteur(v)}</span>
             </button>
           ))}
         </div>
-        <div className="relative sm:ml-auto sm:w-64">
+        <div className="relative w-full sm:ml-auto sm:w-64">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input className="input pl-9" placeholder="Bien, adresse, acquéreur…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -124,7 +124,7 @@ export default function RedigerPage() {
               const st = statutActe(acte);
               return (
                 <li key={acte.id}>
-                  <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-4 min-w-0">
+                  <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-3 min-w-0 sm:gap-4">
                     <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-brand">
                       {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : <PenLine size={18} />}
                     </span>
@@ -321,7 +321,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
             <Field label="Adresse du bien">
               <input className="input" value={adresse} onChange={(e) => setAdresse(e.target.value)} placeholder="12 rue des Amidonniers, 31000 Toulouse" />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
               <Field label="Ville">
                 <input className="input" value={ville} onChange={(e) => setVille(e.target.value)} placeholder="Toulouse" />
               </Field>
