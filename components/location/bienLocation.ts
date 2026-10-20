@@ -23,6 +23,10 @@ export interface InfosLocation {
   bailActeId?: string;
   /** Mandat de gestion signé avec l'agence. */
   gestion?: { numero?: string; debut?: string; acteId?: string };
+  /** Honoraires de location charge locataire, tels qu'annoncés. */
+  honoraires?: number;
+  /** Annonce de location sur patrim.fr (référence GES…), en ligne ou non à la dernière actualisation. */
+  site?: { ref: string; enLigne: boolean; vu: string };
 }
 
 /** `transaction: "location"` : bien entré dans le Hub seulement pour la location (pas en vente). */

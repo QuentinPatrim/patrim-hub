@@ -13,6 +13,7 @@ import { cx, Empty, PageHeader, Tabs } from "@/components/ui";
 import { today } from "@/lib/format";
 import { useCollection } from "@/lib/store";
 import type { Contact, ContactRole } from "@/lib/types";
+import { useEspace } from "@/components/espace/espace";
 
 type Vue = "liste" | "pipeline";
 type Filtre = "tous" | "acquereur" | "vendeur" | "prospect_vendeur" | "locataire";
@@ -27,11 +28,18 @@ export default function Page() {
 }
 
 function ContactsPage() {
-  const { items } = useCollection("contacts");
+  const { items: tous } = useCollection("contacts");
+  const loc = useEspace() === "location";
+  // Hub Location : propriétaires (communs) et candidats locataires. Hub Transaction : tout sauf les locataires.
+  const items = useMemo(
+    () => (loc ? tous.filter((c) => c.roles?.some((r) => r === "vendeur" || r === "locataire")) : tous.filter((c) => !(c.roles?.length && c.roles.every((r) => r === "locataire")))),
+    [tous, loc]
+  );
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [vue, setVue] = useState<Vue>("liste");
+  const [vueChoisie, setVue] = useState<Vue>("liste");
+  const vue: Vue = loc ? "liste" : vueChoisie;
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [q, setQ] = useState("");
   const [relance, setRelance] = useState(false);
@@ -115,12 +123,19 @@ function ContactsPage() {
         subtitle={
           items.length ? (
             <>
-              {counts.acquereur} acquéreur{counts.acquereur > 1 ? "s" : ""} · {counts.vendeur + counts.prospect_vendeur} propriétaire{counts.vendeur + counts.prospect_vendeur > 1 ? "s" : ""}
-              {counts.locataire > 0 && <> · {counts.locataire} locataire{counts.locataire > 1 ? "s" : ""}</>}
+              {loc ? (
+                <>
+                  {counts.vendeur} propriétaire{counts.vendeur > 1 ? "s" : ""} · {counts.locataire} candidat{counts.locataire > 1 ? "s" : ""} ou locataire{counts.locataire > 1 ? "s" : ""}
+                </>
+              ) : (
+                <>
+                  {counts.acquereur} acquéreur{counts.acquereur > 1 ? "s" : ""} · {counts.vendeur + counts.prospect_vendeur} propriétaire{counts.vendeur + counts.prospect_vendeur > 1 ? "s" : ""}
+                </>
+              )}
               {counts.relance > 0 && <span className="text-danger font-medium"> · {counts.relance} à relancer</span>}
             </>
           ) : (
-            "Acquéreurs, propriétaires, locataires et prospects"
+            loc ? "Propriétaires et candidats locataires" : "Acquéreurs, propriétaires et prospects"
           )
         }
         actions={
@@ -141,7 +156,7 @@ function ContactsPage() {
       />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center animate-fade-up">
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 sm:w-auto">
+        <div className={cx("grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 sm:w-auto", loc && "hidden")}>
           {(
             [
               ["liste", "Liste", List],
@@ -178,13 +193,20 @@ function ContactsPage() {
             <Tabs<Filtre>
               value={filtre}
               onChange={setFiltre}
-              items={[
-                { value: "tous", label: "Tous", count: counts.tous },
-                { value: "acquereur", label: "Acquéreurs", count: counts.acquereur },
-                { value: "vendeur", label: "Propriétaires", count: counts.vendeur },
-                { value: "locataire", label: "Locataires", count: counts.locataire },
-                { value: "prospect_vendeur", label: "Prospects vendeurs", count: counts.prospect_vendeur },
-              ]}
+              items={
+                loc
+                  ? [
+                      { value: "tous", label: "Tous", count: counts.tous },
+                      { value: "vendeur", label: "Propriétaires", count: counts.vendeur },
+                      { value: "locataire", label: "Locataires", count: counts.locataire },
+                    ]
+                  : [
+                      { value: "tous", label: "Tous", count: counts.tous },
+                      { value: "acquereur", label: "Acquéreurs", count: counts.acquereur },
+                      { value: "vendeur", label: "Propriétaires", count: counts.vendeur },
+                      { value: "prospect_vendeur", label: "Prospects vendeurs", count: counts.prospect_vendeur },
+                    ]
+              }
             />
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
               <FilterChip active={relance} onClick={() => setRelance((v) => !v)} tone="danger" icon={<AlarmClock size={14} />} count={counts.relance}>
@@ -261,7 +283,7 @@ function ContactsPage() {
         </>
       )}
 
-      <ContactForm open={nouveau} onClose={() => setNouveau(false)} defaultRole={filtre === "vendeur" || filtre === "prospect_vendeur" || filtre === "locataire" ? filtre : undefined} />
+      <ContactForm open={nouveau} onClose={() => setNouveau(false)} defaultRole={filtre === "vendeur" || filtre === "prospect_vendeur" || filtre === "locataire" ? filtre : loc ? "locataire" : undefined} />
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );

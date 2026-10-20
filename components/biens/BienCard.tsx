@@ -109,7 +109,7 @@ export function BienCard({ bien: b, matches, index = 0, location }: { bien: Bien
           <span className="inline-flex items-center gap-1">
             <Clock size={12} />
             {location
-              ? [loc?.meuble ? "Meublé" : "Vide", loc?.gestion ? `En gestion${loc.gestion.numero ? ` n° ${loc.gestion.numero}` : ""}` : null].filter(Boolean).join(" · ")
+              ? [loc?.meuble ? "Meublé" : "Vide", loc?.site && !loc.site.enLigne ? "Plus en ligne" : null, loc?.gestion ? `En gestion${loc.gestion.numero ? ` n° ${loc.gestion.numero}` : ""}` : null].filter(Boolean).join(" · ")
               : jours != null ? (actif ? `En vente depuis ${jours} j` : `Mis en vente il y a ${jours} j`) : `Ajouté le ${new Date(b.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
           </span>
           {b.ref && <span className={cx("font-mono text-[11px] text-muted/80")}>{b.ref}</span>}
