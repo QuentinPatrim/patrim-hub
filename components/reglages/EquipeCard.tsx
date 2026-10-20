@@ -15,6 +15,8 @@ type Prevu = { prenom: string; nom: string; email: string; role: Exclude<RoleEqu
 const PREVUS: Prevu[] = [
   { prenom: "Julien", nom: "Passerini", email: "julien.passerini@patrim.fr", role: "responsable" },
   { prenom: "Clément", nom: "Monti", email: "clement.monti@patrim.fr", role: "collegue" },
+  { prenom: "Rebecca", nom: "Gau", email: "rebecca.gau@patrim.fr", role: "collegue" },
+  { prenom: "Sabri", nom: "Abdesselem", email: "sabri.abdesselem@patrim.fr", role: "collegue" },
 ];
 
 type Acces = { email: string; password: string; prenom: string; nouveau: boolean };
