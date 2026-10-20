@@ -1,5 +1,7 @@
 "use client";
 
+import { useEspace } from "@/components/espace/espace";
+import { locationSeule } from "@/components/location/bienLocation";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { Field, Sheet, cx } from "@/components/ui";
@@ -17,7 +19,10 @@ export type RdvInitial = Partial<Rdv> & { jour?: string };
 
 /** Création / modification d'un rendez-vous, dans une feuille. */
 export function RdvForm({ open, onClose, initial, onSaved }: { open: boolean; onClose: () => void; initial?: RdvInitial; onSaved?: (r: Rdv) => void }) {
-  const { items: biens } = useCollection("biens");
+  const { items: tousBiens } = useCollection("biens");
+  const loc = useEspace() === "location";
+  // Hub Location : les biens à louer ; Hub Transaction : les biens en vente
+  const biens = useMemo(() => tousBiens.filter((b) => locationSeule(b) === loc || b.id === initial?.bienId), [tousBiens, loc, initial?.bienId]);
   const editing = !!initial?.id;
   const [type, setType] = useState<RdvType>("visite");
   const [jour, setJour] = useState(today());

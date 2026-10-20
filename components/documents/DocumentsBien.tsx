@@ -18,7 +18,7 @@ import { ecrireAvenant, prixPresentation } from "@/components/avenant/avenant";
 import { STATUTS_ACTE, changerStatutActe, lienActe, resumeActe, statutActe, supprimerActe, titreActe, type Acte, type BienActes } from "./archive";
 
 /** Carte « Documents » de la fiche du bien : offres d'achat, mandats, avenants et bons de visite, avec leur statut. */
-export function DocumentsBien({ bien }: { bien: BienActes }) {
+export function DocumentsBien({ bien, location }: { bien: BienActes; location?: boolean }) {
   const router = useRouter();
   const actes = [...(bien.actes ?? [])].sort((a, b) => b.maj.localeCompare(a.maj));
   // Les bons de visite, nombreux, sont regroupés à part pour ne pas noyer les offres et les mandats.
@@ -73,11 +73,21 @@ export function DocumentsBien({ bien }: { bien: BienActes }) {
       {!total ? (
         <Empty
           title="Aucun document pour l'instant"
-          text="Les offres d'achat, les mandats, les avenants, les bons de visite et les avis de valeur de ce bien sont gardés ici, avec leur statut."
+          text={
+            location
+              ? "Les fiches candidat, les baux, les cautions et le mandat de gestion de ce bien sont gardés ici, avec leur statut."
+              : "Les offres d'achat, les mandats, les avenants, les bons de visite et les avis de valeur de ce bien sont gardés ici, avec leur statut."
+          }
           action={
-            <Link href={`/biens/${bien.id}/offre`} className="btn-secondary btn-sm">
-              <FileSignature size={14} /> Rédiger une offre d&apos;achat
-            </Link>
+            location ? (
+              <Link href={`/biens/${bien.id}/bail`} className="btn-secondary btn-sm">
+                <FileSignature size={14} /> Rédiger le bail
+              </Link>
+            ) : (
+              <Link href={`/biens/${bien.id}/offre`} className="btn-secondary btn-sm">
+                <FileSignature size={14} /> Rédiger une offre d&apos;achat
+              </Link>
+            )
           }
         />
       ) : (

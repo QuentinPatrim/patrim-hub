@@ -220,11 +220,29 @@ export default function BienPage() {
           )}
         </div>
         <div className="sm:text-right shrink-0">
+          {aLouer ? (
+            <>
+              <div className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight">
+                {locationDe(b)?.loyer ? (
+                  <>
+                    {eur((locationDe(b)!.loyer ?? 0) + (locationDe(b)!.charges ?? 0))}
+                    <span className="font-sans text-base font-medium text-muted"> /mois CC</span>
+                  </>
+                ) : (
+                  "Loyer à définir"
+                )}
+              </div>
+              <div className="text-sm text-muted">{locationDe(b)?.meuble ? "Meublé" : "Vide"}{locationDe(b)?.charges ? ` · dont ${eur(locationDe(b)!.charges!)} de charges` : ""}</div>
+            </>
+          ) : (
+            <>
           <div className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight">{b.prix ? eur(b.prix) : "Prix à définir"}</div>
           <div className="text-sm text-muted">
             {pm2 ? `${eur(pm2)} / m²` : ""}
             {b.prix && b.honorairesCharge ? ` · honoraires à la charge ${b.honorairesCharge === "acquereur" ? "de l'acquéreur" : "du vendeur"}` : ""}
           </div>
+            </>
+          )}
           <BaisseEnTete b={b} restants={restantsBaisse} />
         </div>
       </header>
@@ -275,13 +293,17 @@ export default function BienPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 animate-fade-up">
         <KeyFig label="Surface" value={b.surface ? m2(b.surface) : "—"} hint={b.surfaceTerrain ? `Terrain ${m2(b.surfaceTerrain)}` : b.type === "appartement" ? "Carrez" : undefined} />
         <KeyFig label="Pièces" value={b.pieces != null ? String(b.pieces) : "—"} hint={b.chambres ? `dont ${b.chambres} chambre${b.chambres > 1 ? "s" : ""}` : undefined} />
-        <KeyFig label="En vente depuis" value={jours != null ? `${jours} j` : "—"} hint={b.dateMiseEnVente ? `le ${dateCourte(b.dateMiseEnVente)}` : undefined} />
+        {aLouer ? (
+          <KeyFig label="Loyer" value={locationDe(b)?.loyer ? eur(locationDe(b)!.loyer!) : "—"} hint={locationDe(b)?.charges ? `+ ${eur(locationDe(b)!.charges!)} de charges` : "hors charges"} />
+        ) : (
+          <KeyFig label="En vente depuis" value={jours != null ? `${jours} j` : "—"} hint={b.dateMiseEnVente ? `le ${dateCourte(b.dateMiseEnVente)}` : undefined} />
+        )}
         <KeyFig label="Visites" value={String(nbVisitesFaites)} hint={visites.length > nbVisitesFaites ? `${visites.filter((v) => v.statut === "prevu" && new Date(v.debut).getTime() >= Date.now()).length} à venir` : undefined} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
         <div className="space-y-5 min-w-0">
-          {manquants.length > 0 && (
+          {!aLouer && manquants.length > 0 && (
             <section className="rounded-2xl border border-warn/25 bg-warn/[0.06] p-4 sm:p-5">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="h-section inline-flex items-center gap-2">
@@ -309,7 +331,7 @@ export default function BienPage() {
 
           {aLouer && <LocationBien b={b} />}
 
-          <DocumentsBien bien={b as BienActes} />
+          <DocumentsBien bien={b as BienActes} location={aLouer} />
 
           <Card
             title={`Visites${visites.length ? ` (${visites.length})` : ""}`}
@@ -381,6 +403,7 @@ export default function BienPage() {
 
         {/* Colonne latérale */}
         <aside className="space-y-5">
+          {!aLouer && (
           <Card title="Prix & mandat" action={b.mandat?.numero || b.mandat?.debut ? <LienAvenant bienId={b.id} court /> : undefined}>
             <dl>
               <Info label="Prix affiché" value={b.prix ? eur(b.prix) : undefined} />
@@ -403,8 +426,9 @@ export default function BienPage() {
             </dl>
             <BaisseFiche b={b} restants={restantsBaisse} />
           </Card>
+          )}
 
-          <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />
+          {!aLouer && <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />}
 
           <DiagnosticsFiche b={b} />
 

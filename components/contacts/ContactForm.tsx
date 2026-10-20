@@ -1,5 +1,7 @@
 "use client";
 
+import { useEspace } from "@/components/espace/espace";
+import { locationDe, locationSeule } from "@/components/location/bienLocation";
 import { AlertTriangle, ClipboardPaste, Home, Sparkles, UserPlus, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -88,7 +90,9 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
   }, [d.tel, d.email, contacts]);
 
   const bienOrigine = biens.find((b) => b.id === d.bienOrigineId);
-  const biensActifs = useMemo(() => biens.filter((b) => b.statut !== "vendu" && b.statut !== "retire"), [biens]);
+  const loc = useEspace() === "location";
+  // Hub Location : les biens à louer ; Hub Transaction : les biens encore en vente
+  const biensActifs = useMemo(() => (loc ? biens.filter(locationSeule) : biens.filter((b) => b.statut !== "vendu" && b.statut !== "retire")), [biens, loc]);
 
   async function analyser() {
     if (!lead.trim()) return;
@@ -319,7 +323,7 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
             </div>
           </div>
           {biensActifs.length > 0 && (
-            <Field label="Bien concerné" hint={bienOrigine ? `${bienOrigine.ref ? `Réf. ${bienOrigine.ref} · ` : ""}${eur(bienOrigine.prix)}` : "Le bien de l'annonce qui a amené ce contact (facultatif)"}>
+            <Field label="Bien concerné" hint={bienOrigine ? `${bienOrigine.ref ? `Réf. ${bienOrigine.ref} · ` : ""}${locationSeule(bienOrigine) ? `${eur(locationDe(bienOrigine)?.loyer)} /mois` : eur(bienOrigine.prix)}` : "Le bien de l'annonce qui a amené ce contact (facultatif)"}>
               <div className="relative">
                 <Home size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
                 <select className="input pl-9" value={d.bienOrigineId ?? ""} onChange={(e) => set({ bienOrigineId: e.target.value || undefined })}>

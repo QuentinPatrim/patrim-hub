@@ -27,6 +27,7 @@ import { getAll } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
+import { locationSeule } from "@/components/location/bienLocation";
 
 export const NAV_VENTE = [
   { href: "/", label: "Accueil", icon: Home },
@@ -227,18 +228,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 function SearchPalette({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const router = useRouter();
+  const loc = useEspace() === "location";
   const results = useMemo(() => {
     const s = q.trim().toLowerCase();
     const pages = [...NAV_VENTE, ...NAV_LOCATION.filter((n) => !NAV_VENTE.some((v) => v.href === n.href))];
     if (!s) return pages.map((n) => ({ href: n.href, title: n.label, sub: "Aller à la page" }));
     const has = (...v: (string | number | undefined)[]) => v.some((x) => x != null && String(x).toLowerCase().includes(s));
     const out: { href: string; title: string; sub: string }[] = [];
-    getAll("biens").forEach((b) => has(b.titre, b.adresse, b.ref, b.quartier, b.ville) && out.push({ href: `/biens/${b.id}`, title: b.titre || b.adresse, sub: `Bien · ${b.adresse}` }));
+    getAll("biens").filter((b) => locationSeule(b) === loc).forEach((b) => has(b.titre, b.adresse, b.ref, b.quartier, b.ville) && out.push({ href: `/biens/${b.id}`, title: b.titre || b.adresse, sub: `Bien · ${b.adresse}` }));
     getAll("contacts").forEach((c) => has(c.nom, c.prenom, c.email, c.tel) && out.push({ href: `/contacts/${c.id}`, title: nomComplet(c), sub: `Contact · ${c.tel ?? c.email ?? ""}` }));
     getAll("estimations").forEach((e) => has(e.adresse, e.ville) && out.push({ href: `/estimations/${e.id}`, title: e.adresse, sub: "Estimation" }));
     pages.forEach((n) => has(n.label) && out.push({ href: n.href, title: n.label, sub: "Page" }));
     return out.slice(0, 30);
-  }, [q]);
+  }, [q, loc]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[12vh]" onClick={onClose}>
