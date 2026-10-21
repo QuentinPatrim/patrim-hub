@@ -1,9 +1,17 @@
 import type { Bien, Contact, ContactRole, Criteres, EtapeAcquereur, Source } from "@/lib/types";
-import { eurK, today, TYPE_BIEN } from "@/lib/format";
+import { ETAPE, eurK, today, TYPE_BIEN } from "@/lib/format";
 
 /* Outils partagés du module Contacts. */
 
 export const ETAPES: EtapeAcquereur[] = ["nouveau", "qualifie", "visite", "offre", "compromis", "gagne", "perdu"];
+
+/** Un acquéreur reste « Nouveau » 24 h après la création de sa fiche, puis passe « Sans étape » tout seul. */
+export function etapeDe(c: Pick<Contact, "etape" | "createdAt">): EtapeAcquereur | undefined {
+  const e = c.etape ?? "nouveau";
+  if (e === "nouveau" && Date.now() - new Date(c.createdAt).getTime() > 24 * 3600e3) return undefined;
+  return e;
+}
+export const etapeLabel = (e?: EtapeAcquereur) => (e ? ETAPE[e].label : "Sans étape");
 export const SOURCES: Source[] = ["seloger", "leboncoin", "bienici", "site", "telephone", "vitrine", "recommandation", "instagram", "pige", "autre"];
 export const ROLES: ContactRole[] = ["acquereur", "vendeur", "prospect_vendeur", "locataire", "partenaire"];
 

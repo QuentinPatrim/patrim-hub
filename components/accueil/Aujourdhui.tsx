@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronRight, FileSignature, Flame, Calculator, MessageSquare, Phone, Sparkles, UserRoundCheck } from "lucide-react";
+import { CalendarDays, ChevronRight, FileSignature, Calculator, MessageSquare, Phone, Sparkles, UserRoundCheck } from "lucide-react";
 import { Avatar, Badge, Card, cx } from "@/components/ui";
 import { RDV_TYPE, dateCourte, eurK, heure, ilya, initiales, nomComplet, today, addDays } from "@/lib/format";
 import { smsHref, telHref } from "@/components/biens/utils";
@@ -44,7 +44,7 @@ export function aRappeler(contacts: Contact[], delai: number) {
     else if (jours(c.dernierContact ?? c.createdAt) >= delai && (!c.dateRelance || c.dateRelance < jour))
       out.push({ c, raison: { label: `Sans nouvelles ${c.dernierContact ? ilya(c.dernierContact) : "depuis la création"}`, tone: "neutral", rang: 2 } });
   }
-  return out.sort((a, b) => a.raison.rang - b.raison.rang || (b.c.chaleur ?? 0) - (a.c.chaleur ?? 0) || jours(b.c.dernierContact) - jours(a.c.dernierContact));
+  return out.sort((a, b) => a.raison.rang - b.raison.rang || jours(b.c.dernierContact) - jours(a.c.dernierContact));
 }
 
 export function echeancesMandat(biens: Bien[]) {
@@ -149,7 +149,6 @@ export function Aujourdhui({ biens, contacts, rdvs, estimations }: { biens: Bien
                   <Link href={`/contacts/${c.id}`} className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-sm font-semibold">
                       <span className="truncate">{nomComplet(c)}</span>
-                      {c.chaleur === 3 && <Flame size={13} className="shrink-0 text-danger" aria-label="Chaud" />}
                     </div>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Badge tone={raison.tone} className="shrink-0">{raison.label}</Badge>

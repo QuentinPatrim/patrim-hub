@@ -11,7 +11,7 @@ import { ask } from "@/lib/ai";
 import { eur, nomComplet, ROLE, SOURCE, today } from "@/lib/format";
 import { create, useCollection } from "@/lib/store";
 import type { BienType, Contact, ContactRole, Criteres, Source } from "@/lib/types";
-import { FlamesPicker, PickChip } from "./bits";
+import { PickChip } from "./bits";
 import { CriteresEditor, parseNum } from "./CriteresEditor";
 import { marquerCree, normalize, SOURCES, trouverBien } from "./helpers";
 
@@ -341,22 +341,16 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
               </span>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Source">
-              <select className="input" value={d.source ?? ""} onChange={(e) => set({ source: (e.target.value || undefined) as Source | undefined })}>
-                <option value="">—</option>
-                {SOURCES.map((s) => (
-                  <option key={s} value={s}>
-                    {SOURCE[s]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div>
-              <span className="label">Chaleur</span>
-              <FlamesPicker value={d.chaleur} onChange={(v) => set({ chaleur: v })} />
-            </div>
-          </div>
+          <Field label="Source">
+            <select className="input" value={d.source ?? ""} onChange={(e) => set({ source: (e.target.value || undefined) as Source | undefined })}>
+              <option value="">—</option>
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {SOURCE[s]}
+                </option>
+              ))}
+            </select>
+          </Field>
           {biensActifs.length > 0 && (
             <Field label="Bien concerné" hint={bienOrigine ? `${bienOrigine.ref ? `Réf. ${bienOrigine.ref} · ` : ""}${locationSeule(bienOrigine) ? `${eur(locationDe(bienOrigine)?.loyer)} /mois` : eur(bienOrigine.prix)}` : "Le bien de l'annonce qui a amené ce contact (facultatif)"}>
               <div className="relative">

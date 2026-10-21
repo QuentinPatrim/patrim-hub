@@ -7,11 +7,17 @@ import { Avatar, cx, Empty, Sheet } from "@/components/ui";
 import { dateCourte, ETAPE, eurK, initiales, nomComplet, today } from "@/lib/format";
 import { update } from "@/lib/store";
 import type { Contact, EtapeAcquereur } from "@/lib/types";
-import { Flames } from "./bits";
-import { criteresResume, ETAPES, relanceEnRetard, sortByRelance } from "./helpers";
+import { criteresResume, ETAPES, etapeDe, etapeLabel, relanceEnRetard, sortByRelance } from "./helpers";
 
-const DOT: Record<EtapeAcquereur, string> = {
+/** Colonnes : « Sans étape » regroupe les nouveaux de plus de 24 h. */
+type Col = EtapeAcquereur | "sans";
+const COLS: Col[] = ["nouveau", "sans", ...ETAPES.slice(1)];
+const colDe = (c: Contact): Col => etapeDe(c) ?? "sans";
+const labelCol = (e: Col) => (e === "sans" ? etapeLabel() : ETAPE[e].label);
+
+const DOT: Record<Col, string> = {
   nouveau: "bg-sky-500",
+  sans: "bg-line",
   qualifie: "bg-muted",
   visite: "bg-warn",
   offre: "bg-accent",
@@ -23,13 +29,13 @@ const DOT: Record<EtapeAcquereur, string> = {
 export function Pipeline({ contacts, onNew }: { contacts: Contact[]; onNew: () => void }) {
   const acq = useMemo(() => contacts.filter((c) => c.roles?.includes("acquereur")), [contacts]);
   const cols = useMemo(() => {
-    const m = Object.fromEntries(ETAPES.map((e) => [e, [] as Contact[]])) as Record<EtapeAcquereur, Contact[]>;
-    acq.forEach((c) => m[c.etape ?? "nouveau"].push(c));
-    ETAPES.forEach((e) => m[e].sort(sortByRelance));
+    const m = Object.fromEntries(COLS.map((e) => [e, [] as Contact[]])) as Record<Col, Contact[]>;
+    acq.forEach((c) => m[colDe(c)].push(c));
+    COLS.forEach((e) => m[e].sort(sortByRelance));
     return m;
   }, [acq]);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [over, setOver] = useState<EtapeAcquereur | null>(null);
+  const [over, setOver] = useState<Col | null>(null);
   const [moving, setMoving] = useState<Contact | null>(null);
   // Glisser-déposer seulement avec une souris (sur mobile : menu « Passer à… »)
   const [canDrag, setCanDrag] = useState(false);
@@ -41,12 +47,14 @@ export function Pipeline({ contacts, onNew }: { contacts: Contact[]; onNew: () =
     return () => mq.removeEventListener?.("change", on);
   }, []);
 
-  const move = (id: string, etape: EtapeAcquereur) => {
+  const move = (id: string, col: Col) => {
     const c = acq.find((x) => x.id === id);
-    if (!c || (c.etape ?? "nouveau") === etape) return;
+    // « Sans étape » se remplit tout seul : on n'y dépose rien
+    if (!c || col === "sans" || colDe(c) === col) return;
+    const etape = col;
     update("contacts", id, {
       etape,
-      historique: [{ date: new Date().toISOString(), type: "note" as const, texte: `Étape : ${ETAPE[c.etape ?? "nouveau"].label} → ${ETAPE[etape].label}` }, ...(c.historique ?? [])],
+      historique: [{ date: new Date().toISOString(), type: "note" as const, texte: `Étape : ${etapeLabel(etapeDe(c))} → ${ETAPE[etape].label}` }, ...(c.historique ?? [])],
     });
   };
 
@@ -73,7 +81,7 @@ export function Pipeline({ contacts, onNew }: { contacts: Contact[]; onNew: () =
       </p>
       <div className="-mx-4 sm:-mx-6 lg:mx-0 overflow-x-auto snap-x snap-mandatory scroll-px-4 pb-3">
         <div className="flex gap-3 px-4 sm:px-6 lg:px-0 w-max">
-          {ETAPES.map((e) => {
+          {COLS.map((e) => {
             const list = cols[e];
             const total = list.reduce((s, c) => s + (c.criteres?.budgetMax ?? 0), 0);
             return (
@@ -102,7 +110,7 @@ export function Pipeline({ contacts, onNew }: { contacts: Contact[]; onNew: () =
               >
                 <header className="flex items-center gap-2 px-3.5 pt-3 pb-2">
                   <span className={cx("size-2 rounded-full", DOT[e])} />
-                  <h3 className="text-sm font-semibold">{ETAPE[e].label}</h3>
+                  <h3 className="text-sm font-semibold">{labelCol(e)}</h3>
                   <span className="rounded-full bg-surface px-1.5 text-[11px] font-semibold text-muted border border-line">{list.length}</span>
                   {total > 0 && <span className="ml-auto text-[11px] text-muted">{eurK(total)}</span>}
                 </header>
@@ -137,7 +145,7 @@ export function Pipeline({ contacts, onNew }: { contacts: Contact[]; onNew: () =
         {moving && (
           <div className="grid gap-1.5 pb-2">
             {ETAPES.map((e) => {
-              const cur = (moving.etape ?? "nouveau") === e;
+              const cur = colDe(moving) === e;
               return (
                 <button
                   key={e}
@@ -188,7 +196,6 @@ function PipeCard({ c, dragging, draggable, onDragStart, onDragEnd, onMove }: { 
           <Avatar text={initiales(c)} className="size-8 text-[11px]" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold">{nomComplet(c)}</div>
-            <Flames value={c.chaleur} size={11} />
           </div>
           {draggable && <GripVertical size={16} className="text-line group-hover:text-muted shrink-0" />}
         </div>

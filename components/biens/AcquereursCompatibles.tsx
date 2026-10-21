@@ -58,7 +58,6 @@ export function AcquereursCompatibles({ bien, matches }: { bien: Bien; matches: 
                         {nomComplet(c)}
                       </Link>
                       {etape && <Badge tone={etape.tone}>{etape.label}</Badge>}
-                      {c.chaleur === 3 && <Badge tone="danger">Chaud</Badge>}
                     </div>
                     <div className="text-xs text-muted">
                       {c.criteres?.budgetMax ? `Budget ${eurK(c.criteres.budgetMax)}` : "Budget non précisé"}
