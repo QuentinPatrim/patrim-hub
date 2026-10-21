@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, ClipboardList, FileSignature, KeyRound, Link2, Lock, Plus, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { ChevronRight, ClipboardList, FileSignature, FileText, KeyRound, Link2, Lock, Plus, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { Badge, Card, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { PickChip } from "@/components/contacts/bits";
 import { dateCourte, eur, ilya } from "@/lib/format";
@@ -303,6 +303,9 @@ function CarteDossier({
           <button type="button" className="btn-primary !h-11" disabled={!avecNom} onClick={onBail}>
             <KeyRound size={16} /> Préparer le bail
           </button>
+          <Link href={`/imprimer/candidat/${d.bienId}?dossier=${d.id}`} className={cx("btn-secondary !h-11", !recues && "pointer-events-none opacity-50")} aria-disabled={!recues}>
+            <FileText size={16} /> Fiche remplie (PDF)
+          </Link>
           {garants.map((g) => (
             <button key={g.id} type="button" className="btn-secondary !h-11" onClick={() => onCaution(g)}>
               <FileSignature size={16} /> Caution de {g.reponses?.prenom || g.prenom}
