@@ -11,7 +11,6 @@ import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { useCollection } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import type { Contact } from "@/lib/types";
-import { BoutonPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Avis locatif express — version imprimable (A4), mise en page
@@ -190,29 +189,22 @@ function AvisLocatif() {
               <span className="sm:hidden">Nom</span>
             </label>
           )}
+          <button
+            type="button"
+            onClick={() => (proprio?.email ? setMail(true) : window.print())}
+            className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
+            style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`, boxShadow: "0 8px 24px -8px rgba(138,14,1,0.6)" }}
+          >
+            {proprio?.email ? <><Mail size={16} /> Envoyer au propriétaire</> : <><Printer size={16} /> PDF</>}
+          </button>
           {proprio?.email ? (
             <button
               type="button"
-              onClick={() => setMail(true)}
-              className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
-              style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`, boxShadow: "0 8px 24px -8px rgba(138,14,1,0.6)" }}
-            >
-              <Mail size={16} /> Envoyer au propriétaire
-            </button>
-          ) : (
-            <BoutonPdf nom="Avis de valeur locative PATRIM"
-              className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
-              style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`, boxShadow: "0 8px 24px -8px rgba(138,14,1,0.6)" }}
-            >
-              <Printer size={16} /> PDF
-            </BoutonPdf>
-          )}
-          {proprio?.email ? (
-            <BoutonPdf nom="Avis de valeur locative PATRIM"
+              onClick={() => window.print()}
               className="inline-flex h-10 items-center gap-2 rounded-full border border-[#d2d2d7] px-4 text-sm font-medium text-[#1d1d1f] hover:bg-black/5 active:scale-[.98]"
             >
               <Printer size={16} /> PDF
-            </BoutonPdf>
+            </button>
           ) : null}
         </div>
       </div>

@@ -23,7 +23,6 @@ import {
   revenusTotal,
 } from "@/components/caution/caution";
 import { ANS_LETTRES, dateActe, eurosCts, montantBail, trimestreTexte, valeurIrl } from "@/components/location/loi";
-import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Acte de cautionnement solidaire à durée déterminée PATRIM,
@@ -56,7 +55,7 @@ export default function CautionPdf() {
   useEffect(() => {
     if (!c) return;
     const prev = document.title;
-    document.title = nommerPdf(`Acte de cautionnement ${c.personnes.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim());
+    document.title = `Acte de cautionnement ${c.personnes.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim();
     return () => {
       document.title = prev;
     };
@@ -99,9 +98,9 @@ export default function CautionPdf() {
           <Link href={`/biens/${id}/caution`} onClick={() => ecrireCaution(c)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
-          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </BoutonPdf>
+          </button>
         </div>
         <div className="mx-auto max-w-[860px] px-4 pb-2.5 text-[12px] leading-snug" style={{ color: C.slate }}>
           {nbManquants > 0 ? (

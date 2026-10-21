@@ -10,7 +10,6 @@ import { ACTE_PRINT_CSS, Pagine, PrixBloc, Section, Texte, ou } from "@/componen
 import { dateLettres, nomOffre, type Partie } from "@/components/offre/offre";
 import { TYPES_MANDAT } from "@/components/mandat/mandat";
 import { ecrireAvenant, lireAvenant, manquantsAvenant, prixPresentation } from "@/components/avenant/avenant";
-import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Avenant au mandat de vente PATRIM (prix, honoraires), prêt à
@@ -38,7 +37,7 @@ export default function AvenantPdf() {
   useEffect(() => {
     if (!a) return;
     const prev = document.title;
-    document.title = nommerPdf(`Avenant ${a.numero ?? ""} mandat ${a.mandatNumero ?? ""} ${a.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.replace(/\s+/g, " ").trim());
+    document.title = `Avenant ${a.numero ?? ""} mandat ${a.mandatNumero ?? ""} ${a.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.replace(/\s+/g, " ").trim();
     return () => {
       document.title = prev;
     };
@@ -78,9 +77,9 @@ export default function AvenantPdf() {
           <Link href={`/biens/${id}/avenant${a.acteId ? `?acte=${a.acteId}` : ""}`} onClick={() => ecrireAvenant(a)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
-          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </BoutonPdf>
+          </button>
         </div>
         <div className="mx-auto max-w-[860px] px-4 pb-2.5 text-[12px] leading-snug" style={{ color: C.slate }}>
           {nbManquants > 0 ? (

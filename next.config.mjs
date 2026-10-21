@@ -2,9 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   images: { unoptimized: true },
-  // Chrome du serveur pour fabriquer les PDF (/api/pdf) : chargé tel quel, sans passer par le bundler.
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
-  outputFileTracingIncludes: { "/api/pdf": ["./node_modules/@sparticuz/chromium/bin/**"] },
   // Le Studio a été retiré : les anciens liens (raccourci de l'appli installée) ramènent à l'accueil.
   async redirects() {
     return [{ source: "/studio/:path*", destination: "/", permanent: false }];
