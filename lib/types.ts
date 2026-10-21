@@ -138,8 +138,8 @@ export interface Estimation extends Doc {
   ville?: string;
   lat?: number;
   lon?: number;
-  type: "appartement" | "maison";
-  surface: number;
+  type: "appartement" | "maison" | "immeuble" | "parking";
+  surface: number;            // immeuble : surface totale des lots ; parking : 0 si inconnue
   pieces?: number;
   etage?: number;
   ascenseur?: boolean;

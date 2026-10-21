@@ -176,6 +176,9 @@ interface RawMutation {
     dependances: number;
     land: number;         // somme des surfaces de terrain (parcelles distinctes)
     otherLocals: number;  // locaux industriels/commerciaux
+    otherSurface: number; // surface bâtie de ces locaux
+    /** Emplacement de la première dépendance (ventes de parkings seuls) */
+    dep?: { lat: number; lon: number; addrNum: string; street: string; postcode: string; city: string };
 }
 
 // Cache mémoire par commune/année, borné (une instance Vercel "chaude" le réutilise)
@@ -268,7 +271,7 @@ async function downloadCommuneYear(citycode: string, year: number): Promise<RawM
         let acc = byId.get(id);
         if (!acc) {
             acc = {
-                m: { id, date: f[C.date], nature, price: Number(f[C.price]) || 0, locals: [], dependances: 0, land: 0, otherLocals: 0 },
+                m: { id, date: f[C.date], nature, price: Number(f[C.price]) || 0, locals: [], dependances: 0, land: 0, otherLocals: 0, otherSurface: 0 },
                 parcels: new Set(), localKeys: new Set(),
             };
             byId.set(id, acc);
@@ -297,8 +300,15 @@ async function downloadCommuneYear(citycode: string, year: number): Promise<RawM
             }
         } else if (type === "Dépendance") {
             m.dependances++;
+            if (!m.dep) {
+                m.dep = {
+                    lat: Number(f[C.lat]), lon: Number(f[C.lon]), addrNum: `${f[C.num] || ""}${f[C.suffix] || ""}`,
+                    street: f[C.street], postcode: f[C.cp], city: f[C.city],
+                };
+            }
         } else if (type) {
             m.otherLocals++;
+            m.otherSurface += Number(f[C.surface]) || 0;
         }
     }
 
@@ -340,15 +350,16 @@ export function computeStats(sales: DvfSale[]): DvfStats | null {
     };
 }
 
-/* ---------- Recherche principale ---------- */
+/* ---------- Chargement des ventes autour d'une adresse ---------- */
 
-export async function searchDvfComparables(params: DvfSearchParams): Promise<DvfSearchResult | { error: string; status: number }> {
-    const {
-        address, surface, propertyType,
-        radius = 500, surfaceTolerance = 0.25, rooms = 0,
-        includeVefa = false, limit = 30, knownSales = [],
-    } = params;
+interface Secteur {
+    center: { lat: number; lon: number; label: string; citycode: string };
+    communeList: string[];
+    yearsFound: Set<number>;
+    mutations: RawMutation[];
+}
 
+async function chargerSecteur(address: string, radius: number): Promise<Secteur | { error: string; status: number }> {
     const center = await geocode(address);
     if (!center) return { error: "Adresse introuvable. Vérifiez l'adresse du bien (étape 1).", status: 404 };
 
@@ -383,6 +394,8 @@ export async function searchDvfComparables(params: DvfSearchParams): Promise<Dvf
                 dependances: prev.dependances + m.dependances,
                 land: prev.land + m.land,
                 otherLocals: prev.otherLocals + m.otherLocals,
+                otherSurface: prev.otherSurface + m.otherSurface,
+                dep: prev.dep ?? m.dep,
             });
         }
     });
@@ -395,6 +408,21 @@ export async function searchDvfComparables(params: DvfSearchParams): Promise<Dvf
             status: 502,
         };
     }
+    return { center, communeList, yearsFound, mutations };
+}
+
+/* ---------- Recherche principale ---------- */
+
+export async function searchDvfComparables(params: DvfSearchParams, precharge?: Secteur): Promise<DvfSearchResult | { error: string; status: number }> {
+    const {
+        address, surface, propertyType,
+        radius = 500, surfaceTolerance = 0.25, rooms = 0,
+        includeVefa = false, limit = 30, knownSales = [],
+    } = params;
+
+    const secteur = precharge ?? (await chargerSecteur(address, radius));
+    if ("error" in secteur) return secteur;
+    const { center, communeList, yearsFound, mutations } = secteur;
 
     const wantedType: DvfPropertyType = propertyType.toLowerCase().includes("maison") ? "Maison" : "Appartement";
     const minS = surface * (1 - surfaceTolerance);
@@ -474,4 +502,113 @@ export async function searchDvfComparables(params: DvfSearchParams): Promise<Dvf
         stats: computeStats(sales),
         matches,
     };
+}
+
+/* ---------- Immeubles vendus en bloc ---------- */
+
+export interface DvfBloc {
+    id: string;
+    date: string;
+    price: number;
+    surface: number;         // logements + locaux d'activité
+    logements: number;
+    locaux: number;          // locaux commerciaux ou d'activité
+    dependances: number;
+    address: string;
+    city: string;
+    lat: number;
+    lon: number;
+    distance: number;
+    pricePerSqm: number;
+}
+
+/** Ventes d'un immeuble entier : plusieurs logements à la même adresse dans une seule mutation. */
+function ventesEnBloc(mutations: RawMutation[], center: { lat: number; lon: number }, radius: number): DvfBloc[] {
+    const out: DvfBloc[] = [];
+    for (const m of mutations) {
+        if (m.nature !== "Vente" || m.price < 50000) continue;
+        const logements = m.locals.filter(l => l.type === "Appartement" || l.type === "Maison");
+        if (logements.length < 2) continue;
+        const adresses = new Set(logements.map(l => `${l.addrNum}|${l.street}`));
+        if (adresses.size !== 1) continue;
+        const l0 = logements[0];
+        if (!Number.isFinite(l0.lat) || !Number.isFinite(l0.lon)) continue;
+        const distance = distanceMeters(center.lat, center.lon, l0.lat, l0.lon);
+        if (distance > radius) continue;
+        const surface = logements.reduce((t, l) => t + (l.surface || 0), 0) + m.otherSurface;
+        if (surface < 40) continue;
+        const pricePerSqm = m.price / surface;
+        if (pricePerSqm < 300 || pricePerSqm > 20000) continue;
+        out.push({
+            id: m.id,
+            date: m.date,
+            price: Math.round(m.price),
+            surface: Math.round(surface),
+            logements: logements.length,
+            locaux: m.otherLocals,
+            dependances: m.dependances,
+            address: `${l0.addrNum ? l0.addrNum + " " : ""}${prettifyDvfStreet(l0.street)}`.trim(),
+            city: l0.city,
+            lat: l0.lat,
+            lon: l0.lon,
+            distance: Math.round(distance),
+            pricePerSqm: Math.round(pricePerSqm),
+        });
+    }
+    return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Immeuble : appartements vendus seuls (toutes surfaces des lots) + immeubles vendus en bloc dans un rayon élargi. */
+export async function searchDvfImmeuble(p: { address: string; surfaceMin: number; surfaceMax: number; radius: number }) {
+    const rayonBloc = Math.min(3000, Math.max(p.radius * 2, 1500));
+    const secteur = await chargerSecteur(p.address, rayonBloc);
+    if ("error" in secteur) return secteur;
+    const min = Math.max(9, p.surfaceMin * 0.8);
+    const max = Math.max(min + 5, p.surfaceMax * 1.2);
+    const milieu = (min + max) / 2;
+    const appartements = await searchDvfComparables(
+        { address: p.address, surface: milieu, propertyType: "Appartement", radius: p.radius, surfaceTolerance: (max - milieu) / milieu, limit: 150 },
+        secteur,
+    );
+    if ("error" in appartements) return appartements;
+    return { ...appartements, blocs: ventesEnBloc(secteur.mutations, secteur.center, rayonBloc).slice(0, 40), rayonBloc };
+}
+
+/* ---------- Parkings et garages vendus seuls ---------- */
+
+export interface DvfParking {
+    id: string;
+    date: string;
+    price: number;
+    address: string;
+    city: string;
+    lat: number;
+    lon: number;
+    distance: number;
+}
+
+export async function searchDvfParkings(p: { address: string; radius: number }) {
+    const secteur = await chargerSecteur(p.address, p.radius);
+    if ("error" in secteur) return secteur;
+    const { center, yearsFound } = secteur;
+    const ventes: DvfParking[] = [];
+    for (const m of secteur.mutations) {
+        if (m.nature !== "Vente" || m.locals.length || m.otherLocals || m.dependances !== 1 || !m.dep) continue;
+        if (m.price < 2000 || m.price > 150000) continue;
+        if (!Number.isFinite(m.dep.lat) || !Number.isFinite(m.dep.lon)) continue;
+        const distance = distanceMeters(center.lat, center.lon, m.dep.lat, m.dep.lon);
+        if (distance > p.radius) continue;
+        ventes.push({
+            id: m.id,
+            date: m.date,
+            price: Math.round(m.price),
+            address: `${m.dep.addrNum ? m.dep.addrNum + " " : ""}${prettifyDvfStreet(m.dep.street)}`.trim(),
+            city: m.dep.city,
+            lat: m.dep.lat,
+            lon: m.dep.lon,
+            distance: Math.round(distance),
+        });
+    }
+    ventes.sort((a, b) => b.date.localeCompare(a.date));
+    return { center, years: Array.from(yearsFound).sort(), ventes: ventes.slice(0, 80) };
 }

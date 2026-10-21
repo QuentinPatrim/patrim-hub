@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { checkAccess } from "@/lib/ai-server";
-import { searchDvfComparables } from "@/lib/dvf";
+import { searchDvfComparables, searchDvfImmeuble, searchDvfParkings } from "@/lib/dvf";
 
 /* POST /api/estimation/comparables
    { adresse, surface, type, pieces?, rayon? }
    → { centre, annees, rayon, statistiques, ventes, message? }
-   Ventes réelles DVF (data.gouv.fr) autour du bien. */
+   Ventes réelles DVF (data.gouv.fr) autour du bien.
+   type "immeuble" : { surfaceMin, surfaceMax } des lots → appartements vendus seuls + immeubles vendus en bloc (blocs).
+   type "parking" : places, box et garages vendus seuls (prix à l'unité). */
 
 export const maxDuration = 60;
 
@@ -16,11 +18,41 @@ export async function POST(req: Request) {
   try {
     const b = await req.json().catch(() => ({}));
     const adresse = String(b?.adresse ?? "").trim();
+    const rayonDemande = Math.min(Math.max(Math.round(Number(b?.rayon) || 500), 100), 3000);
+    if (b?.type === "parking" || b?.type === "immeuble") {
+      if (!adresse) return NextResponse.json({ error: "Indiquez l'adresse du bien avant de chercher les ventes." }, { status: 400 });
+      if (b.type === "parking") {
+        const r = await searchDvfParkings({ address: adresse, radius: rayonDemande });
+        if ("error" in r) return NextResponse.json({ error: r.error }, { status: r.status });
+        return NextResponse.json({
+          centre: r.center,
+          annees: r.years,
+          rayon: rayonDemande,
+          parkings: r.ventes,
+          ventes: [],
+          message: r.ventes.length === 0 ? `Aucune place de parking ou garage vendue seule dans un rayon de ${rayonDemande} m. Élargissez le rayon.` : undefined,
+        });
+      }
+      const min = Number(b?.surfaceMin) || 0;
+      const max = Number(b?.surfaceMax) || min;
+      const r = await searchDvfImmeuble({ address: adresse, surfaceMin: min || 20, surfaceMax: max || 80, radius: rayonDemande });
+      if ("error" in r) return NextResponse.json({ error: r.error }, { status: r.status });
+      return NextResponse.json({
+        centre: r.center,
+        annees: r.years,
+        rayon: rayonDemande,
+        rayonBloc: r.rayonBloc,
+        statistiques: r.stats,
+        ventes: r.sales,
+        blocs: r.blocs,
+        message: r.sales.length === 0 ? `Aucun appartement comparable vendu dans un rayon de ${rayonDemande} m. Élargissez le rayon.` : undefined,
+      });
+    }
     const surface = Number(b?.surface);
     if (!adresse || !surface || surface <= 0) {
       return NextResponse.json({ error: "Indiquez l'adresse et la surface du bien avant de chercher les ventes." }, { status: 400 });
     }
-    const rayon = Math.min(Math.max(Math.round(Number(b?.rayon) || 500), 100), 3000);
+    const rayon = rayonDemande;
     const type = String(b?.type ?? "appartement");
 
     const result = await searchDvfComparables({
@@ -42,10 +74,7 @@ export async function POST(req: Request) {
       rayon,
       statistiques: result.stats,
       ventes: result.sales,
-      message:
-        result.sales.length === 0
-          ? `Aucune vente comparable dans un rayon de ${rayon} m${debut ? ` depuis ${debut}` : ""}. Élargissez le rayon.`
-          : undefined,
+      message: result.sales.length === 0 ? `Aucune vente comparable dans un rayon de ${rayon} m${debut ? ` depuis ${debut}` : ""}. Élargissez le rayon.` : undefined,
     });
   } catch (e) {
     console.error("Estimation – ventes DVF :", e);

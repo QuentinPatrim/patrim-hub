@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Building, Car, Check, ChevronDown, House, Info, Plus, RefreshCw, Sparkles, Trees, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building, Building2, Car, Check, ChevronDown, House, Info, Plus, RefreshCw, Sparkles, Trees, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -23,12 +23,30 @@ import {
   promptCommentaire,
   quartierDe,
   resumeBien,
+  venteDepuisBloc,
   venteDepuisDvf,
+  venteDepuisParking,
   ventesDe,
   type BienSaisi,
   type EstimationPlus,
   type Vente,
 } from "@/components/estimations/shared";
+import { ImmeubleEditor, LotsEditor } from "@/components/estimations/LotsEditor";
+import { MethodesImmeuble } from "@/components/estimations/MethodesImmeuble";
+import {
+  PARAMS_DEFAUT,
+  TYPES_PARKING,
+  calculerImmeuble,
+  calculerParking,
+  logements,
+  nouveauLot,
+  promptImmeuble,
+  promptParking,
+  surfaceTotale,
+  type LotImmeuble,
+  type ParamsImmeuble,
+  type TypeParking,
+} from "@/components/estimations/immeuble";
 import { ask } from "@/lib/ai";
 import { CONDITIONS, type MarketBase } from "@/lib/expressEstimate";
 import { eur, pct } from "@/lib/format";
@@ -47,6 +65,9 @@ type Saisie = BienSaisi & {
   lat?: number;
   lon?: number;
   surfaceTerrain?: number;
+  lots?: LotImmeuble[];
+  immeuble?: Partial<ParamsImmeuble>;
+  typeParking?: TypeParking;
 };
 
 type Brouillon = {
@@ -54,6 +75,7 @@ type Brouillon = {
   saisie: Saisie;
   ventes: Vente[];
   rayon: number;
+  rayonBloc?: number;
   cle?: string;
   prixM2Manuel?: number;
   prixConseille?: number;
@@ -74,7 +96,18 @@ const VIDE: Brouillon = {
   notes: "",
 };
 
-const cleRecherche = (s: Saisie, rayon: number) => [s.adresse.trim().toLowerCase(), s.type, s.surface, s.pieces ?? 0, rayon].join("|");
+const cleRecherche = (s: Saisie, rayon: number) =>
+  [
+    s.adresse.trim().toLowerCase(),
+    s.type,
+    s.type === "immeuble"
+      ? logements(s.lots ?? [])
+          .map((l) => l.surface ?? 0)
+          .join(",")
+      : s.surface,
+    s.pieces ?? 0,
+    rayon,
+  ].join("|");
 
 export default function Page() {
   return (
@@ -125,9 +158,13 @@ function Parcours() {
             etat: p.etat ?? "bon",
             dpe: p.dpe,
             surfaceTerrain: p.surfaceTerrain,
+            lots: p.lots,
+            immeuble: p.immeuble,
+            typeParking: p.typeParking,
           },
           ventes: ventesDe(p),
           rayon: p.rayon ?? 500,
+          rayonBloc: p.immeuble?.rayonBloc,
           prixM2Manuel: p.prixM2Manuel,
           prixConseille: p.prixConseille,
           prixTouche: true,
@@ -165,30 +202,56 @@ function Parcours() {
   const set = (patch: Partial<Brouillon>) => setB((x) => ({ ...x, ...patch }));
 
   /* --- Calculs --- */
-  const atyp = useMemo(() => atypiques(b.ventes), [b.ventes]);
+  const atyp = useMemo(() => atypiques(b.ventes.filter((v) => !v.bloc)), [b.ventes]);
   const marcheVentes = useMemo(() => marcheDe(b.ventes), [b.ventes]);
   const marche: MarketBase | null = useMemo(() => {
     if (marcheVentes) return marcheVentes;
     const m = b.prixM2Manuel;
     return m && m > 0 ? { medianSqm: m, p25: Math.round(m * 0.94), p75: Math.round(m * 1.06), count: 0 } : null;
   }, [marcheVentes, b.prixM2Manuel]);
-  const res = useMemo(() => (marche && s.surface > 0 ? calculer(s, marche) : null), [marche, s]);
+  const estImm = s.type === "immeuble";
+  const estPk = s.type === "parking";
+  const pImm: ParamsImmeuble = useMemo(() => ({ ...PARAMS_DEFAUT, ...s.immeuble }), [s.immeuble]);
+  const resImm = useMemo(() => (estImm ? calculerImmeuble(s.lots ?? [], pImm, { ventes: b.ventes, marche, etat: s.etat }) : null), [estImm, s.lots, pImm, b.ventes, marche, s.etat]);
+  const res = useMemo(() => {
+    if (estImm)
+      return resImm
+        ? {
+            baseSqm: marche?.medianSqm ?? 0,
+            adjustments: [],
+            totalPct: 0,
+            sqm: s.surface ? Math.round(resImm.central / s.surface) : 0,
+            central: resImm.central,
+            low: resImm.bas,
+            high: resImm.haut,
+            confidence: resImm.confiance,
+          }
+        : null;
+    if (estPk) return marche ? calculerParking(s.typeParking, marche, s.etat) : null;
+    return marche && s.surface > 0 ? calculer(s, marche) : null;
+  }, [estImm, estPk, resImm, marche, s]);
+  const majImm = (x: Partial<ParamsImmeuble>) => setS({ immeuble: { ...s.immeuble, ...x } });
+  const majLots = (lots: LotImmeuble[]) => setS({ lots, surface: surfaceTotale(lots) });
   const prixConseille = b.prixTouche ? b.prixConseille : res?.central;
   const quartier = quartierDe(s.lat, s.lon, s.citycode, s.ville);
   const periode = periodeDe(b.ventes);
 
+  const blocs = useMemo(() => b.ventes.filter((v) => v.bloc), [b.ventes]);
   const ventesTriees = useMemo(() => {
-    const v = [...b.ventes];
+    const v = b.ventes.filter((x) => !x.bloc);
     if (tri === "prix") v.sort((a, c) => c.prixM2 - a.prixM2);
     if (tri === "date") v.sort((a, c) => c.date.localeCompare(a.date));
     if (tri === "distance") v.sort((a, c) => (a.distance ?? 9e9) - (c.distance ?? 9e9));
     return v;
   }, [b.ventes, tri]);
   const visibles = voirTout ? ventesTriees : ventesTriees.slice(0, 15);
-  const nbRetenues = b.ventes.filter((v) => !v.exclu).length;
+  const nbRetenues = b.ventes.filter((v) => !v.exclu && !v.bloc).length;
+  const nbVentes = b.ventes.length - blocs.length;
 
-  const etape1Ok = s.adresse.trim().length > 4 && s.surface > 0;
-  const etape2Ok = !!marche;
+  const adresseOk = s.adresse.trim().length > 4;
+  const etape1Ok = estImm ? adresseOk && (s.lots ?? []).some((l) => l.surface || l.valeur || l.loyer) : estPk ? adresseOk : adresseOk && s.surface > 0;
+  const etape2Ok = estImm ? !!resImm : !!marche;
+  const parM2 = !estPk;
 
   /* --- Navigation --- */
   const goto = (step: number) => {
@@ -204,14 +267,26 @@ function Parcours() {
     setRecherche({ loading: true });
     setVoirTout(false);
     try {
-      const r = await chercherVentes({ adresse: s.adresse, surface: s.surface, type: s.type, pieces: s.pieces, rayon });
+      const surf = logements(s.lots ?? [])
+        .map((l) => l.surface ?? 0)
+        .filter((x) => x > 0);
+      const r = await chercherVentes({
+        adresse: s.adresse,
+        surface: s.surface,
+        type: s.type,
+        pieces: s.pieces,
+        rayon,
+        ...(estImm ? { surfaceMin: surf.length ? Math.min(...surf) : undefined, surfaceMax: surf.length ? Math.max(...surf) : undefined } : {}),
+      });
       const manuelles = b.ventes.filter((v) => v.source !== "dvf");
       const exclus = new Set(b.ventes.filter((v) => v.exclu).map((v) => v.id));
-      const ventes = [...manuelles, ...r.ventes.map(venteDepuisDvf).map((v) => (exclus.has(v.id) ? { ...v, exclu: true } : v))];
+      const dvf = estPk ? (r.parkings ?? []).map(venteDepuisParking) : [...(r.blocs ?? []).map(venteDepuisBloc), ...r.ventes.map(venteDepuisDvf)];
+      const ventes = [...manuelles, ...dvf.map((v) => (exclus.has(v.id) ? { ...v, exclu: true } : v))];
       setB((x) => ({
         ...x,
         ventes,
         rayon,
+        rayonBloc: r.rayonBloc,
         cle: cleRecherche(x.saisie, rayon),
         saisie: {
           ...x.saisie,
@@ -231,21 +306,26 @@ function Parcours() {
   const ecarterAtypiques = () => setB((x) => ({ ...x, ventes: x.ventes.map((v) => (atyp.has(v.id) ? { ...v, exclu: true } : v)) }));
 
   async function rediger() {
-    if (!res || !marche) return;
+    if (!res || (!marche && !estImm)) return;
     setIaLoading(true);
     setIaError("");
     try {
       const r = await ask({
         system: SYSTEM_COMMENTAIRE,
-        prompt: promptCommentaire({
-          bien: { ...s, quartier },
-          res,
-          marche,
-          rayon: b.rayon,
-          periode,
-          prixConseille,
-          ventesManuelles: !marcheVentes,
-        }),
+        prompt:
+          estImm && resImm
+            ? promptImmeuble({ adresse: s.adresse, quartier, lots: s.lots ?? [], p: pImm, r: resImm, etat: s.etat, marche, rayon: b.rayon, prixConseille })
+            : estPk
+              ? promptParking({ adresse: s.adresse, typeParking: s.typeParking, r: res, marche: marche!, rayon: b.rayon, prixConseille })
+              : promptCommentaire({
+                  bien: { ...s, quartier },
+                  res,
+                  marche: marche!,
+                  rayon: b.rayon,
+                  periode,
+                  prixConseille,
+                  ventesManuelles: !marcheVentes,
+                }),
         effort: "low",
         maxTokens: 1200,
       });
@@ -258,7 +338,7 @@ function Parcours() {
   }
 
   function enregistrer() {
-    if (!res || !marche) return;
+    if (!res || (!marche && !estImm)) return;
     setSaving(true);
     const data: Omit<EstimationPlus, "id" | "createdAt" | "updatedAt"> = {
       adresse: s.adresse.trim(),
@@ -276,16 +356,19 @@ function Parcours() {
       etat: s.etat,
       dpe: s.dpe,
       surfaceTerrain: s.type === "maison" ? s.surfaceTerrain : undefined,
+      lots: estImm ? s.lots : undefined,
+      immeuble: estImm && resImm ? { ...pImm, methodes: { lots: resImm.parLots || undefined, rendement: resImm.parRendement, blocs: resImm.parBlocs }, rayonBloc: b.rayonBloc } : undefined,
+      typeParking: estPk ? s.typeParking : undefined,
       proprietaireId: b.proprietaireId,
-      comparables: b.ventes.slice(0, 80),
+      comparables: estImm ? b.ventes.filter((v) => !v.exclu || v.bloc) : b.ventes.slice(0, 80),
       resultat: { bas: res.low, median: res.central, haut: res.high, prixM2: res.sqm, ajustements: res.adjustments, commentaire: b.commentaire.trim() || undefined },
       prixConseille: prixConseille ? arrondi(prixConseille, 100) : res.central,
       statut: "a_faire",
       notes: b.notes.trim() || undefined,
-      rayon: marcheVentes ? b.rayon : undefined,
+      rayon: marcheVentes || (estImm && blocs.length) ? b.rayon : undefined,
       quartier,
-      confiance: marcheVentes ? res.confidence : "faible",
-      marche,
+      confiance: marcheVentes || estImm ? res.confidence : "faible",
+      marche: marche ?? undefined,
       periode,
       prixM2Manuel: marcheVentes ? undefined : b.prixM2Manuel,
     };
@@ -379,97 +462,173 @@ function Parcours() {
                 <Choix
                   size="lg"
                   value={s.type}
-                  onChange={(v) => v && setS({ type: v })}
+                  onChange={(v) => v && setS(v === "immeuble" && !s.lots?.length ? { type: v, lots: [nouveauLot(1), nouveauLot(2)], surface: 0 } : { type: v })}
                   options={[
-                    { value: "appartement", label: <><Building size={17} /> Appartement</> },
-                    { value: "maison", label: <><House size={17} /> Maison</> },
+                    {
+                      value: "appartement",
+                      label: (
+                        <>
+                          <Building size={17} /> Appartement
+                        </>
+                      ),
+                    },
+                    {
+                      value: "maison",
+                      label: (
+                        <>
+                          <House size={17} /> Maison
+                        </>
+                      ),
+                    },
+                    {
+                      value: "immeuble",
+                      label: (
+                        <>
+                          <Building2 size={17} /> Immeuble
+                        </>
+                      ),
+                    },
+                    {
+                      value: "parking",
+                      label: (
+                        <>
+                          <Car size={17} /> Parking, garage
+                        </>
+                      ),
+                    },
                   ]}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={s.type === "appartement" ? "Surface Carrez" : "Surface habitable"}>
-                  <Nombre value={s.surface || undefined} onChange={(v) => setS({ surface: v ?? 0 })} unit="m²" decimal placeholder="65" />
-                </Field>
-                {s.type === "maison" ? (
-                  <Field label="Terrain">
-                    <Nombre value={s.surfaceTerrain} onChange={(v) => setS({ surfaceTerrain: v })} unit="m²" placeholder="400" />
-                  </Field>
-                ) : (
-                  <div />
-                )}
-              </div>
-
-              <div>
-                <span className="label">Nombre de pièces</span>
-                <Choix value={s.pieces} onChange={(v) => setS({ pieces: v })} allowEmpty options={[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: n === 7 ? "7 +" : `T${n}` }))} />
-              </div>
-
-              {s.type === "appartement" && (
-                <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+              {estPk && (
+                <>
                   <div>
-                    <span className="label">Étage</span>
-                    <Compteur value={s.etage} onChange={(v) => setS({ etage: v })} min={0} max={40} format={(v) => (v === 0 ? "RDC" : `${v}${v === 1 ? "er" : "e"}`)} placeholder="Non précisé" />
+                    <span className="label">Type de stationnement</span>
+                    <Choix value={s.typeParking} onChange={(v) => setS({ typeParking: v })} allowEmpty options={TYPES_PARKING.map((t) => ({ value: t.value, label: t.label }))} />
                   </div>
-                  <Interrupteur checked={!!s.ascenseur} onChange={(v) => setS({ ascenseur: v })} label="Ascenseur" />
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Surface (facultatif)">
+                      <Nombre value={s.surface || undefined} onChange={(v) => setS({ surface: v ?? 0 })} unit="m²" decimal placeholder="12" />
+                    </Field>
+                  </div>
+                </>
+              )}
+
+              {!estImm && !estPk && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label={s.type === "appartement" ? "Surface Carrez" : "Surface habitable"}>
+                      <Nombre value={s.surface || undefined} onChange={(v) => setS({ surface: v ?? 0 })} unit="m²" decimal placeholder="65" />
+                    </Field>
+                    {s.type === "maison" ? (
+                      <Field label="Terrain">
+                        <Nombre value={s.surfaceTerrain} onChange={(v) => setS({ surfaceTerrain: v })} unit="m²" placeholder="400" />
+                      </Field>
+                    ) : (
+                      <div />
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="label">Nombre de pièces</span>
+                    <Choix value={s.pieces} onChange={(v) => setS({ pieces: v })} allowEmpty options={[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: n === 7 ? "7 +" : `T${n}` }))} />
+                  </div>
+
+                  {s.type === "appartement" && (
+                    <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+                      <div>
+                        <span className="label">Étage</span>
+                        <Compteur value={s.etage} onChange={(v) => setS({ etage: v })} min={0} max={40} format={(v) => (v === 0 ? "RDC" : `${v}${v === 1 ? "er" : "e"}`)} placeholder="Non précisé" />
+                      </div>
+                      <Interrupteur checked={!!s.ascenseur} onChange={(v) => setS({ ascenseur: v })} label="Ascenseur" />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </Card>
 
-          <Card title="Atouts et état">
-            <div className="space-y-5">
-              <div>
-                <span className="label flex items-center gap-1.5">
-                  <Trees size={13} /> Extérieur
-                </span>
-                <Choix
-                  value={s.exterieur ?? ""}
-                  onChange={(v) => setS({ exterieur: v || undefined })}
-                  options={[{ value: "", label: "Aucun" }, ...EXTERIEURS.map((e) => ({ value: e as string, label: e }))]}
-                />
-              </div>
-              <Interrupteur
-                checked={!!s.parking}
-                onChange={(v) => setS({ parking: v })}
-                label={
-                  <span className="flex items-center gap-1.5">
-                    <Car size={15} /> Stationnement (parking, box, garage)
+          {estImm && (
+            <>
+              <Card title="Les lots">
+                <LotsEditor lots={s.lots ?? []} onChange={majLots} />
+              </Card>
+              <Card title="L'immeuble">
+                <ImmeubleEditor p={pImm} onChange={majImm} etat={s.etat} onEtat={(etat) => setS({ etat })} />
+              </Card>
+            </>
+          )}
+
+          {!estImm && !estPk && (
+            <Card title="Atouts et état">
+              <div className="space-y-5">
+                <div>
+                  <span className="label flex items-center gap-1.5">
+                    <Trees size={13} /> Extérieur
                   </span>
-                }
-              />
-              <div>
-                <span className="label">État général</span>
-                <Choix value={s.etat} onChange={(v) => setS({ etat: v ?? "bon" })} options={CONDITIONS.map((c) => ({ value: c.id, label: c.label }))} />
-              </div>
-              <div>
-                <span className="label">Classe énergie (DPE)</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {DPE_CLASSES.map((d) => (
+                  <Choix
+                    value={s.exterieur ?? ""}
+                    onChange={(v) => setS({ exterieur: v || undefined })}
+                    options={[{ value: "", label: "Aucun" }, ...EXTERIEURS.map((e) => ({ value: e as string, label: e }))]}
+                  />
+                </div>
+                <Interrupteur
+                  checked={!!s.parking}
+                  onChange={(v) => setS({ parking: v })}
+                  label={
+                    <span className="flex items-center gap-1.5">
+                      <Car size={15} /> Stationnement (parking, box, garage)
+                    </span>
+                  }
+                />
+                <div>
+                  <span className="label">État général</span>
+                  <Choix value={s.etat} onChange={(v) => setS({ etat: v ?? "bon" })} options={CONDITIONS.map((c) => ({ value: c.id, label: c.label }))} />
+                </div>
+                <div>
+                  <span className="label">Classe énergie (DPE)</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DPE_CLASSES.map((d) => (
+                      <button
+                        type="button"
+                        key={d}
+                        onClick={() => setS({ dpe: s.dpe === d ? undefined : d })}
+                        className={cx(
+                          "grid size-11 place-items-center rounded-xl border transition",
+                          s.dpe === d ? "border-accent ring-2 ring-accent/25 bg-surface-2" : "border-line bg-surface hover:bg-surface-2",
+                        )}
+                        aria-pressed={s.dpe === d}
+                      >
+                        <DpeBadge value={d} />
+                      </button>
+                    ))}
                     <button
                       type="button"
-                      key={d}
-                      onClick={() => setS({ dpe: s.dpe === d ? undefined : d })}
-                      className={cx("grid size-11 place-items-center rounded-xl border transition", s.dpe === d ? "border-accent ring-2 ring-accent/25 bg-surface-2" : "border-line bg-surface hover:bg-surface-2")}
-                      aria-pressed={s.dpe === d}
+                      onClick={() => setS({ dpe: undefined })}
+                      className={cx("h-11 rounded-xl border px-3 text-xs font-medium", !s.dpe ? "border-accent bg-surface-2" : "border-line bg-surface text-muted")}
                     >
-                      <DpeBadge value={d} />
+                      Inconnu
                     </button>
-                  ))}
-                  <button type="button" onClick={() => setS({ dpe: undefined })} className={cx("h-11 rounded-xl border px-3 text-xs font-medium", !s.dpe ? "border-accent bg-surface-2" : "border-line bg-surface text-muted")}>
-                    Inconnu
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <div className="flex justify-end">
             <button type="button" className="btn-primary !h-12 w-full sm:w-auto sm:px-6" disabled={!etape1Ok} onClick={() => goto(1)}>
               Chercher les ventes du secteur <ArrowRight size={17} />
             </button>
           </div>
-          {!etape1Ok && <p className="text-center text-[11px] text-muted sm:text-right">Adresse et surface suffisent pour lancer la recherche.</p>}
+          {!etape1Ok && (
+            <p className="text-center text-[11px] text-muted sm:text-right">
+              {estImm
+                ? "L'adresse et au moins un lot (surface, loyer ou valeur) suffisent pour lancer la recherche."
+                : estPk
+                  ? "L'adresse suffit pour lancer la recherche."
+                  : "Adresse et surface suffisent pour lancer la recherche."}
+            </p>
+          )}
         </div>
       )}
 
@@ -479,18 +638,20 @@ function Parcours() {
           <Card>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-xs text-muted">Prix médian des ventes retenues</div>
+                <div className="text-xs text-muted">{estPk ? "Prix médian d'une place vendue seule" : estImm ? "Prix médian des appartements vendus seuls" : "Prix médian des ventes retenues"}</div>
                 {recherche.loading ? (
                   <div className="skeleton mt-2 h-9 w-40" />
                 ) : (
-                  <div className="font-serif text-3xl font-semibold tracking-tight tabular-nums">{marcheVentes ? `${marcheVentes.medianSqm.toLocaleString("fr-FR")} €/m²` : "—"}</div>
+                  <div className="font-serif text-3xl font-semibold tracking-tight tabular-nums">
+                    {marcheVentes ? `${marcheVentes.medianSqm.toLocaleString("fr-FR")} ${parM2 ? "€/m²" : "€"}` : "—"}
+                  </div>
                 )}
                 <div className="mt-1 text-xs text-muted">
                   {recherche.loading
                     ? "Lecture des actes de vente notariés…"
                     : marcheVentes
-                    ? `${nbRetenues} vente${nbRetenues > 1 ? "s" : ""} retenue${nbRetenues > 1 ? "s" : ""}${b.ventes.length > nbRetenues ? ` sur ${b.ventes.length}` : ""} · moitié entre ${marcheVentes.p25.toLocaleString("fr-FR")} et ${marcheVentes.p75.toLocaleString("fr-FR")} €/m²`
-                    : "Aucune vente retenue"}
+                      ? `${nbRetenues} vente${nbRetenues > 1 ? "s" : ""} retenue${nbRetenues > 1 ? "s" : ""}${nbVentes > nbRetenues ? ` sur ${nbVentes}` : ""} · moitié entre ${marcheVentes.p25.toLocaleString("fr-FR")} et ${marcheVentes.p75.toLocaleString("fr-FR")} ${parM2 ? "€/m²" : "€"}`
+                      : "Aucune vente retenue"}
                 </div>
               </div>
               <button type="button" onClick={() => lancer(b.rayon)} disabled={recherche.loading} className="btn-ghost btn-sm !px-2 shrink-0" aria-label="Relancer la recherche">
@@ -507,14 +668,21 @@ function Parcours() {
                     key={r}
                     disabled={recherche.loading}
                     onClick={() => lancer(r)}
-                    className={cx("h-10 shrink-0 rounded-xl border px-3.5 text-sm font-medium transition", b.rayon === r ? "border-accent bg-accent text-white dark:text-bg" : "border-line bg-surface hover:bg-surface-2")}
+                    className={cx(
+                      "h-10 shrink-0 rounded-xl border px-3.5 text-sm font-medium transition",
+                      b.rayon === r ? "border-accent bg-accent text-white dark:text-bg" : "border-line bg-surface hover:bg-surface-2",
+                    )}
                   >
                     {r < 1000 ? `${r} m` : `${(r / 1000).toLocaleString("fr-FR")} km`}
                   </button>
                 ))}
               </div>
               <p className="mt-2 text-[11px] text-muted">
-                {resumeBien(s)} · surface ± {s.type === "maison" ? 30 : 25} %{s.pieces ? " · ± 1 pièce" : ""}
+                {estImm
+                  ? `Appartements vendus seuls de la surface des logements · immeubles entiers à moins de ${(b.rayonBloc ?? Math.min(3000, Math.max(b.rayon * 2, 1500))) / 1000} km`
+                  : estPk
+                    ? "Places, box et garages vendus seuls"
+                    : `${resumeBien(s)} · surface ± ${s.type === "maison" ? 30 : 25} %${s.pieces ? " · ± 1 pièce" : ""}`}
                 {recherche.annees?.length ? ` · ventes ${recherche.annees[0]} – ${recherche.annees[recherche.annees.length - 1]}` : ""}
               </p>
             </div>
@@ -537,8 +705,17 @@ function Parcours() {
                   <p>{recherche.error || recherche.message}</p>
                   {!marcheVentes && (
                     <div className="mt-3">
-                      <Field label="Ou saisissez un prix au m² de référence" hint="Vos ventes récentes, les références notaires… L'avis le précisera.">
-                        <Nombre value={b.prixM2Manuel} onChange={(v) => set({ prixM2Manuel: v })} unit="€/m²" placeholder="3 800" />
+                      <Field
+                        label={
+                          estPk
+                            ? "Ou saisissez un prix de référence pour une place"
+                            : estImm
+                              ? "Ou saisissez un prix au m² de référence pour les appartements"
+                              : "Ou saisissez un prix au m² de référence"
+                        }
+                        hint="Vos ventes récentes, les références notaires… L'avis le précisera."
+                      >
+                        <Nombre value={b.prixM2Manuel} onChange={(v) => set({ prixM2Manuel: v })} unit={estPk ? "€" : "€/m²"} placeholder={estPk ? "15 000" : "3 800"} />
                       </Field>
                     </div>
                   )}
@@ -547,10 +724,21 @@ function Parcours() {
             </div>
           )}
 
-          {!recherche.loading && b.ventes.length > 0 && (
+          {!recherche.loading && estImm && (
+            <div className="space-y-2">
+              <div className="h-section px-1">Immeubles vendus en bloc ({blocs.filter((v) => !v.exclu).length})</div>
+              {blocs.length ? (
+                blocs.map((v) => <VenteItem key={v.id} v={v} onToggle={() => toggle(v.id)} />)
+              ) : (
+                <p className="px-1 text-xs text-muted">Aucun immeuble entier vendu dans le secteur depuis {recherche.annees?.[0] ?? 2021}. L&apos;estimation repose sur les lots et le rendement.</p>
+              )}
+            </div>
+          )}
+
+          {!recherche.loading && nbVentes > 0 && (
             <>
               <div className="flex flex-wrap items-center gap-2 px-1">
-                <div className="h-section mr-auto">Ventes comparables</div>
+                <div className="h-section mr-auto">{estImm ? "Appartements vendus seuls" : estPk ? "Stationnements vendus seuls" : "Ventes comparables"}</div>
                 <select className="input !h-8 !w-auto !rounded-lg text-xs" value={tri} onChange={(e) => setTri(e.target.value as typeof tri)} aria-label="Trier">
                   <option value="pertinence">Les plus proches du bien</option>
                   <option value="date">Les plus récentes</option>
@@ -579,7 +767,7 @@ function Parcours() {
             </>
           )}
 
-          {!recherche.loading && (
+          {!recherche.loading && !estPk && (
             <div>
               {!ajout ? (
                 <button type="button" onClick={() => setAjout(true)} className="btn-ghost btn-sm text-muted">
@@ -610,7 +798,7 @@ function Parcours() {
       )}
 
       {/* ===================== ÉTAPE 3 : RÉSULTAT ===================== */}
-      {b.step === 2 && res && marche && (
+      {b.step === 2 && res && (marche || (estImm && resImm)) && (
         <div key="e3" className="space-y-4 animate-fade-up">
           <section className="card overflow-hidden">
             <div className="h-1 bg-gradient-to-r from-brand via-brand to-coral" />
@@ -620,37 +808,50 @@ function Parcours() {
                   <div className="text-xs text-muted">Valeur de marché estimée</div>
                   <div className="font-serif text-[34px] leading-tight font-semibold tracking-tight tabular-nums">{eur(res.central)}</div>
                   <div className="text-xs text-muted">
-                    soit {res.sqm.toLocaleString("fr-FR")} €/m² · {resumeBien(s)}
+                    {parM2 && res.sqm ? `soit ${res.sqm.toLocaleString("fr-FR")} €/m² · ` : ""}
+                    {resumeBien(s)}
                   </div>
                 </div>
-                <Badge tone={marcheVentes ? CONFIANCE_TONE[res.confidence] : "warn"}>Fiabilité {marcheVentes ? res.confidence : "à confirmer"}</Badge>
+                <Badge tone={marcheVentes || estImm ? CONFIANCE_TONE[res.confidence] : "warn"}>Fiabilité {marcheVentes || estImm ? res.confidence : "à confirmer"}</Badge>
               </div>
               <Fourchette bas={res.low} median={res.central} haut={res.high} conseille={prixConseille} />
             </div>
           </section>
 
-          <Card title="Comment on arrive à ce prix">
-            <ul className="divide-y divide-line text-sm">
-              <li className="flex items-center justify-between gap-3 py-2.5">
-                <span>
-                  {marcheVentes ? `Prix médian de ${marche.count} ventes réelles` : "Prix de référence saisi"}
-                  {marcheVentes && <span className="block text-[11px] text-muted">rayon {b.rayon} m{periode ? ` · ${periode}` : ""}</span>}
-                </span>
-                <span className="font-semibold tabular-nums">{marche.medianSqm.toLocaleString("fr-FR")} €/m²</span>
-              </li>
-              {res.adjustments.map((a) => (
-                <li key={a.label} className="flex items-center justify-between gap-3 py-2.5">
-                  <span>{a.label}</span>
-                  <span className={cx("font-semibold tabular-nums", a.pct > 0 ? "text-ok" : "text-warn")}>{pct(a.pct)}</span>
+          {estImm && resImm ? (
+            <MethodesImmeuble r={resImm} p={pImm} onParams={majImm} rayonBloc={b.rayonBloc} />
+          ) : marche ? (
+            <Card title="Comment on arrive à ce prix">
+              <ul className="divide-y divide-line text-sm">
+                <li className="flex items-center justify-between gap-3 py-2.5">
+                  <span>
+                    {marcheVentes ? `Prix médian de ${marche.count} ${estPk ? "stationnements vendus seuls" : "ventes réelles"}` : "Prix de référence saisi"}
+                    {marcheVentes && (
+                      <span className="block text-[11px] text-muted">
+                        rayon {b.rayon} m{periode ? ` · ${periode}` : ""}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {marche.medianSqm.toLocaleString("fr-FR")} {parM2 ? "€/m²" : "€"}
+                  </span>
                 </li>
-              ))}
-              {!res.adjustments.length && <li className="py-2.5 text-muted">Aucun ajustement : bien dans la moyenne du secteur.</li>}
-              <li className="flex items-center justify-between gap-3 py-2.5">
-                <span className="font-medium">Prix au m² retenu</span>
-                <span className="font-semibold tabular-nums text-accent">{res.sqm.toLocaleString("fr-FR")} €/m²</span>
-              </li>
-            </ul>
-          </Card>
+                {res.adjustments.map((a) => (
+                  <li key={a.label} className="flex items-center justify-between gap-3 py-2.5">
+                    <span>{a.label}</span>
+                    <span className={cx("font-semibold tabular-nums", a.pct > 0 ? "text-ok" : "text-warn")}>{pct(a.pct)}</span>
+                  </li>
+                ))}
+                {!res.adjustments.length && <li className="py-2.5 text-muted">Aucun ajustement : bien dans la moyenne du secteur.</li>}
+                <li className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="font-medium">{parM2 ? "Prix au m² retenu" : "Prix retenu"}</span>
+                  <span className="font-semibold tabular-nums text-accent">
+                    {res.sqm.toLocaleString("fr-FR")} {parM2 ? "€/m²" : "€"}
+                  </span>
+                </li>
+              </ul>
+            </Card>
+          ) : null}
 
           <Card title="Prix de présentation conseillé">
             <div className="space-y-3">
@@ -661,14 +862,19 @@ function Parcours() {
                   { l: "Médiane", v: res.central },
                   { l: "Haute", v: res.high },
                 ].map((o) => (
-                  <button type="button" key={o.l} onClick={() => set({ prixConseille: o.v, prixTouche: true })} className={cx("chip !h-8 !px-3", prixConseille === o.v && "!border-accent !text-accent")}>
+                  <button
+                    type="button"
+                    key={o.l}
+                    onClick={() => set({ prixConseille: o.v, prixTouche: true })}
+                    className={cx("chip !h-8 !px-3", prixConseille === o.v && "!border-accent !text-accent")}
+                  >
                     {o.l} · {eur(o.v)}
                   </button>
                 ))}
               </div>
               {prixConseille ? (
                 <p className="text-[11px] text-muted">
-                  {Math.round(prixConseille / s.surface).toLocaleString("fr-FR")} €/m²
+                  {parM2 && s.surface ? `${Math.round(prixConseille / s.surface).toLocaleString("fr-FR")} €/m²` : ""}
                   {Math.abs(prixConseille - res.central) / res.central >= 0.005 && ` · ${pct((prixConseille - res.central) / res.central)} par rapport à la médiane`}
                 </p>
               ) : null}
@@ -706,7 +912,13 @@ function Parcours() {
           </Card>
 
           <Card title="Notes internes">
-            <textarea className="input text-[13px]" rows={3} value={b.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Motivation, délai, projet… (n'apparaît jamais sur l'avis de valeur)" />
+            <textarea
+              className="input text-[13px]"
+              rows={3}
+              value={b.notes}
+              onChange={(e) => set({ notes: e.target.value })}
+              placeholder="Motivation, délai, projet… (n'apparaît jamais sur l'avis de valeur)"
+            />
           </Card>
 
           <div className="flex gap-2 pt-1">

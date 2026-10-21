@@ -66,7 +66,7 @@ export function VenteItem({ v, atypique, onToggle, mediane }: { v: Vente; atypiq
     <div className={cx("flex items-stretch gap-3 rounded-2xl border bg-surface p-3 transition", v.exclu ? "border-dashed border-line opacity-55" : "border-line")}>
       <div className={cx("flex w-[78px] shrink-0 flex-col justify-center rounded-xl px-2 text-center", v.exclu ? "bg-surface-2" : "bg-accent/[.07]")}>
         <div className={cx("text-[15px] font-semibold tabular-nums leading-tight", v.exclu ? "line-through text-muted" : "text-accent")}>{v.prixM2.toLocaleString("fr-FR")}</div>
-        <div className="text-[10px] text-muted">€/m²</div>
+        <div className="text-[10px] text-muted">{v.surface ? "€/m²" : "€"}</div>
         {ecart != null && !v.exclu && Math.abs(ecart) >= 0.01 && (
           <div className={cx("mt-0.5 text-[10px] font-medium tabular-nums", ecart > 0 ? "text-ok" : "text-warn")}>
             {ecart > 0 ? "+" : ""}
@@ -88,7 +88,8 @@ export function VenteItem({ v, atypique, onToggle, mediane }: { v: Vente; atypiq
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="chip">{v.surface.toLocaleString("fr-FR")} m²</span>
+          {v.bloc ? <span className="chip">Immeuble · {v.bloc} logements{v.locaux ? ` + ${v.locaux} local${v.locaux > 1 ? "aux" : ""}` : ""}</span> : null}
+          {v.surface ? <span className="chip">{v.surface.toLocaleString("fr-FR")} m²</span> : null}
           {v.pieces ? <span className="chip">{v.pieces} p.</span> : null}
           {v.terrain ? <span className="chip">Terrain {v.terrain.toLocaleString("fr-FR")} m²</span> : null}
           {v.dependances ? <span className="chip">+ {v.dependances} dépendance{v.dependances > 1 ? "s" : ""}</span> : null}

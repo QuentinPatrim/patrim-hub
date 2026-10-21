@@ -4,7 +4,8 @@ import { ArrowLeft, Banknote, BarChart3, CheckCircle, Home, Leaf, Pencil, Printe
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { asPlus, typeLabel, ventesDe, type Vente } from "@/components/estimations/shared";
+import { asPlus, parkingLabel, typeLabel, ventesDe, type Vente } from "@/components/estimations/shared";
+import { PARAMS_DEFAUT, calculerImmeuble, loyersAnnuels, pctTexte, resumeLots, typeLotLabel } from "@/components/estimations/immeuble";
 import { avisComplet, type BienEnVente } from "@/components/estimations/avis";
 import { FitToPage, MAX_DENSITY } from "@/components/estimations/FitToPage";
 import { SituationMap } from "@/components/estimations/SituationMap";
@@ -101,14 +102,20 @@ export default function AvisDeValeur() {
   const city = cpMatch ? cpMatch[1].trim() : [e.codePostal, e.ville].filter(Boolean).join(" ");
   const today = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
   const surface = e.surface || 0;
-  const propertyType = typeLabel(e.type);
+  const estImm = e.type === "immeuble";
+  const estPk = e.type === "parking";
+  const lots = p.lots ?? [];
+  const pImm = { ...PARAMS_DEFAUT, ...p.immeuble };
+  const resImm = estImm && lots.length ? calculerImmeuble(lots, pImm, { ventes: ventesDe(e), marche: p.marche ?? null, etat: e.etat }) : null;
+  const methodes = p.immeuble?.methodes;
+  const propertyType = estPk ? parkingLabel(p.typeParking) : typeLabel(e.type);
   const dpeLetter = (e.dpe || "").toUpperCase().slice(0, 1);
 
   // Valeurs : fourchette du calcul, valeur centrale = prix de présentation conseillé
   const low = r?.bas || 0;
   const high = r?.haut || 0;
   const central = e.prixConseille || r?.median || (low && high ? Math.round((low + high) / 2) : low || high);
-  const estimatedPriceSqm = central / (surface || 1);
+  const estimatedPriceSqm = estPk ? 0 : central / (surface || 1);
   const singleValue = !!central && (!low || !high || low === high);
 
   // Marché : ventes notariées (DVF) les plus proches et biens en vente saisis
@@ -116,14 +123,14 @@ export default function AvisDeValeur() {
     p.marche && p.rayon
       ? { median: p.marche.medianSqm, count: p.marche.count, radius: p.rayon, years: (p.periode ?? "").split(/\s*–\s*/).filter(Boolean) }
       : null;
-  const proches = [...ventes].sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9));
+  const proches = [...ventes].sort((a, b) => (b.bloc ? 1 : 0) - (a.bloc ? 1 : 0) || (a.distance ?? 1e9) - (b.distance ?? 1e9)); // immeuble : ventes en bloc d'abord
   const versComp = (v: Vente): Comp => ({
     id: v.id,
     adresse: [v.adresse, v.ville].filter(Boolean).join(", "),
     prix: v.prix,
     surface: v.surface,
     sqm: v.prixM2 || (v.surface ? v.prix / v.surface : 0),
-    meta: [v.surface ? `${surf(v.surface)} m²` : "", v.date ? `vendu en ${moisAnnee(v.date)}` : "", v.distance != null ? `à ${v.distance} m` : v.source === "agence" ? "vente de l'agence" : ""]
+    meta: [v.bloc ? `immeuble de ${v.bloc} logements` : "", v.surface ? `${surf(v.surface)} m²` : "", v.date ? `vendu en ${moisAnnee(v.date)}` : "", v.distance != null ? `à ${v.distance} m` : v.source === "agence" ? "vente de l'agence" : ""]
       .filter(Boolean)
       .join(" · "),
   });
@@ -137,7 +144,7 @@ export default function AvisDeValeur() {
   }));
   const vendus = proches.map(versComp);
   const allComps = [...vendus, ...enVente];
-  const hasMarketPage = allComps.length > 0;
+  const hasMarketPage = allComps.length > 0 && !estPk;
   const soldList = vendus.slice(0, 5);
   const saleList = enVente.slice(0, Math.max(3, 8 - soldList.length));
   const compactComps = soldList.length + saleList.length > 6 || (soldList.length + saleList.length > 5 && !!marketStats);
@@ -351,6 +358,7 @@ export default function AvisDeValeur() {
             <div className="mt-5 flex flex-wrap gap-1.5">
               {[
                 propertyType,
+                estImm && lots.length ? `${lots.length} lots` : "",
                 surface > 0 ? `${surf(surface)} m²` : "",
                 e.pieces ? `${e.pieces} pièce${e.pieces > 1 ? "s" : ""}` : "",
                 e.type === "appartement" && e.etage != null ? (e.etage === 0 ? "Rez-de-chaussée" : `${etageCourt(e.etage)} étage`) : "",
@@ -409,17 +417,35 @@ export default function AvisDeValeur() {
         {/* ============ PAGE 2 : LE BIEN ============ */}
         <div className={PAGE}>
           {renderHeader(1, "Le bien")}
-          {renderTitle("Le bien", `${propertyType}${surface > 0 ? ` de ${surf(surface)} m²` : ""}${e.pieces ? ` · ${e.pieces} pièces` : ""}${city ? ` · ${city}` : ""}`)}
+          {renderTitle(
+            "Le bien",
+            estImm
+              ? `Immeuble · ${resumeLots(lots)}${surface > 0 ? ` · ${surf(surface)} m²` : ""}${city ? ` · ${city}` : ""}`
+              : `${propertyType}${surface > 0 ? ` de ${surf(surface)} m²` : ""}${e.pieces ? ` · ${e.pieces} pièces` : ""}${city ? ` · ${city}` : ""}`,
+          )}
           <div className="flex min-h-0 flex-1 flex-col gap-[5mm] px-[14mm] pb-[2mm]">
             {(() => {
-              const keys = [
+              const loyersAn = loyersAnnuels(lots);
+              const keys = estImm
+                ? [
+                    { l: "Surface totale", v: surface > 0 ? surf(surface) : "—", u: "m²", sub: "logements et locaux" },
+                    { l: "Lots", v: String(lots.length), u: "", sub: `${lots.filter((l) => l.type === "logement").length} logements` },
+                    { l: "Loyers", v: loyersAn ? nombre(loyersAn) : "—", u: loyersAn ? "€ / an" : "", sub: loyersAn ? "hors charges" : "" },
+                    ...(avis.annee ? [{ l: "Construction", v: String(avis.annee), u: "", sub: "" }] : []),
+                  ]
+                : estPk
+                  ? [
+                      { l: "Type", v: propertyType, u: "", sub: "" },
+                      { l: "Surface", v: surface > 0 ? surf(surface) : "—", u: surface > 0 ? "m²" : "", sub: "" },
+                    ]
+                  : [
                 { l: "Surface", v: surface > 0 ? surf(surface) : "—", u: "m²", sub: "surface déclarée" },
                 { l: "Pièces", v: e.pieces ? String(e.pieces) : "—", u: "", sub: "" },
                 e.type === "maison"
                   ? { l: "Terrain", v: p.surfaceTerrain ? nombre(p.surfaceTerrain) : "—", u: p.surfaceTerrain ? "m²" : "", sub: "" }
                   : { l: "Étage", v: e.etage != null ? etageCourt(e.etage) : "—", u: "", sub: e.etage != null && e.etage > 0 ? (e.ascenseur ? "avec ascenseur" : "sans ascenseur") : "" },
                 ...(avis.annee ? [{ l: "Construction", v: String(avis.annee), u: "", sub: "" }] : []),
-              ];
+                    ];
               return (
                 <div className="grid rounded-[18px] bg-[#f5f5f7] py-[5mm]" style={{ gridTemplateColumns: `repeat(${keys.length}, minmax(0, 1fr))` }}>
                   {keys.map((k, i) => (
@@ -435,6 +461,46 @@ export default function AvisDeValeur() {
                 </div>
               );
             })()}
+
+            {estImm && lots.length > 0 && (
+              <div className="shrink-0 overflow-hidden rounded-[18px] border border-[#e8e8ed]">
+                <table className="w-full text-left text-[9.5px] text-[#1d1d1f]">
+                  <thead className="bg-[#f5f5f7] text-[8px] font-semibold uppercase tracking-[0.06em] text-[#86868b]">
+                    <tr>
+                      <th className="px-[4mm] py-[2mm]">Lot</th>
+                      <th className="py-[2mm]">Type</th>
+                      <th className="py-[2mm] text-right">Surface</th>
+                      <th className="py-[2mm] text-center">Étage</th>
+                      <th className="py-[2mm]">Occupation</th>
+                      <th className="py-[2mm] text-right">Loyer HC</th>
+                      <th className="px-[4mm] py-[2mm] text-center">DPE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lots.slice(0, 14).map((l) => (
+                      <tr key={l.id} className="border-t border-[#f0f0f3]">
+                        <td className="px-[4mm] py-[1.6mm] font-semibold">{l.nom}</td>
+                        <td className="py-[1.6mm]">{typeLotLabel(l.type)}</td>
+                        <td className="py-[1.6mm] text-right tabular-nums">{l.surface ? `${surf(l.surface)} m²` : "—"}</td>
+                        <td className="py-[1.6mm] text-center">{l.etage != null ? etageCourt(l.etage) : "—"}</td>
+                        <td className="py-[1.6mm]">{l.loue ? "Loué" : "Libre"}</td>
+                        <td className="py-[1.6mm] text-right tabular-nums">{l.loyer ? `${nombre(l.loyer)} €` : "—"}</td>
+                        <td className="px-[4mm] py-[1.6mm] text-center">
+                          {l.dpe ? (
+                            <span className="inline-block rounded-[3px] px-1.5 font-bold" style={{ backgroundColor: DPE_COLORS[l.dpe], color: "CD".includes(l.dpe) ? "#1d1d1f" : "#fff" }}>
+                              {l.dpe}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {lots.length > 14 && <p className="border-t border-[#f0f0f3] px-[4mm] py-[1.6mm] text-[8.5px] text-[#86868b]">et {lots.length - 14} autres lots</p>}
+              </div>
+            )}
 
             {/* Mosaïque : photos du bien et plan de situation */}
             {(() => {
@@ -673,7 +739,7 @@ export default function AvisDeValeur() {
                                 de {eur(v.lo)} à {eur(v.hi)}
                               </p>
                             )}
-                            {c > 0 && surface > 0 && (
+                            {c > 0 && surface > 0 && !estPk && (
                               <span className="inline-block text-[9.5px] font-medium tabular-nums text-[#6e6e73]" style={{ marginTop: mix(10, 5) }}>
                                 {nombre(c / surface)} €/m²
                               </span>
@@ -692,7 +758,7 @@ export default function AvisDeValeur() {
                         <p className="text-[10.5px] tabular-nums text-[#6e6e73]">
                           {[
                             !singleValue ? `Fourchette ${eur(low)} – ${eur(high)}` : "",
-                            central > 0 && surface > 0 ? `${nombre(central / surface)} €/m²` : "",
+                            central > 0 && surface > 0 && !estPk ? `${nombre(central / surface)} €/m²` : "",
                             marketStats ? `Médiane du secteur ${nombre(marketStats.median)} €/m²` : "",
                           ]
                             .filter(Boolean)
@@ -702,7 +768,32 @@ export default function AvisDeValeur() {
                     </div>
                   )}
 
-                  {loyer > 0 && (
+                  {estImm && methodes && (
+                    <div className="shrink-0 rounded-[18px] bg-[#f5f5f7]" style={{ paddingTop: mm(4.5, 2.3), paddingBottom: mm(4.5, 2.3) }}>
+                      <div className="grid grid-cols-3">
+                        {[
+                          { l: "Par les lots", v: methodes.lots, u: `somme des lots moins ${Math.round(pImm.decote * 100)} % (vente en bloc)` },
+                          { l: "Par le rendement", v: methodes.rendement, u: resImm?.loyers ? `${nombre(resImm.loyers)} € de loyers à ${pctTexte(pImm.rendement)}` : "aucun loyer" },
+                          { l: "Immeubles vendus", v: methodes.blocs, u: resImm?.blocM2 && methodes.blocs ? `${resImm.nbBlocs} ventes, ${nombre(resImm.blocM2)} €/m²` : "pas assez de ventes" },
+                        ].map((k, i) => (
+                          <div key={k.l} className={`px-[5mm] ${i > 0 ? "border-l border-[#e3e3e8]" : ""}`}>
+                            <p className={LABEL}>{k.l}</p>
+                            <p className="mt-1.5 font-bold leading-none tabular-nums tracking-[-0.03em] text-[#1d1d1f]" style={{ fontSize: mix(18, 15, 0.5) }}>
+                              {k.v ? eur(k.v) : "—"}
+                            </p>
+                            <p className="mt-1 text-[8.5px] leading-snug text-[#86868b]">{k.u}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {(pImm.travaux || resImm?.rendementBrut) && (
+                        <p className="mt-[2.5mm] px-[5mm] text-[9px] text-[#6e6e73]">
+                          {[pImm.travaux ? `Travaux à prévoir déduits : ${eur(pImm.travaux)}` : "", central && resImm?.loyers ? `Rendement brut sur la valeur retenue : ${pctTexte(resImm.loyers / central)}` : ""].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {loyer > 0 && !estImm && (
                     <div className="grid shrink-0 grid-cols-3 rounded-[18px] bg-[#f5f5f7]" style={{ paddingTop: mm(4.5, 2.3), paddingBottom: mm(4.5, 2.3) }}>
                       {[
                         { l: "Valeur locative", v: eur(loyer), u: "HC / mois" },
