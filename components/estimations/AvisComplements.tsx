@@ -88,7 +88,7 @@ export function AvisComplements({ e, bien, proprio, maj }: { e: Estimation; bien
             <Interrupteur checked={!!d.copro} onChange={(copro) => tout({ copro })} label="En copropriété" />
             {d.copro && (
               <Field label="Charges de copropriété">
-                <Nombre value={d.chargesMois} onChange={(chargesMois) => set({ chargesMois })} unit="€/mois" />
+                <Nombre value={d.chargesMois} onChange={(chargesMois) => set({ chargesMois })} unit="€/mois" decimal />
               </Field>
             )}
           </div>
@@ -143,16 +143,16 @@ export function AvisComplements({ e, bien, proprio, maj }: { e: Estimation; bien
 
           <div className="space-y-3">
             <Field label="Valeur locative" hint="Facultatif : affiche le loyer et le rendement brut.">
-              <Nombre value={d.loyer} onChange={(loyer) => set({ loyer })} unit="€/mois HC" />
+              <Nombre value={d.loyer} onChange={(loyer) => set({ loyer })} unit="€/mois HC" decimal />
             </Field>
             <Interrupteur checked={!!d.loue} onChange={(loue) => tout({ loue })} label="Vendu loué" hint="Affiche la valeur libre et la valeur occupée." />
             {d.loue && (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Valeur occupée basse">
-                  <Nombre value={d.basLoue} onChange={(basLoue) => set({ basLoue })} unit="€" />
+                  <Nombre value={d.basLoue} onChange={(basLoue) => set({ basLoue })} unit="€" decimal />
                 </Field>
                 <Field label="Valeur occupée haute">
-                  <Nombre value={d.hautLoue} onChange={(hautLoue) => set({ hautLoue })} unit="€" />
+                  <Nombre value={d.hautLoue} onChange={(hautLoue) => set({ hautLoue })} unit="€" decimal />
                 </Field>
               </div>
             )}

@@ -586,7 +586,7 @@ export default function LocativesPage() {
 
           <Card title="Loyer de présentation conseillé">
             <div className="space-y-3">
-              <Nombre value={loyerConseille} onChange={(v) => set({ loyerConseille: v, loyerTouche: true })} unit="€ / mois" className="[&_input]:!h-12 [&_input]:text-lg [&_input]:font-semibold" />
+              <Nombre value={loyerConseille} onChange={(v) => set({ loyerConseille: v, loyerTouche: true })} unit="€ / mois" decimal className="[&_input]:!h-12 [&_input]:text-lg [&_input]:font-semibold" />
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { l: "Bas", v: res.low },
@@ -703,7 +703,7 @@ function AjoutLoyer({ onAdd, onCancel }: { onAdd: (v: LoyerComp) => void; onCanc
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Loyer mensuel hors charges">
-          <Nombre value={loyer} onChange={setLoyer} unit="€" />
+          <Nombre value={loyer} onChange={setLoyer} unit="€" decimal />
         </Field>
         <Field label="Surface">
           <Nombre value={surface} onChange={setSurface} unit="m²" decimal />

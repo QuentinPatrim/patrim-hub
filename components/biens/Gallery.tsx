@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand, RefreshCw, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { cx } from "@/components/ui";
 import type { BienType } from "@/lib/types";
@@ -9,8 +9,24 @@ import { BienPlaceholder } from "./BienVisual";
 import { MAX_PHOTOS } from "./PhotosEditor";
 
 /** Galerie photo : glisser du doigt sur mobile, flèches sur ordinateur, plein écran au toucher. */
-export function Gallery({ photos, type, alt, overlay, ajout }: { photos: string[]; type: BienType; alt: string; overlay?: ReactNode; ajout?: ReactNode }) {
+export function Gallery({
+  photos,
+  type,
+  alt,
+  overlay,
+  ajout,
+  auto,
+}: {
+  photos: string[];
+  type: BienType;
+  alt: string;
+  overlay?: ReactNode;
+  ajout?: ReactNode;
+  /** Sans photo : façade ou vue du ciel trouvée d'après l'adresse. */
+  auto?: { src: string; onAutreVue?: () => void };
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const [autoKo, setAutoKo] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
   const [full, setFull] = useState<number | null>(null);
   const closeFull = useCallback(() => setFull(null), []);
@@ -25,6 +41,28 @@ export function Gallery({ photos, type, alt, overlay, ajout }: { photos: string[
     const el = ref.current;
     if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth));
   };
+
+  if (!photos.length && auto && autoKo !== auto.src)
+    return (
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-surface-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img key={auto.src} src={auto.src} alt={`${alt} – vue de l'adresse`} onError={() => setAutoKo(auto.src)} className="aspect-[4/3] sm:aspect-[21/9] w-full object-cover" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/50 to-transparent" />
+        {overlay}
+        <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+          <span className="text-[11px] leading-tight text-white/90">
+            Photo automatique de l&apos;adresse
+            <span className="block text-white/70">Vue de rue Panoramax ou vue du ciel IGN</span>
+          </span>
+          {auto.onAutreVue && (
+            <button type="button" onClick={auto.onAutreVue} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-surface/95 px-3 text-xs font-medium text-fg shadow-sm">
+              <RefreshCw size={13} /> Autre vue
+            </button>
+          )}
+        </div>
+        {ajout && <div className="absolute right-3 top-3">{ajout}</div>}
+      </div>
+    );
 
   if (!photos.length)
     return (

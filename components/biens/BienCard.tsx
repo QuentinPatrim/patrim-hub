@@ -8,6 +8,7 @@ import { STATUT_BIEN, eur, m2 } from "@/lib/format";
 import { BienCover } from "./BienVisual";
 import { joursDepuis, prixM2 } from "./utils";
 import { STATUT_LOCATION, locationDe } from "@/components/location/bienLocation";
+import { couverture } from "@/lib/photoAuto";
 
 /** `location` : carte vue côté location (statut locatif, loyer au lieu du prix). */
 export function BienCard({ bien: b, matches, index = 0, location }: { bien: Bien; matches: number; index?: number; location?: boolean }) {
@@ -23,7 +24,7 @@ export function BienCard({ bien: b, matches, index = 0, location }: { bien: Bien
       style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
     >
       <div className="relative aspect-[16/10] overflow-hidden">
-        <BienCover photo={b.photos?.[0]} type={b.type} alt={b.titre} compact className="h-full w-full transition duration-700 ease-out group-hover:scale-[1.04]" />
+        <BienCover photo={couverture(b)} type={b.type} alt={b.titre} compact className="h-full w-full transition duration-700 ease-out group-hover:scale-[1.04]" />
         <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/30 to-transparent pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 via-black/25 to-transparent pointer-events-none" />
         <div className="absolute left-3 top-3 flex items-center gap-1.5">

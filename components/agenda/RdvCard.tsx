@@ -11,6 +11,7 @@ import { update } from "@/lib/store";
 import { RDV_TYPE, dateCourte, heure, initiales, nomComplet } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
 import { RDV_DOT, RDV_ICON, SUITE, crAFaire, finDe, lieuRdv, telechargerIcs, texteConfirmation, titreRdv, type RdvExt } from "./utils";
+import { couverture } from "@/lib/photoAuto";
 
 export function RdvCard({
   rdv: r,
@@ -41,7 +42,7 @@ export function RdvCard({
       <div className="flex gap-3 p-3.5 sm:p-4">
         {bien ? (
           <Link href={`/biens/${bien.id}`} className="shrink-0">
-            <BienCover photo={bien.photos?.[0]} type={bien.type} compact className="size-16 sm:size-[72px] rounded-xl" />
+            <BienCover photo={couverture(bien)} type={bien.type} compact className="size-16 sm:size-[72px] rounded-xl" />
           </Link>
         ) : (
           <span className={cx("grid place-items-center size-16 sm:size-[72px] shrink-0 rounded-xl text-white", RDV_DOT[r.type])}>

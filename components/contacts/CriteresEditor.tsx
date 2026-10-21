@@ -12,14 +12,14 @@ import { normalize } from "./helpers";
 const TYPES: BienType[] = ["appartement", "maison", "terrain", "parking", "local", "immeuble"];
 const AUTRES_SECTEURS = ["Toulouse", "Balma", "L'Union", "Saint-Orens", "Ramonville", "Tournefeuille", "Blagnac", "Colomiers", "Castanet", "Quint-Fonsegrives", "Montrabé", "Labège"];
 
-/** Champ numérique tolérant (vide = undefined, espaces et "k" acceptés). */
+/** Champ numérique tolérant (vide = undefined, espaces, virgule et "k" acceptés). */
 export function NumInput({ value, onChange, placeholder, suffix, className }: { value?: number; onChange: (v?: number) => void; placeholder?: string; suffix?: string; className?: string }) {
   const [txt, setTxt] = useState<string | null>(null);
   const shown = txt ?? (value != null ? value.toLocaleString("fr-FR") : "");
   return (
     <div className={cx("relative", className)}>
       <input
-        inputMode="numeric"
+        inputMode="decimal"
         className={cx("input", suffix && "pr-10")}
         value={shown}
         placeholder={placeholder}
@@ -37,7 +37,9 @@ export function NumInput({ value, onChange, placeholder, suffix, className }: { 
 export function parseNum(s?: string | number | null): number | undefined {
   if (s == null) return undefined;
   if (typeof s === "number") return isNaN(s) ? undefined : s;
-  let t = s.toLowerCase().replace(/\s| | |€|eur/g, "").replace(",", ".");
+  let t = s.toLowerCase().replace(/\s| | |€|eur/g, "");
+  // « 1.250,50 » : le point sépare les milliers, la virgule les centimes
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
   let mult = 1;
   if (/k$/.test(t)) {
     mult = 1000;
@@ -49,7 +51,7 @@ export function parseNum(s?: string | number | null): number | undefined {
   t = t.replace(/m2$|m²$/, "");
   if (!t) return undefined;
   const n = parseFloat(t);
-  return isNaN(n) ? undefined : Math.round(n * mult);
+  return isNaN(n) ? undefined : Math.round(n * mult * 100) / 100;
 }
 
 export function QuartiersInput({ value, onChange }: { value?: string[]; onChange: (v: string[]) => void }) {

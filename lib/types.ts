@@ -51,6 +51,7 @@ export interface Bien extends Doc {
   mandat?: { numero?: string; type?: MandatType; debut?: string; fin?: string };
   vendeurIds?: string[];      // contacts vendeurs (confidentiel, jamais dans un contenu public)
   photos?: string[];          // URLs (Drive, portail…) ou data URL
+  vueAuto?: number;           // sans photo : vue automatique choisie (façade ou vue du ciel)
   description?: string;
   pointsForts?: string[];
   driveUrl?: string;
