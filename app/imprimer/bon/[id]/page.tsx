@@ -9,6 +9,7 @@ import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine } from "@/components/documents/blocs";
 import { TraceSvg } from "@/components/bon/SignaturePad";
 import { MENTION_DONNEES, descriptionBien, engagement, nomVisiteur, prixTexte, quand, type BonVisite } from "@/components/bon/bon";
+import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Bon de visite PATRIM en A4 : signé sur le téléphone, ou à faire
@@ -52,7 +53,7 @@ export default function BonPdf() {
     if (!bon) return;
     const prev = document.title;
     const jour = new Date(bon.visite).toLocaleDateString("sv-SE", { timeZone: TZ });
-    document.title = `Bon de visite ${jour} ${bon.visiteurs.map((v) => [v.civilite, v.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.replace(/\s+/g, " ").trim();
+    document.title = nommerPdf(`Bon de visite ${jour} ${bon.visiteurs.map((v) => [v.civilite, v.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.replace(/\s+/g, " ").trim());
     return () => {
       document.title = prev;
     };
@@ -83,9 +84,9 @@ export default function BonPdf() {
           <Link href={`/agenda/bon/${bon.rdvId}`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Bon de visite
           </Link>
-          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </button>
+          </BoutonPdf>
         </div>
         <div className="mx-auto max-w-[860px] px-4 pb-2.5 text-[12px] leading-snug" style={{ color: C.slate }}>
           {bon.signeLe ? (

@@ -9,6 +9,7 @@ import { FICHE_PRINT_CSS, FicheDocument } from "@/components/fiche/FicheDocument
 import { ficheDepuisBien } from "@/components/fiche/fiche";
 import { useCollection, useDoc } from "@/lib/store";
 import type { Contact } from "@/lib/types";
+import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* Fiche du bien à enregistrer en PDF (même contenu que le lien envoyé à l'acquéreur). */
 export default function FichePdfPage() {
@@ -38,7 +39,7 @@ function FichePdf() {
   useEffect(() => {
     if (!f) return;
     const prev = document.title;
-    document.title = `Fiche PATRIM – ${f.titre}`;
+    document.title = nommerPdf(`Fiche PATRIM – ${f.titre}`);
     return () => {
       document.title = prev;
     };
@@ -56,9 +57,9 @@ function FichePdf() {
             <input type="checkbox" checked={adresse} onChange={(e) => setAdresse(e.target.checked)} className="size-4 accent-[#6c191e]" />
             Adresse exacte
           </label>
-          <button type="button" onClick={() => window.print()} className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <BoutonPdf className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> <span className="hidden sm:inline">Enregistrer en</span> PDF
-          </button>
+          </BoutonPdf>
         </div>
       </div>
       <div className="sm:pt-6">

@@ -9,6 +9,7 @@ import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine, Case, PrixBloc, Section, Texte, ou } from "@/components/documents/blocs";
 import { dateLettres, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, avecExclusivite, dureeLettres, ecrireMandat, lireMandat, titreMandat, typeMandat, type Mandat } from "@/components/mandat/mandat";
+import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Mandat de vente PATRIM (simple, semi-exclusif ou exclusif), prêt à
@@ -41,7 +42,7 @@ export default function MandatPdf() {
   useEffect(() => {
     if (!m) return;
     const prev = document.title;
-    document.title = `${titreMandat(m)} ${m.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim();
+    document.title = nommerPdf(`${titreMandat(m)} ${m.mandants.map((p) => [p.civilite, p.nom?.toUpperCase()].filter(Boolean).join(" ")).join(" ")}`.trim());
     return () => {
       document.title = prev;
     };
@@ -76,9 +77,9 @@ export default function MandatPdf() {
           <Link href={`/biens/${id}/mandat`} onClick={() => ecrireMandat(m)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
-          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </button>
+          </BoutonPdf>
         </div>
         <div className="mx-auto max-w-[860px] px-4 pb-2.5 text-[12px] leading-snug" style={{ color: C.slate }}>
           {nbManquants > 0 ? (

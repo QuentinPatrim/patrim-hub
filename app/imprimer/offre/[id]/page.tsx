@@ -8,6 +8,7 @@ import { AGENCE, C, MENTIONS, enLettres, montantComplet, telActe } from "@/compo
 import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine, PrixBloc, Section, Texte, Trou, ou } from "@/components/documents/blocs";
 import { dateLettres, detailFinancement, ecrireOffre, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
+import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Offre d'achat PATRIM, prête à « Enregistrer en PDF » puis à
@@ -32,7 +33,7 @@ export default function OffrePdf() {
     const prev = document.title;
     const noms = o.acquereurs.map((p) => p.nom?.toUpperCase()).filter(Boolean).join(" ");
     const vend = o.vendeurs.map((p) => p.nom?.toUpperCase()).filter(Boolean).join(" ");
-    document.title = `Offre d'achat ${[noms, vend].filter(Boolean).join(" – ")}`.trim();
+    document.title = nommerPdf(`Offre d'achat ${[noms, vend].filter(Boolean).join(" – ")}`.trim());
     return () => {
       document.title = prev;
     };
@@ -68,9 +69,9 @@ export default function OffrePdf() {
           <Link href={`/biens/${id}/offre`} onClick={() => ecrireOffre(o)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
-          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </button>
+          </BoutonPdf>
         </div>
         <div className="mx-auto max-w-[860px] px-4 pb-2.5 text-[12px] leading-snug" style={{ color: C.slate }}>
           {nbManquants > 0 ? (
