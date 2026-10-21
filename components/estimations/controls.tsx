@@ -34,7 +34,7 @@ export function Choix<T extends string | number>({
             onClick={() => onChange(on && allowEmpty ? undefined : o.value)}
             className={cx(
               "rounded-xl border px-3.5 text-sm font-medium transition active:scale-[.97]",
-              size === "lg" ? "h-12 flex-1 min-w-[120px]" : "h-10",
+              size === "lg" ? "h-12 flex-1 min-w-[120px]" : o.hint ? "min-h-10 py-1.5" : "h-10",
               on ? "border-accent bg-accent text-white shadow-sm dark:text-bg" : "border-line bg-surface text-fg hover:bg-surface-2"
             )}
           >

@@ -315,7 +315,7 @@ function ContactsPage() {
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {list.slice(0, limit).map((c, i) =>
                   selection ? (
-                    <div key={c.id} className="relative">
+                    <div key={c.id} className="relative min-w-0">
                       <ContactCard c={c} index={i} />
                       <button
                         type="button"

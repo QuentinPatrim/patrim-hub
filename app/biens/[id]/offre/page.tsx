@@ -28,7 +28,7 @@ import {
   type Partie,
 } from "@/components/offre/offre";
 import { enregistrerActe } from "@/components/documents/archive";
-import { useCollection, useDoc } from "@/lib/store";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 
@@ -103,7 +103,7 @@ export default function OffreAchatPage() {
   const choisir = (role: "acquereurs" | "vendeurs", ids: string[]) => {
     if (!o) return;
     const avant = o[role];
-    set({ [role]: ids.map((cid) => avant.find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+    set({ [role]: ids.map((cid) => avant.find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   };
   const setPartie = (role: "acquereurs" | "vendeurs", i: number, patch: Partial<Partie>) => {
     if (!o) return;

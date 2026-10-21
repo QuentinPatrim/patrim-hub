@@ -15,7 +15,7 @@ import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCiv
 import { ACTIONS_EXCLU, CHAMPS_MANDAT, COMPTES_RENDUS_EXCLU, DIAGNOSTICS, NATURES, TYPES_MANDAT, avecExclusivite, typeMandat, ecrireMandat, effacerMandat, lireMandat, mailDemandeMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
 import { enregistrerActe } from "@/components/documents/archive";
 import { apercuNumero, reserverNumero } from "@/lib/numeroMandat";
-import { useCollection, useDoc } from "@/lib/store";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 
 /* ============================================================
@@ -66,7 +66,7 @@ export default function MandatPage() {
   const set = (patch: Partial<Mandat>) => setM((x) => (x ? { ...x, ...patch } : x));
   const choisir = (ids: string[]) => {
     if (!m) return;
-    set({ mandants: ids.map((cid) => m.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+    set({ mandants: ids.map((cid) => m.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   };
   const setPartie = (i: number, patch: Partial<Partie>) => m && set({ mandants: m.mandants.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const totalManquants = useMemo(() => (m ? m.mandants.reduce((n, p) => n + manquants(p, CHAMPS_MANDAT).length, 0) : 0), [m]);
