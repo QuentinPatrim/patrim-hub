@@ -94,6 +94,8 @@ export interface Bail {
   habitat: "collectif" | "individuel";
   regime: "copropriete" | "mono";
   periode?: string;
+  /** Année de construction précise, si connue (en plus de la période). */
+  anneeConstruction?: number;
   surface?: number;
   pieces?: number;
   autresParties: string[];
@@ -227,6 +229,7 @@ export function bailInitial(b: Bien, proprietaires: ContactEtatCivil[], typeVoul
     habitat: b.type === "maison" ? "individuel" : "collectif",
     regime: estCopro(b) ? "copropriete" : "mono",
     periode: periodeConstruction(b.anneeConstruction) || d?.construction || undefined,
+    anneeConstruction: b.anneeConstruction,
     surface: b.surface,
     pieces: b.pieces,
     autresParties: AUTRES_PARTIES.filter((p) => contient(ext, p.toLowerCase().replace(" privatif", "").replace(" aménagé", ""))),
@@ -374,4 +377,12 @@ export function mailDemandeBail(p: Partie, role: "locataire" | "bailleur", logem
       AGENCE.conseillerTel,
     ].join("\n"),
   };
+}
+
+/** Le bail remis au locataire et l'acte de caution ne montrent que le code postal et la ville du bailleur, jamais sa rue. */
+export function villeSeule(adresse?: string) {
+  const m = adresse?.match(/\b(\d{5})\b[\s,-]*(.*)$/);
+  if (!m) return undefined;
+  const ville = m[2].replace(/[\s,.]+$/, "").trim();
+  return ville ? `${m[1]} ${ville}` : m[1];
 }

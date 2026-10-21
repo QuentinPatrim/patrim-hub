@@ -1,6 +1,6 @@
 "use client";
 
-import { AlarmClock, Download, Flame, KanbanSquare, List, Plus, Search, Upload, Users, X } from "lucide-react";
+import { AlarmClock, Check, CheckSquare, Copy, Download, Flame, KanbanSquare, List, Plus, Search, Trash2, Upload, Users, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ContactCard } from "@/components/contacts/ContactCard";
@@ -9,9 +9,9 @@ import { contactsToCsv, downloadText } from "@/components/contacts/csv";
 import { contactHaystack, normalize, relanceDue, sortByRelance } from "@/components/contacts/helpers";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
 import { Pipeline } from "@/components/contacts/Pipeline";
-import { cx, Empty, PageHeader, Tabs } from "@/components/ui";
-import { today } from "@/lib/format";
-import { useCollection } from "@/lib/store";
+import { cx, Empty, PageHeader, Sheet, Tabs } from "@/components/ui";
+import { nomComplet, today } from "@/lib/format";
+import { remove, useCollection } from "@/lib/store";
 import type { Contact, ContactRole } from "@/lib/types";
 import { useEspace } from "@/components/espace/espace";
 
@@ -46,6 +46,9 @@ function ContactsPage() {
   const [chauds, setChauds] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [limit, setLimit] = useState(40);
+  // Sélection pour supprimer plusieurs fiches d'un coup
+  const [selection, setSelection] = useState<Set<string> | null>(null);
+  const [confirmer, setConfirmer] = useState(false);
   const nouveau = params.get("nouveau") === "1";
 
   useEffect(() => {
@@ -114,6 +117,16 @@ function ContactsPage() {
 
   useEffect(() => setLimit(40), [filtre, relance, chauds, q]);
 
+  const basculer = (id: string) =>
+    setSelection((s) => {
+      const n = new Set(s ?? []);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const choisis = useMemo(() => items.filter((c) => selection?.has(c.id)), [items, selection]);
+  const doublons = useMemo(() => doublonsDe(items), [items]);
+
   const exporter = () => downloadText(`contacts-patrim-${today()}.csv`, contactsToCsv(list.length ? list : items));
 
   return (
@@ -146,6 +159,11 @@ function ContactsPage() {
             {items.length > 0 && (
               <button className="btn-secondary btn-sm !h-10 sm:!h-8" onClick={exporter}>
                 <Download size={15} /> Exporter
+              </button>
+            )}
+            {items.length > 0 && vue === "liste" && (
+              <button className="btn-secondary btn-sm !h-10 sm:!h-8" onClick={() => setSelection(selection ? null : new Set())} aria-pressed={!!selection}>
+                <CheckSquare size={15} /> Sélectionner
               </button>
             )}
             <button className="btn-primary btn-sm !h-10 sm:!h-8 flex-1 sm:flex-none" onClick={() => setNouveau(true)}>
@@ -266,10 +284,55 @@ function ContactsPage() {
             </div>
           ) : (
             <>
+              {selection && (
+                <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] lg:top-2 z-20 mb-3 rounded-2xl border border-accent/25 bg-surface/95 backdrop-blur-xl p-2.5 shadow-card animate-fade-up">
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <span className="text-sm font-semibold">
+                      {selection.size ? `${selection.size} sélectionné${selection.size > 1 ? "s" : ""}` : "Touchez les fiches à supprimer"}
+                    </span>
+                    <button className="btn-ghost btn-sm !h-9 text-muted" onClick={() => setSelection(null)}>
+                      <X size={15} /> Fermer
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      className="btn-secondary btn-sm !h-9"
+                      onClick={() => setSelection(list.every((c) => selection.has(c.id)) ? new Set() : new Set(list.map((c) => c.id)))}
+                    >
+                      <Check size={14} /> {list.every((c) => selection.has(c.id)) ? "Tout décocher" : `Tout (${list.length})`}
+                    </button>
+                    {doublons.length > 0 && (
+                      <button className="btn-secondary btn-sm !h-9" onClick={() => setSelection(new Set(doublons))}>
+                        <Copy size={14} /> Les doublons ({doublons.length})
+                      </button>
+                    )}
+                    <button className="btn-sm !h-9 btn bg-danger text-white ml-auto" disabled={!selection.size} onClick={() => setConfirmer(true)}>
+                      <Trash2 size={14} /> Supprimer
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {list.slice(0, limit).map((c, i) => (
-                  <ContactCard key={c.id} c={c} index={i} />
-                ))}
+                {list.slice(0, limit).map((c, i) =>
+                  selection ? (
+                    <div key={c.id} className="relative">
+                      <ContactCard c={c} index={i} />
+                      <button
+                        type="button"
+                        onClick={() => basculer(c.id)}
+                        aria-pressed={selection.has(c.id)}
+                        aria-label={`Sélectionner ${nomComplet(c)}`}
+                        className={cx("absolute inset-0 rounded-2xl border-2 transition", selection.has(c.id) ? "border-danger bg-danger/[0.06]" : "border-transparent")}
+                      >
+                        <span className={cx("absolute right-3 top-3 grid size-7 place-items-center rounded-full border-2", selection.has(c.id) ? "border-danger bg-danger text-white" : "border-line bg-surface")}>
+                          {selection.has(c.id) && <Check size={15} strokeWidth={3} />}
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <ContactCard key={c.id} c={c} index={i} />
+                  )
+                )}
               </div>
               {list.length > limit && (
                 <div className="mt-4 flex justify-center">
@@ -285,7 +348,87 @@ function ContactsPage() {
 
       <ContactForm open={nouveau} onClose={() => setNouveau(false)} defaultRole={filtre === "vendeur" || filtre === "prospect_vendeur" || filtre === "locataire" ? filtre : loc ? "locataire" : undefined} />
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
+      <SupprimerSheet
+        open={confirmer}
+        contacts={choisis}
+        onClose={() => setConfirmer(false)}
+        onDone={() => {
+          setConfirmer(false);
+          setSelection(null);
+        }}
+      />
     </>
+  );
+}
+
+/** Fiches en double (même prénom et même nom, sans téléphone ou e-mail différent) : on garde la plus ancienne. */
+function doublonsDe(items: Contact[]) {
+  const groupes = new Map<string, Contact[]>();
+  for (const c of items) {
+    const k = `${normalize(c.prenom)}|${normalize(c.nom)}`;
+    if (k === "|") continue;
+    groupes.set(k, [...(groupes.get(k) ?? []), c]);
+  }
+  const ids: string[] = [];
+  const tel = (c: Contact) => c.tel?.replace(/\D/g, "").slice(-9) || "";
+  for (const g of groupes.values()) {
+    if (g.length < 2) continue;
+    const [garde, ...autres] = [...g].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+    for (const c of autres) {
+      const autreTel = tel(c) && tel(garde) && tel(c) !== tel(garde);
+      const autreMail = c.email && garde.email && normalize(c.email) !== normalize(garde.email);
+      if (!autreTel && !autreMail) ids.push(c.id);
+    }
+  }
+  return ids;
+}
+
+function SupprimerSheet({ open, contacts, onClose, onDone }: { open: boolean; contacts: Contact[]; onClose: () => void; onDone: () => void }) {
+  const { items: biens } = useCollection("biens");
+  const { items: rdvs } = useCollection("rdvs");
+  const ids = new Set(contacts.map((c) => c.id));
+  const lies = biens.filter((b) => b.vendeurIds?.some((v) => ids.has(v))).length;
+  const visites = rdvs.filter((r) => r.contactIds?.some((v) => ids.has(v))).length;
+  const n = contacts.length;
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={`Supprimer ${n} fiche${n > 1 ? "s" : ""} ?`}
+      footer={
+        <>
+          <button className="btn-secondary" onClick={onClose}>
+            Annuler
+          </button>
+          <button
+            className="btn bg-danger text-white flex-1 sm:flex-none"
+            disabled={!n}
+            onClick={() => {
+              contacts.forEach((c) => remove("contacts", c.id));
+              onDone();
+            }}
+          >
+            <Trash2 size={16} /> Supprimer définitivement
+          </button>
+        </>
+      }
+    >
+      <p className="text-sm text-muted">La suppression est définitive : l&apos;historique de ces fiches est perdu.</p>
+      {(lies > 0 || visites > 0) && (
+        <p className="mt-3 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-[13px]">
+          Attention : {[lies > 0 && `${lies} bien${lies > 1 ? "s" : ""} en vente`, visites > 0 && `${visites} rendez-vous`].filter(Boolean).join(" et ")} {lies + visites > 1 ? "sont rattachés" : "est rattaché"} à ces fiches.
+        </p>
+      )}
+      <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+        {contacts.slice(0, 12).map((c) => (
+          <li key={c.id} className="px-3 py-2 text-sm">
+            <span className="font-medium">{nomComplet(c)}</span>
+            {c.tel && <span className="text-muted"> · {c.tel}</span>}
+          </li>
+        ))}
+        {n > 12 && <li className="px-3 py-2 text-sm text-muted">et {n - 12} autre{n - 12 > 1 ? "s" : ""}</li>}
+      </ul>
+    </Sheet>
   );
 }
 

@@ -102,3 +102,12 @@ export function sortByRelance(a: Contact, b: Contact) {
   if (da !== db) return da < db ? -1 : 1;
   return (b.chaleur ?? 0) - (a.chaleur ?? 0) || (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "");
 }
+
+/** Fiches créées pendant cette visite : la fiche affiche « Fiche créée » à l'ouverture. */
+const creees = new Set<string>();
+export function marquerCree(id: string) {
+  creees.add(id);
+}
+export function vientDEtreCree(id: string) {
+  return creees.delete(id);
+}

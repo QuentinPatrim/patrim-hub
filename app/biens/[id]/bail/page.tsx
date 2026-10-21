@@ -37,7 +37,7 @@ import {
   titreBail,
   type Bail,
 } from "@/components/bail/bail";
-import { IRL, PLAFONDS, ZONES, ajouterMois, dateActe, dureeTexte, eurosCts, plafondsLocataire, trimestreTexte, valeurIrl } from "@/components/location/loi";
+import { IRL, PLAFONDS, ZONES, ajouterMois, periodeConstruction, dateActe, dureeTexte, eurosCts, plafondsLocataire, trimestreTexte, valeurIrl } from "@/components/location/loi";
 import { useCollection, useDoc } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { titrePublic } from "@/lib/titrePublic";
@@ -242,6 +242,21 @@ export default function BailPage() {
                   ))}
                 </div>
               </div>
+              <Field label="Année de construction précise" hint="Facultatif : apparaît dans le bail à côté de la période.">
+                <input
+                  className="input max-w-[140px]"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Ex. 1972"
+                  value={x.anneeConstruction ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    const n = v ? Number(v) : undefined;
+                    // Une année complète choisit aussi la bonne période
+                    set(n && n >= 1000 && periodeConstruction(n) ? { anneeConstruction: n, periode: periodeConstruction(n) } : { anneeConstruction: n });
+                  }}
+                />
+              </Field>
               <div className="grid grid-cols-2 items-end gap-3">
                 <Field label="Surface habitable" hint="Pas la surface Carrez : sans les murs, gaines, marches, ni les pièces de moins de 1,80 m sous plafond.">
                   <Montant value={x.surface} onChange={(v) => set({ surface: v })} suffix="m²" />

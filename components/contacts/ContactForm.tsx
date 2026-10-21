@@ -2,10 +2,10 @@
 
 import { useEspace } from "@/components/espace/espace";
 import { locationDe, locationSeule } from "@/components/location/bienLocation";
-import { AlertTriangle, ClipboardPaste, Home, Sparkles, UserPlus, Wand2 } from "lucide-react";
+import { AlertTriangle, Check, ClipboardPaste, Home, Sparkles, UserPlus, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cx, Field, Sheet, Spinner } from "@/components/ui";
 import { ask } from "@/lib/ai";
 import { eur, nomComplet, ROLE, SOURCE, today } from "@/lib/format";
@@ -13,7 +13,7 @@ import { create, useCollection } from "@/lib/store";
 import type { BienType, Contact, ContactRole, Criteres, Source } from "@/lib/types";
 import { FlamesPicker, PickChip } from "./bits";
 import { CriteresEditor, parseNum } from "./CriteresEditor";
-import { normalize, SOURCES, trouverBien } from "./helpers";
+import { marquerCree, normalize, SOURCES, trouverBien } from "./helpers";
 
 type Draft = {
   civilite: "M." | "Mme" | "";
@@ -69,9 +69,14 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [filled, setFilled] = useState(false);
+  // Fiche déjà créée : bloque un deuxième appui pendant l'ouverture de la fiche
+  const [cree, setCree] = useState(false);
+  const creeRef = useRef(false);
 
   useEffect(() => {
     if (open) {
+      setCree(false);
+      creeRef.current = false;
       setD({ ...EMPTY, role: defaultRole ?? "acquereur" });
       setMode("form");
       setLead("");
@@ -88,6 +93,14 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
     if (t.length < 9 && !e) return undefined;
     return contacts.find((c) => (t.length >= 9 && c.tel?.replace(/\D/g, "").endsWith(t)) || (e && normalize(c.email) === e));
   }, [d.tel, d.email, contacts]);
+
+  // Même prénom et même nom qu'une fiche existante
+  const homonyme = useMemo(() => {
+    const n = normalize(d.nom);
+    if (!n || doublon) return undefined;
+    const p = normalize(d.prenom);
+    return contacts.find((c) => normalize(c.nom) === n && normalize(c.prenom) === p);
+  }, [d.nom, d.prenom, contacts, doublon]);
 
   const bienOrigine = biens.find((b) => b.id === d.bienOrigineId);
   const loc = useEspace() === "location";
@@ -146,6 +159,7 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
   }
 
   function enregistrer() {
+    if (creeRef.current) return;
     if (!d.nom.trim() && !d.prenom.trim()) {
       setErr("Indiquez au moins un nom ou un prénom.");
       return;
@@ -173,7 +187,10 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
       notes: d.notes,
       historique,
     } as Omit<Contact, "id" | "createdAt" | "updatedAt">);
-    onClose();
+    creeRef.current = true;
+    setCree(true);
+    marquerCree(c.id);
+    // La feuille reste affichée avec « Fiche créée » jusqu'à l'ouverture de la fiche
     router.push(`/contacts/${c.id}`);
   }
 
@@ -189,11 +206,17 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
       footer={
         mode === "form" ? (
           <>
-            <button className="btn-secondary" onClick={onClose}>
+            <button className="btn-secondary" onClick={onClose} disabled={cree}>
               Annuler
             </button>
-            <button className="btn-primary flex-1 sm:flex-none" onClick={enregistrer}>
-              Créer la fiche
+            <button className={cx("btn-primary flex-1 sm:flex-none", cree && "!bg-none !bg-ok disabled:!opacity-100")} onClick={enregistrer} disabled={cree} aria-live="polite">
+              {cree ? (
+                <>
+                  <Check size={16} /> Fiche créée, ouverture…
+                </>
+              ) : (
+                "Créer la fiche"
+              )}
             </button>
           </>
         ) : (
@@ -303,6 +326,18 @@ export function ContactForm({ open, onClose, defaultRole }: { open: boolean; onC
                 <Link href={`/contacts/${doublon.id}`} onClick={onClose} className="font-semibold text-accent underline underline-offset-2">
                   {nomComplet(doublon)}
                 </Link>
+              </span>
+            </div>
+          )}
+          {homonyme && (
+            <div className="flex items-start gap-2 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-[13px]">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warn" />
+              <span>
+                Une fiche porte déjà ce nom :{" "}
+                <Link href={`/contacts/${homonyme.id}`} onClick={onClose} className="font-semibold text-accent underline underline-offset-2">
+                  {nomComplet(homonyme)}
+                </Link>
+                . Ouvrez-la plutôt que d&apos;en créer une deuxième, sauf s&apos;il s&apos;agit d&apos;une autre personne.
               </span>
             </div>
           )}
