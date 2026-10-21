@@ -151,6 +151,11 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
 
   const setRelance = (d?: string) => update({ dateRelance: d });
 
+  const supprimer = async () => {
+    if (await remove()) router.replace("/contacts");
+    else flash("Fiche créée depuis le compte d'un collègue : seul ce compte peut la supprimer");
+  };
+
   const onQuick = (k: "appel" | "sms" | "whatsapp" | "mail") => {
     setComposerType(k === "appel" ? "appel" : k === "mail" ? "mail" : "sms");
     setSection("suivi");
@@ -398,10 +403,7 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
           </div>
           <div className="hidden lg:block">
             <DangerZone
-              onDelete={() => {
-                remove();
-                router.replace("/contacts");
-              }}
+              onDelete={supprimer}
             />
           </div>
         </aside>
@@ -409,10 +411,7 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
 
       <div className={cx("mt-4 lg:hidden", section !== "recherche" && "hidden")}>
         <DangerZone
-          onDelete={() => {
-            remove();
-            router.replace("/contacts");
-          }}
+              onDelete={supprimer}
         />
       </div>
 
