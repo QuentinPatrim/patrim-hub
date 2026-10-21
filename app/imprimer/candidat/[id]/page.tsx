@@ -8,7 +8,6 @@ import { C, MENTIONS } from "@/components/documents/charte";
 import { ACTE_PRINT_CSS, Pagine } from "@/components/documents/blocs";
 import { LIGNES_FICHE, PIECES_CANDIDAT, PIECES_INTERDITES, lireFiche, premierMois, totalEntree, type FicheCandidat } from "@/components/candidat/candidat";
 import { dateActe, eurosCts } from "@/components/location/loi";
-import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Fiche de renseignements PATRIM pour un candidat locataire, à
@@ -38,7 +37,7 @@ export default function FichePdf() {
   useEffect(() => {
     if (!f) return;
     const prev = document.title;
-    document.title = nommerPdf(`Fiche de renseignements – ${f.logement}`);
+    document.title = `Fiche de renseignements – ${f.logement}`;
     return () => {
       document.title = prev;
     };
@@ -76,9 +75,9 @@ export default function FichePdf() {
           <Link href={`/biens/${id}/candidat`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Modifier
           </Link>
-          <BoutonPdf className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
+          <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
-          </BoutonPdf>
+          </button>
         </div>
       </div>
 
