@@ -245,6 +245,9 @@ export default function AnnoncePage() {
       )}
 
       <div className="grid gap-2">
+        <Link href="/annonces" className="btn-secondary !h-12">
+          <ExternalLink size={17} /> Export portails (fichier de test)
+        </Link>
         {a.ics ? (
           <button type="button" className="btn-secondary !h-12" onClick={() => maj({ ics: undefined })}>
             Annuler « saisie dans ICS »

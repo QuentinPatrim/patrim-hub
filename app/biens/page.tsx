@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Building2, FileSignature, KeyRound, Plus, Search, X } from "lucide-react";
+import { ArrowUpDown, Building2, FileSignature, KeyRound, Megaphone, Plus, Search, X } from "lucide-react";
 import { Empty, PageHeader, Tabs } from "@/components/ui";
 import { BienCard, BienCardSkeleton } from "@/components/biens/BienCard";
 import { STATUTS, acquereursCompatibles, prixM2 } from "@/components/biens/utils";
@@ -141,6 +141,9 @@ export default function BiensPage() {
                 <FileSignature size={16} /> Registre des mandats
               </Link>
             )}
+            <Link href="/annonces" className="btn-secondary">
+              <Megaphone size={16} /> Export portails
+            </Link>
             <Link href="/biens/nouveau" className="btn-primary">
               <Plus size={16} /> {mode === "location" ? "Ajouter un bien à louer" : "Nouveau bien"}
             </Link>
