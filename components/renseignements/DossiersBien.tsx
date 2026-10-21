@@ -9,6 +9,7 @@ import { PickChip } from "@/components/contacts/bits";
 import { dateCourte, eur, ilya } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 import { PartageLien } from "./Partage";
+import { MailFiche } from "./MailFiche";
 import {
   ajouterPersonne,
   contactDepuisReponses,
@@ -214,7 +215,18 @@ export function DossiersBien({ b }: { b: Bien }) {
 
       {envoi && (
         <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${envoi.personne.prenom || "le candidat"}`}>
-          <p className="mb-3 text-sm text-muted">Le message est prêt : choisissez comment l&apos;envoyer. Rien ne part sans vous.</p>
+          <p className="mb-3 text-sm text-muted">Le mail est prêt, sur la trame de l&apos;agence : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
+          <MailFiche
+            bienId={b.id}
+            prenom={envoi.personne.prenom}
+            role={envoi.personne.role}
+            logement={logementPublic(b)}
+            url={lienPublic(envoi.jeton)}
+            deQui={envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom}
+            garants={envoi.dossier?.personnes.filter((p) => p.role === "garant").map((p) => p.reponses?.prenom || p.prenom)}
+            email={envoi.email}
+          />
+          <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">Ou un message court par SMS ou WhatsApp</p>
           <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">
             {messageLien(envoi.personne.prenom, envoi.personne.role, logementPublic(b), lienPublic(envoi.jeton), envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom)}
           </pre>
