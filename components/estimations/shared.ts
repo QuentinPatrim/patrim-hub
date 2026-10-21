@@ -1,7 +1,8 @@
 /* Outils partagés du module Estimations (libellés, calculs, appels serveur). */
 
 import type { Comparable, Estimation, EtatBien, ClasseDpe, Contact } from "@/lib/types";
-import type { DvfSale, DvfStats } from "@/lib/dvf";
+import type { DvfBloc, DvfParking, DvfSale, DvfStats } from "@/lib/dvf";
+import type { LotImmeuble, ParamsImmeuble, TypeParking } from "./immeuble";
 import type { Tone } from "@/lib/format";
 import { CONDITIONS, expressEstimate, type ExpressResult, type MarketBase } from "@/lib/expressEstimate";
 import { authHeaders } from "@/lib/ai";
@@ -19,6 +20,10 @@ export type Vente = Comparable & {
   exclu?: boolean;
   dependances?: number;
   terrain?: number;
+  /** Immeuble vendu en bloc : nombre de logements (prix au m² sur la surface totale). */
+  bloc?: number;
+  /** Locaux d'activité vendus avec l'immeuble. */
+  locaux?: number;
 };
 
 export type Confiance = ExpressResult["confidence"];
@@ -31,6 +36,11 @@ export type EstimationPlus = Estimation & {
   periode?: string;         // ex. "2021 – 2026"
   prixM2Manuel?: number;    // référence saisie à la main si aucune vente
   surfaceTerrain?: number;
+  /** Immeuble : les lots et les hypothèses du calcul. */
+  lots?: LotImmeuble[];
+  immeuble?: ParamsImmeuble & { methodes?: { lots?: number; rendement?: number; blocs?: number }; rayonBloc?: number };
+  /** Stationnement : type de place. */
+  typeParking?: TypeParking;
 };
 
 export const asPlus = (e: Estimation) => e as EstimationPlus;
@@ -54,9 +64,17 @@ export const EXTERIEURS = ["Balcon", "Terrasse", "Loggia", "Jardin"] as const;
 
 export const CONFIANCE_TONE: Record<Confiance, Tone> = { élevée: "ok", moyenne: "warn", faible: "danger" };
 
-export const typeLabel = (t: Estimation["type"]) => (t === "maison" ? "Maison" : "Appartement");
+const TYPE_LABEL: Record<Estimation["type"], string> = { appartement: "Appartement", maison: "Maison", immeuble: "Immeuble", parking: "Stationnement" };
+export const typeLabel = (t: Estimation["type"]) => TYPE_LABEL[t] ?? "Appartement";
+const LABEL_PARKING: Record<TypeParking, string> = { exterieur: "Place extérieure", sous_sol: "Place en sous-sol", box: "Box fermé", garage: "Garage" };
+export const parkingLabel = (t?: TypeParking) => (t ? LABEL_PARKING[t] : "Stationnement");
 
-export function resumeBien(e: Pick<Estimation, "type" | "surface" | "pieces">) {
+export function resumeBien(e: Pick<Estimation, "type" | "surface" | "pieces"> & { lots?: LotImmeuble[]; typeParking?: TypeParking }) {
+  if (e.type === "immeuble") {
+    const n = e.lots?.length ?? 0;
+    return ["Immeuble", n ? `${n} lot${n > 1 ? "s" : ""}` : null, e.surface ? `${Math.round(e.surface).toLocaleString("fr-FR")} m²` : null].filter(Boolean).join(" · ");
+  }
+  if (e.type === "parking") return [parkingLabel(e.typeParking), e.surface ? `${e.surface.toLocaleString("fr-FR")} m²` : null].filter(Boolean).join(" · ");
   return [typeLabel(e.type), e.pieces ? `${e.pieces} pièce${e.pieces > 1 ? "s" : ""}` : null, e.surface ? `${e.surface.toLocaleString("fr-FR")} m²` : null]
     .filter(Boolean)
     .join(" · ");
@@ -101,6 +119,30 @@ export function venteDepuisDvf(s: DvfSale): Vente {
   };
 }
 
+export function venteDepuisBloc(s: DvfBloc): Vente {
+  return {
+    id: s.id,
+    adresse: s.address || "Adresse non communiquée",
+    ville: s.city,
+    date: s.date,
+    prix: s.price,
+    surface: s.surface,
+    prixM2: s.pricePerSqm,
+    distance: s.distance,
+    source: "dvf",
+    lat: s.lat,
+    lon: s.lon,
+    dependances: s.dependances || undefined,
+    bloc: s.logements,
+    locaux: s.locaux || undefined,
+  };
+}
+
+/** Place ou garage vendu seul : « prixM2 » porte le prix à l'unité, surface inconnue (0). */
+export function venteDepuisParking(s: DvfParking): Vente {
+  return { id: s.id, adresse: s.address || "Adresse non communiquée", ville: s.city, date: s.date, prix: s.price, surface: 0, prixM2: s.price, distance: s.distance, source: "dvf", lat: s.lat, lon: s.lon };
+}
+
 function quantile(sorted: number[], q: number) {
   if (!sorted.length) return 0;
   const pos = (sorted.length - 1) * q;
@@ -111,7 +153,7 @@ function quantile(sorted: number[], q: number) {
 
 /** Statistiques sur les ventes retenues (non écartées). */
 export function marcheDe(ventes: Vente[]): MarketBase | null {
-  const ppm = ventes.filter((v) => !v.exclu && v.prixM2 > 0).map((v) => v.prixM2).sort((a, b) => a - b);
+  const ppm = ventes.filter((v) => !v.exclu && !v.bloc && v.prixM2 > 0).map((v) => v.prixM2).sort((a, b) => a - b);
   if (!ppm.length) return null;
   return {
     medianSqm: Math.round(quantile(ppm, 0.5)),
@@ -185,12 +227,15 @@ export type ReponseVentes = {
   centre?: { lat: number; lon: number; label: string; citycode: string };
   annees?: number[];
   rayon: number;
+  rayonBloc?: number;
+  blocs?: DvfBloc[];
+  parkings?: DvfParking[];
   statistiques?: DvfStats | null;
   ventes: DvfSale[];
   message?: string;
 };
 
-export async function chercherVentes(p: { adresse: string; surface: number; type: string; pieces?: number; rayon: number }): Promise<ReponseVentes> {
+export async function chercherVentes(p: { adresse: string; surface: number; type: string; pieces?: number; rayon: number; surfaceMin?: number; surfaceMax?: number }): Promise<ReponseVentes> {
   const res = await fetch("/api/estimation/comparables", { method: "POST", headers: await authHeaders(), body: JSON.stringify(p) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "La recherche des ventes n'a pas abouti.");

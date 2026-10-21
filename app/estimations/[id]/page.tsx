@@ -8,6 +8,8 @@ import { Badge, Card, DpeBadge, Empty, Field, Sheet, Spinner, cx } from "@/compo
 import { ContactCarte, ContactPicker, Fourchette, VenteItem } from "@/components/estimations/blocks";
 import { Choix, Nombre } from "@/components/estimations/controls";
 import { AvisComplements } from "@/components/estimations/AvisComplements";
+import { MethodesImmeuble } from "@/components/estimations/MethodesImmeuble";
+import { PARAMS_DEFAUT, calculerImmeuble, loyersAnnuels, promptImmeuble, promptParking, resumeLots } from "@/components/estimations/immeuble";
 import {
   CONFIANCE_TONE,
   ETAT_LABEL,
@@ -19,6 +21,7 @@ import {
   atypiques,
   etageLabel,
   mapsUrl,
+  parkingLabel,
   promptCommentaire,
   resumeBien,
   typeLabel,
@@ -85,12 +88,31 @@ export default function EstimationPage() {
   const proprio = contacts.find((c) => c.id === e.proprietaireId);
   const bien = e.bienId ? biens.find((x) => x.id === e.bienId) : undefined;
   const r = e.resultat;
-  const retenues = ventes.filter((v) => !v.exclu);
-  const ecartees = ventes.filter((v) => v.exclu);
+  const retenues = ventes.filter((v) => !v.exclu && !v.bloc);
+  const ecartees = ventes.filter((v) => v.exclu && !v.bloc);
   const montrees = toutesVentes ? retenues : retenues.slice(0, 8);
   const rue = e.adresse.replace(/\s*\d{5}\s+.*$/, "").trim() || e.adresse;
 
-  const caracteristiques: [string, React.ReactNode][] = [
+  const estImm = e.type === "immeuble";
+  const estPk = e.type === "parking";
+  const pImm = { ...PARAMS_DEFAUT, ...p.immeuble };
+  const resImm = estImm && p.lots?.length ? calculerImmeuble(p.lots, pImm, { ventes, marche: p.marche ?? null, etat: e.etat }) : null;
+  const blocs = ventes.filter((v) => v.bloc && !v.exclu);
+  const caracteristiques: [string, React.ReactNode][] = estImm
+    ? [
+        ["Type", "Immeuble"],
+        ["Surface totale", `${Math.round(e.surface).toLocaleString("fr-FR")} m²`],
+        ["Lots", resumeLots(p.lots ?? []) || "—"],
+        ["Loyers", p.lots?.length && loyersAnnuels(p.lots) ? `${Math.round(loyersAnnuels(p.lots) / 12).toLocaleString("fr-FR")} € HC/mois` : "—"],
+        ["État", e.etat ? ETAT_LABEL[e.etat] : "—"],
+        ["Travaux à prévoir", pImm.travaux ? eur(pImm.travaux) : "—"],
+      ]
+    : estPk
+      ? [
+          ["Type", parkingLabel(p.typeParking)],
+          ["Surface", e.surface ? `${e.surface.toLocaleString("fr-FR")} m²` : "—"],
+        ]
+      : [
     ["Type", typeLabel(e.type)],
     ["Surface", `${e.surface.toLocaleString("fr-FR")} m²`],
     ["Pièces", e.pieces ?? "—"],
@@ -100,18 +122,23 @@ export default function EstimationPage() {
     ["Stationnement", e.parking ? "Oui" : "Non"],
     ["État", e.etat ? ETAT_LABEL[e.etat] : "—"],
     ["DPE", e.dpe ? <DpeBadge key="dpe" value={e.dpe} /> : "Non communiqué"],
-  ];
+        ];
 
   async function reecrire() {
-    if (!r || !p.marche) return;
+    if (!r || (!p.marche && !resImm)) return;
     setIa({ loading: true });
     try {
+      const exp = { baseSqm: p.marche?.medianSqm ?? 0, adjustments: r.ajustements ?? [], totalPct: 0, sqm: r.prixM2, central: r.median, low: r.bas, high: r.haut, confidence: p.confiance ?? "moyenne" };
       const res = await ask({
         system: SYSTEM_COMMENTAIRE,
-        prompt: promptCommentaire({
+        prompt: resImm
+          ? promptImmeuble({ adresse: e!.adresse, quartier: p.quartier, lots: p.lots ?? [], p: pImm, r: resImm, etat: e!.etat, marche: p.marche ?? null, rayon: p.rayon, prixConseille: e!.prixConseille })
+          : estPk
+            ? promptParking({ adresse: e!.adresse, typeParking: p.typeParking, r: exp, marche: p.marche!, rayon: p.rayon, prixConseille: e!.prixConseille })
+            : promptCommentaire({
           bien: { ...e!, quartier: p.quartier },
-          res: { baseSqm: p.marche.medianSqm, adjustments: r.ajustements ?? [], totalPct: 0, sqm: r.prixM2, central: r.median, low: r.bas, high: r.haut, confidence: p.confiance ?? "moyenne" },
-          marche: p.marche,
+          res: exp,
+          marche: p.marche!,
           rayon: p.rayon,
           periode: p.periode,
           prixConseille: e!.prixConseille,
@@ -148,7 +175,7 @@ export default function EstimationPage() {
               <span className="text-[11px] text-muted">Estimé le {dateLongue(e.createdAt)}</span>
             </div>
             <h1 className="h-title mt-1.5 truncate">{rue}</h1>
-            <p className="mt-0.5 text-sm text-muted">{[resumeBien(e), p.quartier, [e.codePostal, e.ville].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</p>
+            <p className="mt-0.5 text-sm text-muted">{[resumeBien(p), p.quartier, [e.codePostal, e.ville].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href={`/estimations/nouvelle?id=${e.id}`} className="btn-secondary">
@@ -187,10 +214,10 @@ export default function EstimationPage() {
                     <div className="text-xs text-muted">Prix de présentation conseillé</div>
                     <div className="font-serif text-[34px] font-semibold leading-tight tracking-tight tabular-nums">{eur(e.prixConseille ?? r.median)}</div>
                     <div className="text-xs text-muted">
-                      {Math.round((e.prixConseille ?? r.median) / e.surface).toLocaleString("fr-FR")} €/m² · valeur médiane {eurK(r.median)}
+                      {!estPk && e.surface ? `${Math.round((e.prixConseille ?? r.median) / e.surface).toLocaleString("fr-FR")} €/m² · ` : ""}valeur médiane {eurK(r.median)}
                     </div>
                   </div>
-                  <Badge tone={p.rayon ? CONFIANCE_TONE[p.confiance ?? "moyenne"] : "warn"}>Fiabilité {p.rayon ? p.confiance ?? "moyenne" : "à confirmer"}</Badge>
+                  <Badge tone={p.rayon || estImm ? CONFIANCE_TONE[p.confiance ?? "moyenne"] : "warn"}>Fiabilité {p.rayon || estImm ? (p.confiance ?? "moyenne") : "à confirmer"}</Badge>
                 </div>
                 <Fourchette bas={r.bas} median={r.median} haut={r.haut} conseille={e.prixConseille} />
                 <div className="mt-5 flex flex-wrap items-end gap-2 border-t border-line pt-4">
@@ -229,15 +256,16 @@ export default function EstimationPage() {
           </div>
 
           {/* Méthode */}
-          {r && (
+          {resImm && <MethodesImmeuble r={resImm} p={pImm} rayonBloc={p.immeuble?.rayonBloc} />}
+          {r && !resImm && (
             <Card title="Méthode">
               <ul className="divide-y divide-line text-sm">
                 <li className="flex justify-between gap-3 py-2.5">
                   <span>
-                    {p.rayon ? `Médiane de ${p.marche?.count ?? retenues.length} ventes réelles` : "Prix de référence saisi"}
+                    {p.rayon ? `Médiane de ${p.marche?.count ?? retenues.length} ${estPk ? "stationnements vendus seuls" : "ventes réelles"}` : "Prix de référence saisi"}
                     {p.rayon && <span className="block text-[11px] text-muted">rayon {p.rayon} m{p.periode ? ` · ${p.periode}` : ""}</span>}
                   </span>
-                  <span className="font-semibold tabular-nums">{p.marche ? `${p.marche.medianSqm.toLocaleString("fr-FR")} €/m²` : "—"}</span>
+                  <span className="font-semibold tabular-nums">{p.marche ? `${p.marche.medianSqm.toLocaleString("fr-FR")} ${estPk ? "€" : "€/m²"}` : "—"}</span>
                 </li>
                 {(r.ajustements ?? []).map((a) => (
                   <li key={a.label} className="flex justify-between gap-3 py-2.5">
@@ -249,8 +277,10 @@ export default function EstimationPage() {
                   </li>
                 ))}
                 <li className="flex justify-between gap-3 py-2.5">
-                  <span className="font-medium">Prix au m² retenu</span>
-                  <span className="font-semibold tabular-nums text-accent">{r.prixM2.toLocaleString("fr-FR")} €/m²</span>
+                  <span className="font-medium">{estPk ? "Prix retenu" : "Prix au m² retenu"}</span>
+                  <span className="font-semibold tabular-nums text-accent">
+                    {r.prixM2.toLocaleString("fr-FR")} {estPk ? "€" : "€/m²"}
+                  </span>
                 </li>
               </ul>
             </Card>
@@ -260,7 +290,7 @@ export default function EstimationPage() {
           <Card
             title="Commentaire argumenté"
             action={
-              r && p.marche ? (
+              r && (p.marche || resImm) ? (
                 <button type="button" onClick={reecrire} disabled={ia.loading} className="btn-secondary btn-sm">
                   {ia.loading ? <Spinner /> : <Sparkles size={14} />} {commentaire ? "Réécrire" : "Rédiger"}
                 </button>
@@ -279,7 +309,16 @@ export default function EstimationPage() {
           </Card>
 
           {/* Comparables */}
-          <Card title={`Ventes comparables (${retenues.length})`}>
+          {estImm && blocs.length > 0 && (
+            <Card title={`Immeubles vendus en bloc (${blocs.length})`}>
+              <div className="space-y-2">
+                {blocs.map((v) => (
+                  <VenteItem key={v.id} v={v} />
+                ))}
+              </div>
+            </Card>
+          )}
+          <Card title={`${estImm ? "Appartements vendus seuls" : estPk ? "Stationnements vendus seuls" : "Ventes comparables"} (${retenues.length})`}>
             {retenues.length === 0 ? (
               <p className="text-sm text-muted">Aucune vente retenue{p.prixM2Manuel ? ` : prix de référence saisi à ${p.prixM2Manuel.toLocaleString("fr-FR")} €/m².` : "."}</p>
             ) : (
@@ -379,7 +418,11 @@ export default function EstimationPage() {
         prixInitial={e.prixConseille ?? r?.median}
         onConfirm={({ type, numero, prix: prixMandat }) => {
           const quartier = p.quartier;
-          const titre = `${typeLabel(e.type)}${e.pieces ? ` T${e.pieces}` : ""} de ${Math.round(e.surface)} m²${quartier ? ` – ${quartier}` : ""}`;
+          const titre = estImm
+            ? `Immeuble de ${p.lots?.length ?? 0} lots${e.surface ? ` (${Math.round(e.surface)} m²)` : ""}${quartier ? ` – ${quartier}` : ""}`
+            : estPk
+              ? `${parkingLabel(p.typeParking)}${quartier ? ` – ${quartier}` : ""}`
+              : `${typeLabel(e.type)}${e.pieces ? ` T${e.pieces}` : ""} de ${Math.round(e.surface)} m²${quartier ? ` – ${quartier}` : ""}`;
           const nouveau = create("biens", {
             titre,
             type: e.type,
@@ -390,7 +433,7 @@ export default function EstimationPage() {
             lat: e.lat,
             lon: e.lon,
             prix: prixMandat,
-            surface: e.surface,
+            surface: e.surface || undefined,
             surfaceTerrain: p.surfaceTerrain,
             pieces: e.pieces,
             etage: e.type === "appartement" ? e.etage : undefined,

@@ -127,7 +127,7 @@ export default function EstimationsPage() {
                       </div>
                       <div className="mt-2 truncate font-medium">{e.adresse.split(",")[0] || e.adresse}</div>
                       <div className="truncate text-xs text-muted">
-                        {[resumeBien(e), p.quartier || e.ville].filter(Boolean).join(" · ")}
+                        {[resumeBien(p), p.quartier || e.ville].filter(Boolean).join(" · ")}
                       </div>
                       <div className="mt-3 flex items-end justify-between gap-2">
                         <div className={cx("truncate text-xs", c ? "text-fg/80" : "text-muted")}>{c ? nomComplet(c) : "Propriétaire non renseigné"}</div>
