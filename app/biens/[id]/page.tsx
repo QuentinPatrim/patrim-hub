@@ -165,7 +165,7 @@ export default function BienPage() {
       </div>
     );
 
-  const st = locationSeule(b) && locationDe(b) ? STATUT_LOCATION[locationDe(b)!.statut] : STATUT_BIEN[b.statut];
+  const st = (locationSeule(b) && locationDe(b) ? STATUT_LOCATION[locationDe(b)!.statut] : undefined) ?? STATUT_BIEN[b.statut];
   const pm2 = prixM2(b);
   const jours = joursDepuis(b.dateMiseEnVente);
   // Bien seulement en location : pas de prix de vente ni de mandat de vente à réclamer.

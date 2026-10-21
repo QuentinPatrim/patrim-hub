@@ -27,7 +27,7 @@ import {
   transmissionInitiale,
   type Transmission,
 } from "@/components/notaire/transmission";
-import { useCollection, useDoc } from "@/lib/store";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { dateCourte, eur } from "@/lib/format";
 
 /* ============================================================
@@ -82,7 +82,7 @@ export default function NotairePage() {
 
   const set = (patch: Partial<Transmission>) => setT((x) => (x ? { ...x, ...patch } : x));
   const choisir = (role: "acquereurs" | "vendeurs", ids: string[]) =>
-    set({ [role]: ids.map((cid) => t[role].find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+    set({ [role]: ids.map((cid) => t[role].find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   const setPartie = (role: "acquereurs" | "vendeurs", i: number, patch: Partial<Partie>) => set({ [role]: t[role].map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const basculerPiece = (cle: Transmission["pieces"][number]) => set({ pieces: t.pieces.includes(cle) ? t.pieces.filter((x) => x !== cle) : [...t.pieces, cle] });
 

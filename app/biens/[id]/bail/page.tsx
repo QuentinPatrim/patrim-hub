@@ -37,8 +37,8 @@ import {
   titreBail,
   type Bail,
 } from "@/components/bail/bail";
-import { IRL, PLAFONDS, ZONES, ajouterMois, dateActe, dureeTexte, eurosCts, plafondsLocataire, trimestreTexte, valeurIrl } from "@/components/location/loi";
-import { useCollection, useDoc } from "@/lib/store";
+import { IRL, PLAFONDS, ZONES, ajouterMois, periodeConstruction, dateActe, dureeTexte, eurosCts, plafondsLocataire, trimestreTexte, valeurIrl } from "@/components/location/loi";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { titrePublic } from "@/lib/titrePublic";
 
@@ -88,7 +88,7 @@ export default function BailPage() {
   const set = (patch: Partial<Bail>) => setX((v) => (v ? { ...v, ...patch } : v));
   const choisir = (cle: "bailleurs" | "locataires", ids: string[]) => {
     if (!x) return;
-    set({ [cle]: ids.map((cid) => x[cle].find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+    set({ [cle]: ids.map((cid) => x[cle].find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   };
   const setPartie = (cle: "bailleurs" | "locataires", i: number, patch: Partial<Partie>) => x && set({ [cle]: x[cle].map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const basculer = (cle: "autresParties" | "equipements" | "privatifs" | "communs" | "annexes" | "mobilier", v: string) =>
@@ -242,7 +242,22 @@ export default function BailPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 items-end gap-3">
+              <Field label="Année de construction précise" hint="Facultatif : apparaît dans le bail à côté de la période.">
+                <input
+                  className="input max-w-[140px]"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Ex. 1972"
+                  value={x.anneeConstruction ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    const n = v ? Number(v) : undefined;
+                    // Une année complète choisit aussi la bonne période
+                    set(n && n >= 1000 && periodeConstruction(n) ? { anneeConstruction: n, periode: periodeConstruction(n) } : { anneeConstruction: n });
+                  }}
+                />
+              </Field>
+              <div className="grid grid-cols-2 items-start gap-3">
                 <Field label="Surface habitable" hint="Pas la surface Carrez : sans les murs, gaines, marches, ni les pièces de moins de 1,80 m sous plafond.">
                   <Montant value={x.surface} onChange={(v) => set({ surface: v })} suffix="m²" />
                 </Field>

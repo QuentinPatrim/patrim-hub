@@ -14,7 +14,7 @@ import { enregistrerActe, type BienActes } from "@/components/documents/archive"
 import { enregistrerParties, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { TYPES_MANDAT } from "@/components/mandat/mandat";
 import { CHAMPS_AVENANT, avenantInitial, ecrireAvenant, effacerAvenant, lireAvenant, manquantsAvenant, prixPresentation, type Avenant, type ConditionsPrix } from "@/components/avenant/avenant";
-import { useCollection, useDoc } from "@/lib/store";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { eur, today } from "@/lib/format";
 
 /* ============================================================
@@ -69,7 +69,7 @@ export default function AvenantPage() {
   const set = (patch: Partial<Avenant>) => setA((x) => (x ? { ...x, ...patch } : x));
   const setAncien = (patch: Partial<ConditionsPrix>) => set({ ancien: { ...a.ancien, ...patch } });
   const setNouveau = (patch: Partial<Avenant["nouveau"]>) => set({ nouveau: { ...a.nouveau, ...patch } });
-  const choisir = (ids: string[]) => set({ mandants: ids.map((cid) => a.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+  const choisir = (ids: string[]) => set({ mandants: ids.map((cid) => a.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   const setPartie = (i: number, patch: Partial<Partie>) => set({ mandants: a.mandants.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
 
   const avant = prixPresentation(a.ancien);

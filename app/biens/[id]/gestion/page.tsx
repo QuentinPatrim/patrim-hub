@@ -14,7 +14,7 @@ import { enregistrerParties, manquants, partieDepuisContact, type ContactEtatCiv
 import { CHAMPS_GESTION, NATURES, TARIFS, USAGES, alertesGestion, ecrireGestion, effacerGestion, gestionInitiale, lireGestion, mailDemandeGestion, ttc, type Gestion } from "@/components/gestion/gestion";
 import { locationDe } from "@/components/location/bienLocation";
 import { enregistrerActe, type BienActes } from "@/components/documents/archive";
-import { useCollection, useDoc } from "@/lib/store";
+import { getAll, useCollection, useDoc } from "@/lib/store";
 import { nomComplet, today } from "@/lib/format";
 
 /* ============================================================
@@ -69,7 +69,7 @@ export default function GestionPage() {
   const set = (patch: Partial<Gestion>) => setG((x) => (x ? { ...x, ...patch } : x));
   const choisir = (ids: string[]) => {
     if (!g) return;
-    set({ mandants: ids.map((cid) => g.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(contacts.find((c) => c.id === cid)!)) });
+    set({ mandants: ids.map((cid) => g.mandants.find((p) => p.contactId === cid) ?? partieDepuisContact(getAll("contacts").find((c) => c.id === cid)!)) });
   };
   const setPartie = (i: number, patch: Partial<Partie>) => g && set({ mandants: g.mandants.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
   const totalManquants = useMemo(() => (g ? g.mandants.reduce((n, p) => n + manquants(p, CHAMPS_GESTION).length, 0) : 0), [g]);

@@ -30,7 +30,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { FlamesPicker, PickChip, QuickActions, Toggle } from "@/components/contacts/bits";
 import { CriteresEditor, NumInput } from "@/components/contacts/CriteresEditor";
-import { ETAPES, HISTO_LABEL, type HistoType, relanceEnRetard, ROLES, SOURCES, telAffiche } from "@/components/contacts/helpers";
+import { ETAPES, HISTO_LABEL, type HistoType, relanceEnRetard, ROLES, SOURCES, telAffiche, vientDEtreCree } from "@/components/contacts/helpers";
 import { MessageAssistant, type Objectif } from "@/components/contacts/MessageAssistant";
 import { Avatar, Badge, Card, cx, Empty, Field, Sheet } from "@/components/ui";
 import { addDays, dateCourte, dateLongue, ETAPE, eur, heure, ilya, initiales, m2, nomComplet, RDV_TYPE, ROLE, SOURCE, STATUT_BIEN, today, TYPE_BIEN } from "@/lib/format";
@@ -133,6 +133,11 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
     setToast(t);
     setTimeout(() => setToast(null), 2600);
   };
+
+  useEffect(() => {
+    if (vientDEtreCree(c.id)) flash("Fiche créée");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // État civil (repris dans les offres et les mandats) : « Née le 3 mars 1950 à Albi (81) · Retraitée »
   const ec = c as ContactEtatCivil;

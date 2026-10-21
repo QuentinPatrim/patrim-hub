@@ -12,6 +12,7 @@ import {
   ANNEXES,
   AUTRES_PARTIES,
   CHAMPS_BAILLEUR,
+  villeSeule,
   CHAMPS_LOCATAIRE,
   COMMUNS,
   EQUIPEMENTS,
@@ -185,7 +186,7 @@ export default function BailPdf() {
                   {x.qualiteBailleur === "physique" &&
                     x.bailleurs.map((p, i) => (
                       <Personne key={p.contactId ?? i}>
-                        <strong>{nomOffre(p) || ou(undefined, "nom du bailleur")}</strong>, demeurant {ou(p.adresse, "domicile")}.
+                        <strong>{nomOffre(p) || ou(undefined, "nom du bailleur")}</strong>, demeurant à {ou(villeSeule(p.adresse), "code postal et ville")}.
                       </Personne>
                     ))}
                   {!x.bailleurs.length && ou(undefined, "bailleur")}
@@ -242,7 +243,10 @@ export default function BailPdf() {
                     <span className="ml-[4mm]" />
                     <Case on={x.regime === "copropriete"}>Copropriété</Case>
                   </P>
-                  <L k="Période de construction">{ou(x.periode, "période de construction")}</L>
+                  <L k="Période de construction">
+                    {ou(x.periode, "période de construction")}
+                    {x.anneeConstruction && x.anneeConstruction >= 1000 ? ` (construit en ${x.anneeConstruction})` : ""}
+                  </L>
                   <L k="Surface habitable">
                     {x.surface ? <strong>{x.surface.toLocaleString("fr-FR")} m²</strong> : ou(undefined, "surface habitable")} (article 3 de la loi n° 89-462 du 6 juillet 1989)
                   </L>

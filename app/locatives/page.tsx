@@ -320,7 +320,7 @@ export default function LocativesPage() {
                   ]}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Surface habitable">
                   <Nombre value={s.surface || undefined} onChange={(v) => setS({ surface: v ?? 0 })} unit="m²" decimal placeholder="65" />
                 </Field>

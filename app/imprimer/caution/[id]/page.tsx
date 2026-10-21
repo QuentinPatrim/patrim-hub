@@ -8,7 +8,7 @@ import { C, MENTIONS, telActe } from "@/components/documents/charte";
 import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Case, Pagine, PrixBloc, Section, ou } from "@/components/documents/blocs";
 import { ne } from "@/components/offre/offre";
-import { dureeBail } from "@/components/bail/bail";
+import { dureeBail, villeSeule } from "@/components/bail/bail";
 import {
   SITUATIONS,
   bailleursTexte,
@@ -193,7 +193,7 @@ export default function CautionPdf() {
                   <L k="Bailleur">
                     <strong>{bailleur}</strong>
                   </L>
-                  <L k="Domicile du bailleur">{b.qualiteBailleur !== "physique" ? ou(b.siege, "siège social") : ou(b.bailleurs[0]?.adresse, "domicile du bailleur")}</L>
+                  <L k="Domicile du bailleur">{b.qualiteBailleur !== "physique" ? ou(b.siege, "siège social") : ou(villeSeule(b.bailleurs[0]?.adresse), "code postal et ville du bailleur")}</L>
                   <L k={coloc ? "Colocataires" : "Locataire unique ou couple de locataires mariés ou pacsés"}>
                     <strong>{locatairesTexte(b, " - ") || ou(undefined, "locataire")}</strong>
                   </L>
