@@ -16,6 +16,7 @@ export const ACTE_PRINT_CSS = `
     html, body, .acte-root { background: #fff !important; }
     .acte-sheet { box-shadow: none !important; margin: 0 !important; min-height: 0 !important; width: 210mm !important; zoom: 1 !important; }
     .acte-haut { display: block; height: 10mm; }
+    .acte-sheet header { padding-top: 1mm !important; } /* la marge du haut de la page 1 est déjà donnée par .acte-haut : sans ça, elle doublait */
     .acte-bas { display: flex; height: 16mm; padding-top: 3mm; align-items: flex-start; justify-content: center; font: 7pt Inter, sans-serif; color: ${C.muted}; }
     .acte-bloc { break-inside: avoid; page-break-inside: avoid; }
     .acte-saut { break-before: page; page-break-before: always; }

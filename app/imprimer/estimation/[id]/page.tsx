@@ -11,6 +11,7 @@ import { SituationMap } from "@/components/estimations/SituationMap";
 import { useCollection, useDoc } from "@/lib/store";
 import { useSignature } from "@/lib/profil";
 import { nomConseiller } from "@/lib/equipe";
+import { BoutonPdf, nommerPdf } from "@/components/documents/BoutonPdf";
 
 /* ============================================================
    Avis de valeur imprimable (A4), mise en page reprise à
@@ -68,7 +69,7 @@ export default function AvisDeValeur() {
   useEffect(() => {
     if (!e) return;
     const prev = document.title;
-    document.title = `Avis de valeur – ${street}`;
+    document.title = nommerPdf(`Avis de valeur – ${street}`);
     return () => {
       document.title = prev;
     };
@@ -309,14 +310,12 @@ export default function AvisDeValeur() {
               <span className="sm:hidden">Nom</span>
             </label>
           )}
-          <button
-            type="button"
-            onClick={() => window.print()}
+          <BoutonPdf
             className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
             style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`, boxShadow: "0 8px 24px -8px rgba(138,14,1,0.6)" }}
           >
             <Printer size={16} /> PDF
-          </button>
+          </BoutonPdf>
         </div>
       </div>
 
