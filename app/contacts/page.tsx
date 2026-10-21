@@ -9,7 +9,7 @@ import { contactsToCsv, downloadText } from "@/components/contacts/csv";
 import { contactHaystack, normalize, relanceDue, sortByRelance } from "@/components/contacts/helpers";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
 import { Pipeline } from "@/components/contacts/Pipeline";
-import { cx, Empty, PageHeader, Sheet, Tabs } from "@/components/ui";
+import { cx, Empty, PageHeader, Sheet, Spinner, Tabs } from "@/components/ui";
 import { nomComplet, today } from "@/lib/format";
 import { remove, useCollection } from "@/lib/store";
 import type { Contact, ContactRole } from "@/lib/types";
@@ -390,6 +390,19 @@ function SupprimerSheet({ open, contacts, onClose, onDone }: { open: boolean; co
   const lies = biens.filter((b) => b.vendeurIds?.some((v) => ids.has(v))).length;
   const visites = rdvs.filter((r) => r.contactIds?.some((v) => ids.has(v))).length;
   const n = contacts.length;
+  const [busy, setBusy] = useState(false);
+  const [refus, setRefus] = useState<Contact[]>([]);
+  useEffect(() => {
+    if (open) setRefus([]);
+  }, [open]);
+  const supprimer = async () => {
+    setBusy(true);
+    const ok = await Promise.all(contacts.map((c) => remove("contacts", c.id)));
+    setBusy(false);
+    const rates = contacts.filter((_, i) => !ok[i]);
+    if (rates.length) setRefus(rates);
+    else onDone();
+  };
   return (
     <Sheet
       open={open}
@@ -402,17 +415,20 @@ function SupprimerSheet({ open, contacts, onClose, onDone }: { open: boolean; co
           </button>
           <button
             className="btn bg-danger text-white flex-1 sm:flex-none"
-            disabled={!n}
-            onClick={() => {
-              contacts.forEach((c) => remove("contacts", c.id));
-              onDone();
-            }}
+            disabled={!n || busy}
+            onClick={supprimer}
           >
-            <Trash2 size={16} /> Supprimer définitivement
+            {busy ? <Spinner /> : <Trash2 size={16} />} {busy ? "Suppression…" : "Supprimer définitivement"}
           </button>
         </>
       }
     >
+      {refus.length > 0 && (
+        <p className="mb-3 rounded-xl border border-danger/25 bg-danger/10 px-3 py-2.5 text-[13px] text-danger">
+          {refus.length} fiche{refus.length > 1 ? "s n'ont" : " n'a"} pas pu être supprimée{refus.length > 1 ? "s" : ""} : {refus.length > 1 ? "elles ont été créées" : "elle a été créée"} depuis le compte d&apos;un collègue, et
+          seul ce compte peut {refus.length > 1 ? "les" : "la"} supprimer pour l&apos;instant. {refus.map(nomComplet).join(", ")}.
+        </p>
+      )}
       <p className="text-sm text-muted">La suppression est définitive : l&apos;historique de ces fiches est perdu.</p>
       {(lies > 0 || visites > 0) && (
         <p className="mt-3 rounded-xl border border-warn/30 bg-warn/10 px-3 py-2.5 text-[13px]">

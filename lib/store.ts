@@ -84,11 +84,13 @@ async function push(kind: Kind, item: Any) {
   if (!uidv) return;
   await supabase.from("hub_docs").upsert({ id: item.id, kind, data: item, user_id: uidv, updated_at: item.updatedAt });
 }
-async function drop(id: string) {
-  if (!supabase) return;
+/** Supprime en base. Faux si la base a refusé (fiche d'un autre compte de l'équipe, par exemple). */
+async function drop(id: string): Promise<boolean> {
+  if (!supabase) return true;
   const uidv = await userId();
-  if (!uidv) return;
-  await supabase.from("hub_docs").delete().eq("id", id);
+  if (!uidv) return true;
+  const { error, count } = await supabase.from("hub_docs").delete({ count: "exact" }).eq("id", id);
+  return !error && count !== 0;
 }
 
 /* ---------- API impérative (utilisable hors composants) ---------- */
@@ -117,12 +119,16 @@ export function update<K extends Kind>(kind: K, id: string, patch: Partial<Colle
   return updated;
 }
 
-export function remove(kind: Kind, id: string) {
+/** Retire tout de suite de l'écran ; si la base refuse, la fiche revient et le résultat vaut faux. */
+export async function remove(kind: Kind, id: string): Promise<boolean> {
+  const item = current(kind).find((it) => it.id === id);
   setItems(
     kind,
     current(kind).filter((it) => it.id !== id)
   );
-  void drop(id);
+  const ok = await drop(id);
+  if (!ok && item && !current(kind).some((it) => it.id === id)) setItems(kind, [item, ...current(kind)]);
+  return ok;
 }
 
 /** Importe plusieurs objets d'un coup (import CSV, données de démonstration…). */
