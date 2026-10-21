@@ -5,27 +5,26 @@ import Link from "next/link";
 import { Avatar, Badge, cx } from "@/components/ui";
 import { dateCourte, ETAPE, initiales, nomComplet, ROLE, SOURCE, today } from "@/lib/format";
 import type { Contact } from "@/lib/types";
-import { Flames, QuickActions } from "./bits";
-import { criteresResume, relanceEnRetard } from "./helpers";
+import { QuickActions } from "./bits";
+import { criteresResume, relanceEnRetard, etapeDe } from "./helpers";
 
 export function ContactCard({ c, index = 0 }: { c: Contact; index?: number }) {
   const retard = relanceEnRetard(c);
   const jour = c.dateRelance === today();
   const resume = criteresResume(c.criteres);
   const acq = c.roles?.includes("acquereur");
+  const etape = etapeDe(c);
   return (
     <article
       className="card group relative overflow-hidden transition hover:-translate-y-px hover:border-accent/25 animate-fade-up"
       style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
     >
-      {c.chaleur === 3 && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-coral" aria-hidden />}
       <Link href={`/contacts/${c.id}`} className="block p-4 pb-3">
         <div className="flex items-start gap-3">
-          <Avatar text={initiales(c)} className={cx("size-11 text-sm", c.chaleur === 3 && "ring-2 ring-coral/40 ring-offset-2 ring-offset-surface")} />
+          <Avatar text={initiales(c)} className="size-11 text-sm" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="truncate font-semibold text-[15px]">{nomComplet(c)}</h3>
-              <Flames value={c.chaleur} size={13} className="shrink-0" />
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
               <span>{(c.roles ?? []).map((r) => ROLE[r]).join(" · ") || "Contact"}</span>
@@ -35,7 +34,7 @@ export function ContactCard({ c, index = 0 }: { c: Contact; index?: number }) {
                   <span>{SOURCE[c.source]}</span>
                 </>
               )}
-              {acq && c.etape && <Badge tone={ETAPE[c.etape].tone} className="ml-0.5">{ETAPE[c.etape].label}</Badge>}
+              {acq && etape && <Badge tone={ETAPE[etape].tone} className="ml-0.5">{ETAPE[etape].label}</Badge>}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlarmClock, Check, CheckSquare, Copy, Download, Flame, KanbanSquare, List, Plus, Search, Trash2, Upload, Users, X } from "lucide-react";
+import { AlarmClock, Check, CheckSquare, Copy, Download, KanbanSquare, List, Plus, Search, Trash2, Upload, Users, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ContactCard } from "@/components/contacts/ContactCard";
@@ -43,7 +43,6 @@ function ContactsPage() {
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [q, setQ] = useState("");
   const [relance, setRelance] = useState(false);
-  const [chauds, setChauds] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [limit, setLimit] = useState(40);
   // Sélection pour supprimer plusieurs fiches d'un coup
@@ -58,7 +57,6 @@ function ContactsPage() {
     } catch {}
     const r = params.get("filtre");
     if (r === "relance") setRelance(true);
-    if (r === "chauds") setChauds(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const changeVue = (v: Vue) => {
@@ -88,7 +86,6 @@ function ContactsPage() {
       prospect_vendeur: has("prospect_vendeur"),
       locataire: has("locataire"),
       relance: items.filter(relanceDue).length,
-      chauds: items.filter((c) => c.chaleur === 3).length,
     };
   }, [items]);
 
@@ -106,16 +103,15 @@ function ContactsPage() {
     let l: Contact[] = searched;
     if (filtre !== "tous") l = l.filter((c) => c.roles?.includes(filtre));
     if (relance) l = l.filter(relanceDue);
-    if (chauds) l = l.filter((c) => c.chaleur === 3);
     return [...l].sort((a, b) => {
       // les dossiers perdus/gagnés passent en fin de liste
       const pa = a.etape === "perdu" || a.etape === "gagne" ? 1 : 0;
       const pb = b.etape === "perdu" || b.etape === "gagne" ? 1 : 0;
       return pa - pb || sortByRelance(a, b);
     });
-  }, [searched, filtre, relance, chauds]);
+  }, [searched, filtre, relance]);
 
-  useEffect(() => setLimit(40), [filtre, relance, chauds, q]);
+  useEffect(() => setLimit(40), [filtre, relance, q]);
 
   const basculer = (id: string) =>
     setSelection((s) => {
@@ -230,15 +226,11 @@ function ContactsPage() {
               <FilterChip active={relance} onClick={() => setRelance((v) => !v)} tone="danger" icon={<AlarmClock size={14} />} count={counts.relance}>
                 À relancer aujourd&apos;hui
               </FilterChip>
-              <FilterChip active={chauds} onClick={() => setChauds((v) => !v)} tone="coral" icon={<Flame size={14} />} count={counts.chauds}>
-                Chauds
-              </FilterChip>
-              {(relance || chauds || filtre !== "tous" || q) && (
+              {(relance || filtre !== "tous" || q) && (
                 <button
                   className="shrink-0 h-9 px-3 rounded-full text-xs font-medium text-muted hover:text-fg"
                   onClick={() => {
                     setRelance(false);
-                    setChauds(false);
                     setFiltre("tous");
                     setQ("");
                   }}

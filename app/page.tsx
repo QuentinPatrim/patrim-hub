@@ -32,6 +32,7 @@ import { useMoi } from "@/lib/equipe";
 import { useEspace } from "@/components/espace/espace";
 import { ChoixEspace } from "@/components/espace/ChoixEspace";
 import { AccueilLocation } from "@/components/location/AccueilLocation";
+import { etapeDe } from "@/components/contacts/helpers";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
@@ -82,7 +83,7 @@ function Accueil() {
   const tachesFaites = taches.filter((t) => t.fait).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const relances = mounted ? aRappeler(contacts, delaiChoisi()) : [];
   const brief = [...briefings].sort((a, b) => b.date.localeCompare(a.date))[0];
-  const pipeline = (["nouveau", "qualifie", "visite", "offre", "compromis"] as EtapeAcquereur[]).map((e) => ({ e, n: acquereurs.filter((c) => (c.etape ?? "nouveau") === e).length }));
+  const pipeline = (["nouveau", "qualifie", "visite", "offre", "compromis"] as EtapeAcquereur[]).map((e) => ({ e, n: acquereurs.filter((c) => etapeDe(c) === e).length }));
   const maxPipe = Math.max(1, ...pipeline.map((p) => p.n));
   const [tacheTxt, setTacheTxt] = useState("");
 
@@ -96,7 +97,6 @@ function Accueil() {
     );
 
   const vide = !biens.length && !contacts.length;
-  const chauds = acquereurs.filter((c) => c.chaleur === 3).length;
   const visites = semaine.filter((r) => r.type === "visite").length;
   const resumeJour = vide
     ? "Votre espace de vente est prêt. Commencez par vos mandats et vos contacts, le reste suivra."
@@ -145,7 +145,7 @@ function Accueil() {
             <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
               <HeroFig href="/biens" label="Biens en vente" value={enVente.length} hint={valeur ? `${eurK(valeur)} en portefeuille` : "Aucun mandat actif"} />
               <HeroFig href="/chiffres" label="Honoraires potentiels" value={eurK(honoraires)} hint="Voir mes chiffres" />
-              <HeroFig href="/contacts" label="Acquéreurs actifs" value={acquereurs.length} hint={`${chauds} chaud${chauds > 1 ? "s" : ""}`} />
+              <HeroFig href="/contacts" label="Acquéreurs actifs" value={acquereurs.length} hint="Voir le pipeline" />
               <HeroFig href="/agenda" label="Rendez-vous à 7 jours" value={semaine.length} hint={`${visites} visite${visites > 1 ? "s" : ""}`} />
             </div>
           )}

@@ -28,9 +28,9 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { FlamesPicker, PickChip, QuickActions, Toggle } from "@/components/contacts/bits";
+import { PickChip, QuickActions, Toggle } from "@/components/contacts/bits";
 import { CriteresEditor, NumInput } from "@/components/contacts/CriteresEditor";
-import { ETAPES, HISTO_LABEL, type HistoType, relanceEnRetard, ROLES, SOURCES, telAffiche, vientDEtreCree } from "@/components/contacts/helpers";
+import { ETAPES, etapeDe, etapeLabel, HISTO_LABEL, type HistoType, relanceEnRetard, ROLES, SOURCES, telAffiche, vientDEtreCree } from "@/components/contacts/helpers";
 import { MessageAssistant, type Objectif } from "@/components/contacts/MessageAssistant";
 import { Avatar, Badge, Card, cx, Empty, Field, Sheet } from "@/components/ui";
 import { addDays, dateCourte, dateLongue, ETAPE, eur, heure, ilya, initiales, m2, nomComplet, RDV_TYPE, ROLE, SOURCE, STATUT_BIEN, today, TYPE_BIEN } from "@/lib/format";
@@ -235,31 +235,26 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
             </button>
           </div>
 
-          <div className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
-            <div>
-              <span className="label">Chaleur</span>
-              <FlamesPicker value={c.chaleur} onChange={(v) => update({ chaleur: v })} />
+          {acq && (
+            <div className="mt-4 border-t border-line pt-4 sm:max-w-xs">
+              <span className="label">Étape</span>
+              <select
+                className="input"
+                value={etapeDe(c) ?? ""}
+                onChange={(e) => {
+                  const e2 = e.target.value as EtapeAcquereur;
+                  if (e2) addHisto("note", `Étape : ${etapeLabel(etapeDe(c))} → ${ETAPE[e2].label}`, { etape: e2 });
+                }}
+              >
+                {!etapeDe(c) && <option value="">Sans étape</option>}
+                {ETAPES.map((e) => (
+                  <option key={e} value={e}>
+                    {ETAPE[e].label}
+                  </option>
+                ))}
+              </select>
             </div>
-            {acq && (
-              <div>
-                <span className="label">Étape</span>
-                <select
-                  className="input"
-                  value={c.etape ?? "nouveau"}
-                  onChange={(e) => {
-                    const e2 = e.target.value as EtapeAcquereur;
-                    addHisto("note", `Étape : ${ETAPE[c.etape ?? "nouveau"].label} → ${ETAPE[e2].label}`, { etape: e2 });
-                  }}
-                >
-                  {ETAPES.map((e) => (
-                    <option key={e} value={e}>
-                      {ETAPE[e].label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </section>
 
