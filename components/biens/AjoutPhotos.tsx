@@ -6,11 +6,11 @@ import { Spinner } from "@/components/ui";
 import { MAX_PHOTOS, importerPhotos } from "./PhotosEditor";
 
 /** Bouton d'ajout de photos directement sur la fiche (appareil photo ou galerie du téléphone). */
-export function AjoutPhotos({ photos, onAdd }: { photos: string[]; onAdd: (p: string[]) => void }) {
+export function AjoutPhotos({ photos, onAdd, compact }: { photos: string[]; onAdd: (p: string[]) => void; compact?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const vide = !photos.length;
+  const vide = !photos.length && !compact;
 
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;

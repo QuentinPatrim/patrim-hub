@@ -90,7 +90,7 @@ export function Interrupteur({ checked, onChange, label, hint }: { checked: bool
   );
 }
 
-/** Champ numérique avec unité, clavier numérique sur téléphone. */
+/** Champ numérique avec unité, clavier numérique sur téléphone. `decimal` : virgule acceptée (loyers, charges, taux). */
 export function Nombre({
   value,
   onChange,
@@ -108,7 +108,7 @@ export function Nombre({
   className?: string;
   autoFocus?: boolean;
 }) {
-  const fmt = (v: number | undefined) => (v == null || isNaN(v) ? "" : decimal ? String(v).replace(".", ",") : v.toLocaleString("fr-FR"));
+  const fmt = (v: number | undefined) => (v == null || isNaN(v) ? "" : v.toLocaleString("fr-FR", { maximumFractionDigits: decimal ? 2 : 0 }));
   const parse = (t: string) => {
     const raw = t.replace(/[\s\u202f\u00a0]/g, "").replace(",", ".");
     if (!raw) return undefined;

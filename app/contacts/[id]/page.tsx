@@ -42,6 +42,7 @@ import { mapsHref, texteProposition } from "@/components/biens/utils";
 import { dateLettres, ne, type ContactEtatCivil } from "@/components/offre/offre";
 import { useCollection, useDoc } from "@/lib/store";
 import type { Bien, Contact, ContactRole, Criteres, EtapeAcquereur, Rdv, Source } from "@/lib/types";
+import { couverture } from "@/lib/photoAuto";
 
 type Section = "suivi" | "recherche" | "biens";
 
@@ -665,7 +666,7 @@ function NotesCard({ c, update }: { c: Contact; update: (p: Partial<Contact>) =>
 /* ---------- Biens ---------- */
 
 function BienRow({ b, score, raisons, ecarts, dejaPropose, onPropose, onMail }: { b: Bien; score: number; raisons: string[]; ecarts?: string[]; dejaPropose: boolean; onPropose: () => void; onMail: () => void }) {
-  const photo = b.photos?.[0];
+  const photo = couverture(b);
   return (
     <li className="rounded-xl border border-line p-2.5 hover:border-accent/30 transition">
       <div className="flex gap-3">

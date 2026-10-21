@@ -33,6 +33,7 @@ import { useEspace } from "@/components/espace/espace";
 import { ChoixEspace } from "@/components/espace/ChoixEspace";
 import { AccueilLocation } from "@/components/location/AccueilLocation";
 import { etapeDe } from "@/components/contacts/helpers";
+import { couverture } from "@/lib/photoAuto";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
@@ -292,8 +293,8 @@ function Accueil() {
                 {enVente.slice(0, 5).map((b) => (
                   <li key={b.id}>
                     <Link href={`/biens/${b.id}`} className="flex items-center gap-3 rounded-xl p-2 hover:bg-surface-2 transition">
-                      <div className="size-12 shrink-0 rounded-xl bg-gradient-to-br from-brand to-ink bg-cover bg-center grid place-items-center text-white/80 ring-1 ring-inset ring-black/5" style={b.photos?.[0] ? { backgroundImage: `url(${b.photos[0]})` } : undefined}>
-                        {!b.photos?.[0] && <Building2 size={17} />}
+                      <div className="size-12 shrink-0 rounded-xl bg-gradient-to-br from-brand to-ink bg-cover bg-center grid place-items-center text-white/80 ring-1 ring-inset ring-black/5" style={couverture(b) ? { backgroundImage: `url(${couverture(b)})` } : undefined}>
+                        {!couverture(b) && <Building2 size={17} />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-semibold truncate">{b.titre || b.adresse}</div>

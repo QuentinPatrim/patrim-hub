@@ -191,10 +191,10 @@ function Simulateur() {
             <Card title="La location" className="animate-fade-up">
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Loyer hors charges / mois">
-                  <Nombre value={i.rent || undefined} onChange={(n) => set({ rent: n ?? 0 })} unit="€" placeholder="850" />
+                  <Nombre value={i.rent || undefined} onChange={(n) => set({ rent: n ?? 0 })} unit="€" placeholder="850" decimal />
                 </Field>
                 <Field label="Charges non récupérables / mois">
-                  <Nombre value={i.charges || undefined} onChange={(n) => set({ charges: n ?? 0 })} unit="€" placeholder="40" />
+                  <Nombre value={i.charges || undefined} onChange={(n) => set({ charges: n ?? 0 })} unit="€" placeholder="40" decimal />
                 </Field>
                 <Field label="Taxe foncière / an">
                   <Nombre value={i.propertyTax || undefined} onChange={(n) => set({ propertyTax: n ?? 0 })} unit="€" placeholder="900" />

@@ -12,6 +12,7 @@ import { SituationMap } from "@/components/estimations/SituationMap";
 import { useCollection, useDoc } from "@/lib/store";
 import { useSignature } from "@/lib/profil";
 import { nomConseiller } from "@/lib/equipe";
+import { photoAuto } from "@/lib/photoAuto";
 
 /* ============================================================
    Avis de valeur imprimable (A4), mise en page reprise à
@@ -151,7 +152,9 @@ export default function AvisDeValeur() {
 
   // Photos : la première en couverture, trois suivantes sur la page « Le bien », toute la galerie en fin de document
   const photos = avis.photos ?? [];
-  const mainPhoto = photos[0];
+  // Sans photo : façade vue de la rue, sinon vue du ciel, d'après l'adresse
+  const photoAdresse = photos[0] ? undefined : photoAuto({ ...e, vueAuto: bien?.vueAuto }, { grande: true });
+  const mainPhoto = photos[0] ?? photoAdresse;
   const bienPhotos = photos.length > 1 ? photos.slice(1, 4) : [];
   const galleryPhotos = avis.pagesPhotos && photos.length > 1 ? photos : [];
   const PHOTOS_PER_PAGE = 8;
@@ -333,7 +336,7 @@ export default function AvisDeValeur() {
           <div className="relative h-[168mm] shrink-0 bg-[#1c1c1e]">
             {mainPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={mainPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={mainPhoto} alt="" onError={(ev) => (ev.currentTarget.style.display = "none")} className="absolute inset-0 h-full w-full object-cover" />
             ) : (
               <div className="absolute inset-0" style={{ background: "radial-gradient(120% 100% at 20% 0%, #5a1208, #120807 70%)" }} />
             )}
@@ -348,6 +351,7 @@ export default function AvisDeValeur() {
                 <p className="mt-0.5 text-[13px] font-semibold">{today}</p>
               </div>
             </div>
+            {photoAdresse && <p className="absolute bottom-[3mm] right-[4mm] text-[7px] text-white/75">Vue de l&apos;adresse : Panoramax ou IGN, licence ouverte</p>}
           </div>
           <div className="flex flex-1 flex-col px-[14mm] pt-[10mm]">
             <p className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: COLORS.primary }}>

@@ -137,7 +137,7 @@ function LotCarte({ l, rang, maj, dupliquer, supprimer }: { l: LotImmeuble; rang
           </div>
         </div>
         <Field label={l.loue ? "Loyer HC / mois" : "Loyer de marché HC"}>
-          <Nombre value={l.loyer} onChange={(v) => maj({ loyer: v })} unit="€" placeholder={l.loue ? "" : "facultatif"} />
+          <Nombre value={l.loyer} onChange={(v) => maj({ loyer: v })} unit="€" decimal placeholder={l.loue ? "" : "facultatif"} />
         </Field>
       </div>
 
@@ -182,7 +182,7 @@ export function ImmeubleEditor({ p, onChange, etat, onEtat }: { p: ParamsImmeubl
           <Nombre value={p.travaux} onChange={(v) => onChange({ travaux: v })} unit="€" placeholder="0" />
         </Field>
         <Field label="Charges propriétaire" hint="Taxe foncière, assurance, entretien par an">
-          <Nombre value={p.chargesAnnuelles} onChange={(v) => onChange({ chargesAnnuelles: v })} unit="€/an" />
+          <Nombre value={p.chargesAnnuelles} onChange={(v) => onChange({ chargesAnnuelles: v })} unit="€/an" decimal />
         </Field>
       </div>
     </div>
