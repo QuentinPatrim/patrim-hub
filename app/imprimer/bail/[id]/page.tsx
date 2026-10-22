@@ -9,6 +9,7 @@ import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Case, Pagine, PrixBloc, Section, Texte, ou } from "@/components/documents/blocs";
 import { civiliteLongue, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import {
+  villeSeule,
   ANNEXES,
   AUTRES_PARTIES,
   CHAMPS_BAILLEUR,
@@ -185,7 +186,7 @@ export default function BailPdf() {
                   {x.qualiteBailleur === "physique" &&
                     x.bailleurs.map((p, i) => (
                       <Personne key={p.contactId ?? i}>
-                        <EtatCivil p={p} quoi="nom du bailleur" />
+                        <strong>{nomOffre(p) || ou(undefined, "nom du bailleur")}</strong>, demeurant à {ou(villeSeule(p.adresse), "code postal et ville")}.
                       </Personne>
                     ))}
                   {!x.bailleurs.length && ou(undefined, "bailleur")}
@@ -629,7 +630,8 @@ export default function BailPdf() {
   );
 }
 
-/** « Monsieur NOM Prénom, né le 01/02/1980 à Toulouse (31), demeurant 12 rue … 31000 Toulouse. » */
+/** Locataire : « Monsieur NOM Prénom, né le 01/02/1980 à Toulouse (31), demeurant 12 rue … 31000 Toulouse. »
+ *  Le bailleur, lui, reste discret : nom, code postal et ville seulement. */
 function EtatCivil({ p, quoi }: { p: Partie; quoi: string }) {
   const nom = [civiliteLongue(p), p.nom?.toUpperCase(), p.prenom].filter(Boolean).join(" ");
   const date = p.dateNaissance?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
