@@ -122,11 +122,12 @@ export function PrixBloc({ label, montant, children, className }: { label: strin
   );
 }
 
-/** Case à cocher imprimée. */
+/** Case à cocher imprimée. La ligne s'aligne sur le texte, jamais sur la case : une case cochée
+ *  (qui contient « ✓ ») et une case vide restent ainsi exactement au même niveau. */
 export function Case({ on, children }: { on?: boolean; children: ReactNode }) {
   return (
-    <span className="inline-flex items-start gap-[1.8mm]">
-      <span className="mt-[0.7mm] grid size-[3.6mm] shrink-0 place-items-center rounded-[0.8mm] border-[0.35mm] text-[7pt] font-bold leading-none" style={{ borderColor: C.brand, color: C.brand }}>
+    <span className="inline-flex items-baseline gap-[1.8mm]">
+      <span className="mt-[0.7mm] grid self-start size-[3.6mm] shrink-0 place-items-center rounded-[0.8mm] border-[0.35mm] text-[7pt] font-bold leading-none" style={{ borderColor: C.brand, color: C.brand }}>
         {on ? "✓" : ""}
       </span>
       <span>{children}</span>
