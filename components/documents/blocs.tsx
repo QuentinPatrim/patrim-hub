@@ -18,12 +18,17 @@ export const ACTE_PRINT_CSS = `
     .acte-haut { display: block; height: 10mm; }
     .acte-bas { display: flex; height: 16mm; padding-top: 3mm; align-items: flex-start; justify-content: center; font: 7pt Inter, sans-serif; color: ${C.muted}; }
     .acte-bloc { break-inside: avoid; page-break-inside: avoid; }
+    .acte-coupe { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    .acte-coupe > * { break-inside: avoid; page-break-inside: avoid; }
     .acte-saut { break-before: page; page-break-before: always; }
     .acte-titre { break-after: avoid; page-break-after: avoid; }
     .acte-trou { background: none !important; color: #b3261e !important; }
   }
   .acte-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 `;
+
+/* .acte-coupe : encadré long qui peut passer d'une page à l'autre (fond et marges intérieures
+   répétés de chaque côté de la coupure), sans couper une ligne en deux. */
 
 /** Contenu d'un acte : à l'impression, l'en-tête et le pied du tableau se répètent sur chaque page. */
 export function Pagine({ children }: { children: ReactNode }) {

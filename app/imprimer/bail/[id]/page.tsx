@@ -228,7 +228,7 @@ export default function BailPdf() {
 
               <Section num={n()} titre="Objet du contrat">
                 <P>Le présent contrat a pour objet la location d&apos;un logement ainsi déterminé :</P>
-                <div className="acte-bloc mt-[2.5mm] rounded-[3mm] px-[5mm] py-[3.5mm]" style={{ background: C.cream }}>
+                <div className="acte-coupe mt-[2.5mm] rounded-[3mm] px-[5mm] py-[3.5mm]" style={{ background: C.cream }}>
                   <L k="Identifiant fiscal du logement">{ou(x.identifiantFiscal, "identifiant fiscal")}</L>
                   <L k="Localisation">
                     <strong>{ou(x.localisation, "adresse, bâtiment, étage, porte")}</strong>
