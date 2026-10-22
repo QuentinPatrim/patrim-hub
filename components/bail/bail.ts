@@ -12,7 +12,7 @@ import { adresseComplete, estCopro } from "@/components/biens/utils";
 import { dossierDe } from "@/components/biens/dossier";
 import { AGENCE } from "@/components/documents/charte";
 import { CHAMPS, civiliteLongue, manquants, partieDepuisContact, type Champ, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
-import { signataireRetenu, retenirSignataire, type Signataire } from "@/components/mandat/mandat";
+import { signataireRetenu, retenirSignataire, type Signataire, avecSignataire } from "@/components/mandat/mandat";
 import { PLAFONDS, decenceEnergetique, irlConnu, loyerGele, periodeConstruction, plafondsLocataire, ventilerHonoraires, type Irl, type Zone } from "@/components/location/loi";
 import { today } from "@/lib/format";
 import { locationDe } from "@/components/location/bienLocation";
@@ -28,8 +28,8 @@ export const QUALITES: { v: QualiteBailleur; label: string }[] = [
 ];
 
 /** Bailleur : nom, prénom et domicile. Locataire : coordonnées de signature. */
-export const CHAMPS_BAILLEUR: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "adresse"].includes(c.key));
-export const CHAMPS_LOCATAIRE: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "email", "tel"].includes(c.key));
+export const CHAMPS_BAILLEUR: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "dateNaissance", "lieuNaissance", "adresse"].includes(c.key));
+export const CHAMPS_LOCATAIRE: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "dateNaissance", "lieuNaissance", "adresse", "email", "tel"].includes(c.key));
 
 export const AUTRES_PARTIES = ["Grenier", "Comble aménagé", "Terrasse", "Balcon", "Loggia", "Jardin privatif"] as const;
 export const EQUIPEMENTS = ["Cuisine équipée", "WC", "Douche", "Baignoire", "Détecteur de fumée", "Climatisation"] as const;
@@ -187,7 +187,7 @@ const cle = (bienId: string) => `patrim-hub:bail:${bienId}`;
 export function lireBail(bienId: string): Bail | null {
   try {
     const raw = localStorage.getItem(cle(bienId));
-    return raw ? (JSON.parse(raw) as Bail) : null;
+    return raw ? avecSignataire(JSON.parse(raw) as Bail) : null;
   } catch {
     return null;
   }
@@ -349,12 +349,14 @@ export function mailDemandeBail(p: Partie, role: "locataire" | "bailleur", logem
     role === "locataire"
       ? [
           "une copie de votre pièce d'identité en cours de validité (recto verso)",
+          manque.has("adresse") && "votre adresse actuelle complète",
           manque.has("email") || manque.has("tel") ? "l'adresse e-mail et le numéro de portable à utiliser pour la signature électronique (ils doivent être personnels)" : null,
           "votre attestation d'assurance habitation, à fournir au plus tard le jour de la remise des clés",
         ]
       : [
           manque.has("adresse") && "votre adresse actuelle complète",
           manque.has("prenom") && "votre prénom tel qu'il figure sur votre pièce d'identité",
+          (manque.has("dateNaissance") || manque.has("lieuNaissance")) && "vos date et lieu de naissance",
           "l'identifiant fiscal du logement (sur votre espace impots.gouv.fr, rubrique « Biens immobiliers »)",
           "les diagnostics à annexer au bail (DPE, électricité et gaz de plus de 15 ans, état des risques, amiante, plomb si l'immeuble date d'avant 1949)",
         ]
@@ -379,7 +381,7 @@ export function mailDemandeBail(p: Partie, role: "locataire" | "bailleur", logem
   };
 }
 
-/** Le bail remis au locataire et l'acte de caution ne montrent que le code postal et la ville du bailleur, jamais sa rue. */
+/** L'acte de caution ne montre que le code postal et la ville du bailleur, jamais sa rue (le bail, lui, donne l'adresse complète). */
 export function villeSeule(adresse?: string) {
   const m = adresse?.match(/\b(\d{5})\b[\s,-]*(.*)$/);
   if (!m) return undefined;
