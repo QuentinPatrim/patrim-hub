@@ -28,7 +28,7 @@ export const QUALITES: { v: QualiteBailleur; label: string }[] = [
 ];
 
 /** Bailleur : nom, prénom et domicile. Locataire : coordonnées de signature. */
-export const CHAMPS_BAILLEUR: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "dateNaissance", "lieuNaissance", "adresse"].includes(c.key));
+export const CHAMPS_BAILLEUR: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "adresse"].includes(c.key));
 export const CHAMPS_LOCATAIRE: Champ[] = CHAMPS.filter((c) => ["prenom", "nom", "dateNaissance", "lieuNaissance", "adresse", "email", "tel"].includes(c.key));
 
 export const AUTRES_PARTIES = ["Grenier", "Comble aménagé", "Terrasse", "Balcon", "Loggia", "Jardin privatif"] as const;
@@ -356,7 +356,6 @@ export function mailDemandeBail(p: Partie, role: "locataire" | "bailleur", logem
       : [
           manque.has("adresse") && "votre adresse actuelle complète",
           manque.has("prenom") && "votre prénom tel qu'il figure sur votre pièce d'identité",
-          (manque.has("dateNaissance") || manque.has("lieuNaissance")) && "vos date et lieu de naissance",
           "l'identifiant fiscal du logement (sur votre espace impots.gouv.fr, rubrique « Biens immobiliers »)",
           "les diagnostics à annexer au bail (DPE, électricité et gaz de plus de 15 ans, état des risques, amiante, plomb si l'immeuble date d'avant 1949)",
         ]
@@ -381,7 +380,7 @@ export function mailDemandeBail(p: Partie, role: "locataire" | "bailleur", logem
   };
 }
 
-/** L'acte de caution ne montre que le code postal et la ville du bailleur, jamais sa rue (le bail, lui, donne l'adresse complète). */
+/** Le bail remis au locataire et l'acte de caution ne montrent que le code postal et la ville du bailleur, jamais sa rue. */
 export function villeSeule(adresse?: string) {
   const m = adresse?.match(/\b(\d{5})\b[\s,-]*(.*)$/);
   if (!m) return undefined;
