@@ -91,7 +91,7 @@ const CLE_SIGNATAIRE = "patrim-hub:mandat:signataire";
 export function lireMandat(bienId: string): Mandat | null {
   try {
     const raw = localStorage.getItem(cle(bienId));
-    return raw ? (JSON.parse(raw) as Mandat) : null;
+    return raw ? avecSignataire(JSON.parse(raw) as Mandat) : null;
   } catch {
     return null;
   }
@@ -113,13 +113,26 @@ export function effacerMandat(bienId: string) {
     localStorage.removeItem(cle(bienId));
   } catch {}
 }
+/** Acte enregistré avant : coordonnées du signataire complétées. */
+export const avecSignataire = <T extends { signataire?: Signataire }>(a: T): T => (a.signataire ? { ...a, signataire: avecCoordonnees(a.signataire) } : a);
+
+/** Coordonnées de Julien PASSERINI pour ICSIGN : réglées dans Vercel (NEXT_PUBLIC_SIGNATAIRE_EMAIL et
+ *  NEXT_PUBLIC_SIGNATAIRE_TEL), jamais écrites dans ce dépôt public. */
+const COORD_AGENCE = { email: process.env.NEXT_PUBLIC_SIGNATAIRE_EMAIL || undefined, tel: process.env.NEXT_PUBLIC_SIGNATAIRE_TEL || undefined };
+
+/** Complète le mail et le portable du signataire de l'agence quand ils manquent (actes déjà commencés compris). */
+export function avecCoordonnees(s: Signataire): Signataire {
+  if (s.nom.trim() && !/passerini/i.test(s.nom)) return s;
+  return { ...s, nom: s.nom.trim() || "Monsieur Julien PASSERINI", email: s.email?.trim() || COORD_AGENCE.email, tel: s.tel?.trim() || COORD_AGENCE.tel };
+}
+
 export function signataireRetenu(): Signataire {
   try {
     const raw = localStorage.getItem(CLE_SIGNATAIRE);
-    if (raw) return JSON.parse(raw) as Signataire;
+    if (raw) return avecCoordonnees(JSON.parse(raw) as Signataire);
   } catch {}
-  // Président de la SAS (information publique du registre du commerce) ; coordonnées à saisir une fois.
-  return { nom: "Monsieur Julien PASSERINI", qualite: "président" };
+  // Président de la SAS (information publique du registre du commerce).
+  return avecCoordonnees({ nom: "Monsieur Julien PASSERINI", qualite: "président" });
 }
 
 const NATURE_DE: Record<Bien["type"], Nature> = { appartement: "Appartement", maison: "Maison", local: "Local", immeuble: "Immeuble", parking: "Garage", terrain: "Terrain" };

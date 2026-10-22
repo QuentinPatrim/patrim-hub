@@ -7,12 +7,11 @@ import { ArrowLeft, Printer, TriangleAlert } from "lucide-react";
 import { C, MENTIONS, telActe } from "@/components/documents/charte";
 import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Case, Pagine, PrixBloc, Section, Texte, ou } from "@/components/documents/blocs";
-import { manquants, nomOffre, type Partie } from "@/components/offre/offre";
+import { civiliteLongue, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import {
   ANNEXES,
   AUTRES_PARTIES,
   CHAMPS_BAILLEUR,
-  villeSeule,
   CHAMPS_LOCATAIRE,
   COMMUNS,
   EQUIPEMENTS,
@@ -186,7 +185,7 @@ export default function BailPdf() {
                   {x.qualiteBailleur === "physique" &&
                     x.bailleurs.map((p, i) => (
                       <Personne key={p.contactId ?? i}>
-                        <strong>{nomOffre(p) || ou(undefined, "nom du bailleur")}</strong>, demeurant à {ou(villeSeule(p.adresse), "code postal et ville")}.
+                        <EtatCivil p={p} quoi="nom du bailleur" />
                       </Personne>
                     ))}
                   {!x.bailleurs.length && ou(undefined, "bailleur")}
@@ -213,7 +212,7 @@ export default function BailPdf() {
                 <div className="mt-[3mm] space-y-[2.5mm]">
                   {x.locataires.map((p, i) => (
                     <Personne key={p.contactId ?? i}>
-                      <strong>{nomOffre(p) || ou(undefined, "nom du locataire")}</strong>
+                      <EtatCivil p={p} quoi="nom du locataire" />
                       <span className="block text-[9pt]" style={{ color: C.slate }}>
                         E-mail : {ou(p.email, "e-mail")} · Tél. : {ou(telActe(p.tel), "portable")}
                       </span>
@@ -627,6 +626,18 @@ export default function BailPdf() {
         </article>
       </div>
     </div>
+  );
+}
+
+/** « Monsieur NOM Prénom, né le 01/02/1980 à Toulouse (31), demeurant 12 rue … 31000 Toulouse. » */
+function EtatCivil({ p, quoi }: { p: Partie; quoi: string }) {
+  const nom = [civiliteLongue(p), p.nom?.toUpperCase(), p.prenom].filter(Boolean).join(" ");
+  const date = p.dateNaissance?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return (
+    <>
+      <strong>{p.nom || p.prenom ? nom : ou(undefined, quoi)}</strong>, {ne(p)} le {date ? `${date[3]}/${date[2]}/${date[1]}` : ou(p.dateNaissance, "date de naissance")} à{" "}
+      {ou(p.lieuNaissance, "lieu de naissance")}, demeurant {ou(p.adresse, "adresse")}.
+    </>
   );
 }
 

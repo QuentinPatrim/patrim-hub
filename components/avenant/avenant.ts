@@ -10,7 +10,7 @@
 import { adresseComplete } from "@/components/biens/utils";
 import { dossierDe } from "@/components/biens/dossier";
 import { CHAMPS, manquants, partieDepuisContact, type Champ, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
-import { retenirSignataire, signataireRetenu, type Signataire } from "@/components/mandat/mandat";
+import { retenirSignataire, signataireRetenu, type Signataire, avecSignataire } from "@/components/mandat/mandat";
 import type { Acte } from "@/components/documents/archive";
 import { today } from "@/lib/format";
 import type { Bien, MandatType } from "@/lib/types";
@@ -60,7 +60,7 @@ const cle = (bienId: string) => `patrim-hub:avenant:${bienId}`;
 export function lireAvenant(bienId: string): Avenant | null {
   try {
     const raw = localStorage.getItem(cle(bienId));
-    return raw ? (JSON.parse(raw) as Avenant) : null;
+    return raw ? avecSignataire(JSON.parse(raw) as Avenant) : null;
   } catch {
     return null;
   }

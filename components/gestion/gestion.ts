@@ -11,7 +11,7 @@
 import { adresseComplete } from "@/components/biens/utils";
 import { dossierDe } from "@/components/biens/dossier";
 import { AGENCE } from "@/components/documents/charte";
-import { CHAMPS_MANDAT, NATURES, signataireRetenu, retenirSignataire, type Nature, type Signataire } from "@/components/mandat/mandat";
+import { CHAMPS_MANDAT, NATURES, signataireRetenu, retenirSignataire, type Nature, type Signataire, avecSignataire } from "@/components/mandat/mandat";
 import { civiliteLongue, manquants, partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import { PLAFONDS, type Zone } from "@/components/location/loi";
 import { today } from "@/lib/format";
@@ -97,7 +97,7 @@ const cle = (bienId: string) => `patrim-hub:gestion:${bienId}`;
 export function lireGestion(bienId: string): Gestion | null {
   try {
     const raw = localStorage.getItem(cle(bienId));
-    return raw ? (JSON.parse(raw) as Gestion) : null;
+    return raw ? avecSignataire(JSON.parse(raw) as Gestion) : null;
   } catch {
     return null;
   }

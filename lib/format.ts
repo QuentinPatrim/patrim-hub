@@ -58,7 +58,7 @@ export const ETAPE: Record<EtapeAcquereur, { label: string; tone: Tone }> = {
 };
 export const ROLE: Record<ContactRole, string> = {
   acquereur: "Acquéreur",
-  vendeur: "Vendeur",
+  vendeur: "Propriétaire",
   prospect_vendeur: "Prospect vendeur",
   locataire: "Locataire",
   partenaire: "Partenaire",
