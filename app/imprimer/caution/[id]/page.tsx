@@ -23,6 +23,7 @@ import {
   revenusTotal,
 } from "@/components/caution/caution";
 import { ANS_LETTRES, dateActe, eurosCts, montantBail, trimestreTexte, valeurIrl } from "@/components/location/loi";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Acte de cautionnement solidaire à durée déterminée PATRIM,
@@ -61,6 +62,7 @@ export default function CautionPdf() {
     };
   }, [c]);
 
+  const retour = useRetour(`/biens/${id}/caution`, { parentSeulement: true });
   if (c === undefined) return null;
   if (!c)
     return (
@@ -95,9 +97,16 @@ export default function CautionPdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}/caution`} onClick={() => ecrireCaution(c)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button
+            type="button"
+            onClick={() => {
+              ecrireCaution(c);
+              retour();
+            }}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5"
+          >
             <ArrowLeft size={16} /> Modifier
-          </Link>
+          </button>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
           </button>

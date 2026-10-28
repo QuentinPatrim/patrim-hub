@@ -8,6 +8,7 @@ import { AGENCE, C, MENTIONS, enLettres, montantComplet, telActe } from "@/compo
 import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine, PrixBloc, Section, Texte, Trou, ou } from "@/components/documents/blocs";
 import { dateLettres, detailFinancement, ecrireOffre, lireOffre, manquants, ne, nomOffre, type Offre, type Partie } from "@/components/offre/offre";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Offre d'achat PATRIM, prête à « Enregistrer en PDF » puis à
@@ -38,6 +39,7 @@ export default function OffrePdf() {
     };
   }, [o]);
 
+  const retour = useRetour(`/biens/${id}/offre`, { parentSeulement: true });
   if (o === undefined) return null;
   if (!o)
     return (
@@ -65,9 +67,16 @@ export default function OffrePdf() {
       {/* Barre d'outils (non imprimée) */}
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}/offre`} onClick={() => ecrireOffre(o)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button
+            type="button"
+            onClick={() => {
+              ecrireOffre(o);
+              retour();
+            }}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5"
+          >
             <ArrowLeft size={16} /> Modifier
-          </Link>
+          </button>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
           </button>

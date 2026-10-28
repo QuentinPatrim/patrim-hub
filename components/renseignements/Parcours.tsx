@@ -18,6 +18,7 @@ import {
   type Reponses,
   type VuePublique,
 } from "./dossier";
+import { useEtapesHistorique } from "@/lib/retour";
 
 /* ============================================================
    Page publique de la fiche de renseignements, ouverte par le
@@ -51,6 +52,13 @@ export function Parcours({ jeton }: { jeton: string }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [ecran, setEcran] = useState<Ecran>("accueil");
   const [etape, setEtape] = useState(0);
+  // Chaque écran et chaque étape ont leur entrée d'historique : le geste retour revient d'une étape.
+  const aller = useEtapesHistorique<Ecran | number>("parcours", ecran === "fiche" ? etape : ecran, (p) => {
+    if (typeof p === "number") {
+      setEtape(p);
+      setEcran("fiche");
+    } else setEcran(p);
+  });
   const [r, setR] = useState<Reponses>({});
   const [envoi, setEnvoi] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -133,7 +141,7 @@ export function Parcours({ jeton }: { jeton: string }) {
       <Cadre>
         <div className="sticky top-0 z-10 -mx-4 bg-bg/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center gap-3">
-            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => (etape ? setEtape(etape - 1) : setEcran("accueil"))}>
+            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(etape ? etape - 1 : "accueil")}>
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0 flex-1">
@@ -155,7 +163,7 @@ export function Parcours({ jeton }: { jeton: string }) {
           {etape === 1 && <EtapeCoordonnees r={r} setR={setR} />}
           {etape === 2 && <EtapeSituation r={r} setR={setR} moi={moi} foyer={foyer} />}
           {etape === 3 && <EtapeTravail r={r} setR={setR} />}
-          {etape === 4 && <EtapeVerification r={r} setR={setR} manque={manque} allerA={setEtape} />}
+          {etape === 4 && <EtapeVerification r={r} setR={setR} manque={manque} allerA={aller} />}
         </div>
 
         {msg && <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{msg}</p>}
@@ -166,7 +174,7 @@ export function Parcours({ jeton }: { jeton: string }) {
               className="btn-primary w-full !h-12"
               disabled={envoi}
               onClick={async () => {
-                if (await enregistrer()) setEtape(etape + 1);
+                if (await enregistrer()) aller(etape + 1);
               }}
             >
               Continuer <ArrowRight size={17} />
@@ -177,7 +185,7 @@ export function Parcours({ jeton }: { jeton: string }) {
               className="btn-primary w-full !h-12"
               disabled={envoi || manque.length > 0 || !r.accord}
               onClick={async () => {
-                if (await enregistrer(true)) setEcran("merci");
+                if (await enregistrer(true)) aller("merci");
               }}
             >
               <Check size={17} /> Envoyer ma fiche
@@ -201,15 +209,15 @@ export function Parcours({ jeton }: { jeton: string }) {
           <p className="mt-2 text-sm text-muted">Votre fiche est bien arrivée chez votre conseiller PATRIM. Vous pourrez encore la corriger avec ce même lien.</p>
           {moi.principal ? (
             <div className="mt-5 space-y-2">
-              <button type="button" className="btn-primary w-full !h-12" onClick={() => setEcran("foyer")}>
+              <button type="button" className="btn-primary w-full !h-12" onClick={() => aller("foyer")}>
                 <Users size={17} /> Ajouter conjoint, colocataire ou garant
               </button>
-              <button type="button" className="btn-ghost w-full !h-11" onClick={() => setEcran("accueil")}>
+              <button type="button" className="btn-ghost w-full !h-11" onClick={() => aller("accueil")}>
                 Revenir à mon dossier
               </button>
             </div>
           ) : (
-            <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => setEcran("accueil")}>
+            <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => aller("accueil")}>
               Revenir à ma fiche
             </button>
           )}
@@ -221,7 +229,7 @@ export function Parcours({ jeton }: { jeton: string }) {
     return (
       <Cadre>
         <div className="flex items-center gap-3 pt-[max(12px,env(safe-area-inset-top))]">
-          <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => setEcran("accueil")}>
+          <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller("accueil")}>
             <ArrowLeft size={18} />
           </button>
           <div className="font-serif text-xl font-semibold">Les personnes du dossier</div>
@@ -245,8 +253,7 @@ export function Parcours({ jeton }: { jeton: string }) {
           texte={moi.statut === "termine" ? "Fiche envoyée. Touchez pour la corriger." : moi.statut === "en_cours" ? "Commencée : reprenez où vous en étiez." : "Identité, coordonnées, situation, revenus."}
           statut={moi.statut}
           onClick={() => {
-            setEtape(moi.statut === "termine" ? ETAPES.length - 1 : 0);
-            setEcran("fiche");
+            aller(moi.statut === "termine" ? ETAPES.length - 1 : 0);
           }}
         />
         {moi.principal && (
@@ -255,7 +262,7 @@ export function Parcours({ jeton }: { jeton: string }) {
             titre="Conjoint, colocataires et garants"
             texte={autres.length ? `${autres.length} personne${autres.length > 1 ? "s" : ""} ajoutée${autres.length > 1 ? "s" : ""} · ${autres.filter((p) => p.statut === "termine").length} fiche(s) reçue(s)` : "Chacun reçoit son propre lien et remplit sa fiche."}
             statut={autres.length && autres.every((p) => p.statut === "termine") ? "termine" : autres.length ? "en_cours" : "a_remplir"}
-            onClick={() => setEcran("foyer")}
+            onClick={() => aller("foyer")}
           />
         )}
       </div>

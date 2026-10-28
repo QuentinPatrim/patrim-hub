@@ -9,6 +9,7 @@ import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine } from "@/components/documents/blocs";
 import { TraceSvg } from "@/components/bon/SignaturePad";
 import { MENTION_DONNEES, descriptionBien, engagement, nomVisiteur, prixTexte, quand, type BonVisite } from "@/components/bon/bon";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Bon de visite PATRIM en A4 : signé sur le téléphone, ou à faire
@@ -58,6 +59,7 @@ export default function BonPdf() {
     };
   }, [bon]);
 
+  const retour = useRetour(bon ? `/agenda/bon/${bon.rdvId}` : "/agenda", { parentSeulement: true });
   if (bon === undefined) return null;
   if (!bon)
     return (
@@ -80,9 +82,9 @@ export default function BonPdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/agenda/bon/${bon.rdvId}`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Bon de visite
-          </Link>
+          </button>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
           </button>

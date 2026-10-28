@@ -29,6 +29,7 @@ import {
 } from "@/components/bail/bail";
 import { CHARGES, NOTICE, REPARATIONS, type Bloc } from "@/components/bail/annexes";
 import { PLAFONDS, ZONES, dateActe, dureeTexte, eurosCts, montantBail, trimestreTexte, valeurIrl } from "@/components/location/loi";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Bail d'habitation PATRIM (vide ou meublé), prêt à « Enregistrer
@@ -78,6 +79,7 @@ export default function BailPdf() {
     };
   }, [x]);
 
+  const retour = useRetour(`/biens/${id}/bail`, { parentSeulement: true });
   if (x === undefined) return null;
   if (!x)
     return (
@@ -126,9 +128,16 @@ export default function BailPdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}/bail`} onClick={() => ecrireBail(x)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button
+            type="button"
+            onClick={() => {
+              ecrireBail(x);
+              retour();
+            }}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5"
+          >
             <ArrowLeft size={16} /> Modifier
-          </Link>
+          </button>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
           </button>

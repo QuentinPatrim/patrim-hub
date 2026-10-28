@@ -10,6 +10,7 @@ import { LIGNES_FICHE, PIECES_CANDIDAT, PIECES_INTERDITES, lireFiche, premierMoi
 import { dateActe, eurosCts } from "@/components/location/loi";
 import { listerDossiers } from "@/components/renseignements/client";
 import { LOGEMENTS_ACTUELS, SITUATIONS_FAMILIALES, SITUATIONS_PRO, libelle, rolePersonne, type Dossier, type PersonneDossier, type Reponses } from "@/components/renseignements/dossier";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Fiche de renseignements PATRIM pour un candidat locataire, à
@@ -108,6 +109,7 @@ export default function FichePdf() {
     };
   }, [f, remplis]);
 
+  const retour = useRetour(dossier ? `/biens/${id}/renseignements` : `/biens/${id}/candidat`, { parentSeulement: !dossier });
   if (f === undefined) return null;
   if (!f)
     return (
@@ -143,9 +145,9 @@ export default function FichePdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={dossier ? `/biens/${id}/renseignements` : `/biens/${id}/candidat`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> {dossier ? "Retour" : "Modifier"}
-          </Link>
+          </button>
           <button
             type="button"
             onClick={() => window.print()}

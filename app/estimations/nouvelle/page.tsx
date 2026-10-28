@@ -51,6 +51,7 @@ import { ask } from "@/lib/ai";
 import { CONDITIONS, type MarketBase } from "@/lib/expressEstimate";
 import { eur, pct } from "@/lib/format";
 import { create, getAll, update } from "@/lib/store";
+import { useEtapesHistorique, useRetour } from "@/lib/retour";
 
 /* ============================================================
    Nouvelle estimation : parcours en 3 étapes, pensé pour être
@@ -121,6 +122,7 @@ function Parcours() {
   const router = useRouter();
   const params = useSearchParams();
   const editId = params.get("id") ?? undefined;
+  const retour = useRetour(editId ? `/estimations/${editId}` : "/estimations");
 
   const [b, setB] = useState<Brouillon>(VIDE);
   const [ready, setReady] = useState(false);
@@ -200,6 +202,8 @@ function Parcours() {
   const s = b.saisie;
   const setS = (patch: Partial<Saisie>) => setB((x) => ({ ...x, saisie: { ...x.saisie, ...patch } }));
   const set = (patch: Partial<Brouillon>) => setB((x) => ({ ...x, ...patch }));
+  // Chaque étape a son entrée d'historique : le geste retour revient à l'étape précédente.
+  const allerStep = useEtapesHistorique("estimation", b.step, (step) => set({ step }));
 
   /* --- Calculs --- */
   const atyp = useMemo(() => atypiques(b.ventes.filter((v) => !v.bloc)), [b.ventes]);
@@ -255,7 +259,7 @@ function Parcours() {
 
   /* --- Navigation --- */
   const goto = (step: number) => {
-    set({ step });
+    allerStep(step);
     requestAnimationFrame(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     if (step === 1) {
       const cle = cleRecherche(s, b.rayon);
@@ -403,9 +407,9 @@ function Parcours() {
     <div ref={top} className="mx-auto max-w-2xl scroll-mt-20">
       {/* En-tête + progression */}
       <div className="mb-5 animate-fade-up">
-        <Link href={editId ? `/estimations/${editId}` : "/estimations"} className="text-xs text-muted hover:text-fg">
-          ← {editId ? "Retour à l'estimation" : "Estimations"}
-        </Link>
+        <button type="button" onClick={retour} className="text-xs text-muted hover:text-fg">
+          ← {editId ? "Retour à l'estimation" : "Retour"}
+        </button>
         <h1 className="h-title mt-1">{editId ? "Modifier l'estimation" : "Nouvelle estimation"}</h1>
         <ol className="mt-4 grid grid-cols-3 gap-2">
           {STEPS.map((label, i) => {

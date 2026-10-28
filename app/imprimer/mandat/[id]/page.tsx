@@ -9,6 +9,7 @@ import { useActe } from "@/components/documents/archive";
 import { ACTE_PRINT_CSS, Pagine, Case, PrixBloc, Section, Texte, ou } from "@/components/documents/blocs";
 import { dateLettres, manquants, ne, nomOffre, type Partie } from "@/components/offre/offre";
 import { CHAMPS_MANDAT, DIAGNOSTICS, NATURES, avecExclusivite, dureeLettres, ecrireMandat, lireMandat, titreMandat, typeMandat, type Mandat } from "@/components/mandat/mandat";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Mandat de vente PATRIM (simple, semi-exclusif ou exclusif), prêt à
@@ -47,6 +48,7 @@ export default function MandatPdf() {
     };
   }, [m]);
 
+  const retour = useRetour(`/biens/${id}/mandat`, { parentSeulement: true });
   if (m === undefined) return null;
   if (!m)
     return (
@@ -73,9 +75,16 @@ export default function MandatPdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}/mandat`} onClick={() => ecrireMandat(m)} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button
+            type="button"
+            onClick={() => {
+              ecrireMandat(m);
+              retour();
+            }}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5"
+          >
             <ArrowLeft size={16} /> Modifier
-          </Link>
+          </button>
           <button type="button" onClick={() => window.print()} className="ml-auto inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white shadow-sm active:scale-[.98]" style={{ background: C.brand }}>
             <Printer size={16} /> Enregistrer en PDF
           </button>

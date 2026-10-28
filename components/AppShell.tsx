@@ -28,6 +28,7 @@ import { nomComplet } from "@/lib/format";
 import { useTheme } from "@/lib/theme";
 import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
 import { locationSeule } from "@/components/location/bienLocation";
+import { useSuiviRetour } from "@/lib/retour";
 
 export const NAV_VENTE = [
   { href: "/", label: "Accueil", icon: Home },
@@ -54,6 +55,7 @@ const MOBILE = ["/", "/biens", "/contacts", "/agenda"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
+  useSuiviRetour();
   const [more, setMore] = useState(false);
   const [search, setSearch] = useState(false);
   const { theme, toggle } = useTheme();

@@ -10,6 +10,7 @@ import { listerFiches } from "@/components/fiches/client";
 import { alertesFiche } from "@/components/fiches/FichesBien";
 import { groupesReponses, TITRE_FICHE, type Fiche } from "@/components/fiches/fiche";
 import { useDoc } from "@/lib/store";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Fiche vendeur ou acquéreur remplie en ligne, à « Enregistrer en
@@ -53,6 +54,7 @@ export default function FicheClientPdf() {
     };
   }, [f]);
 
+  const retour = useRetour(f ? `/biens/${id}/fiche-${f.kind}` : `/biens/${id}`);
   if (f === undefined) return null;
   if (!f)
     return (
@@ -71,7 +73,6 @@ export default function FicheClientPdf() {
     .map((g) => ({ ...g, lignes: g.lignes.filter(([, v]) => v) }))
     .filter((g) => g.lignes.length);
   const alertes = alertesFiche(f.kind, r, b?.prix);
-  const retour = `/biens/${id}/fiche-${f.kind}`;
 
   return (
     <div className="acte-root min-h-dvh pb-10" style={{ background: C.paper, color: C.ink, colorScheme: "light" }}>
@@ -79,9 +80,9 @@ export default function FicheClientPdf() {
 
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Retour
-          </Link>
+          </button>
           <button
             type="button"
             onClick={() => window.print()}

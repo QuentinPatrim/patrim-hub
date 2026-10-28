@@ -62,6 +62,7 @@ import { RenseignementsCarte } from "@/components/renseignements/DossiersBien";
 import { FichesCarte } from "@/components/fiches/FichesBien";
 import { choisirEspace, useEspace } from "@/components/espace/espace";
 import { STATUT_LOCATION, locationDe, locationSeule } from "@/components/location/bienLocation";
+import { useRetour } from "@/lib/retour";
 /** Champ manquant → section du formulaire. */
 const SECTION_DE: Record<string, string> = {
   prix: "prix",
@@ -89,6 +90,7 @@ const MANDAT_LABEL = { exclusif: "Exclusif", semi_exclusif: "Semi-exclusif", sim
 export default function BienPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const retour = useRetour("/biens");
   const { doc, update } = useDoc("biens", id);
   const b = doc as BienExt | undefined;
   const { items: contacts } = useCollection("contacts");
@@ -186,9 +188,9 @@ export default function BienPage() {
   return (
     <div className="space-y-5 sm:space-y-6">
       <div className="flex items-center justify-between gap-2 animate-fade-up">
-        <Link href="/biens" className="btn-ghost btn-sm -ml-2 text-muted">
-          <ArrowLeft size={15} /> Biens
-        </Link>
+        <button type="button" onClick={retour} className="btn-ghost btn-sm -ml-2 text-muted">
+          <ArrowLeft size={15} /> Retour
+        </button>
         <div className="flex items-center gap-2 text-xs text-muted">
           {b.ref && <span className="font-mono">{b.ref}</span>}
           <span>Mis à jour {dateCourte(b.updatedAt)}</span>
