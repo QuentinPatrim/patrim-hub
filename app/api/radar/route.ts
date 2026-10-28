@@ -241,7 +241,17 @@ export async function POST(req: Request) {
 
 /** Contrôle technique : les champs renvoyés par chaque source, sans aucune ligne. */
 export async function GET(req: Request) {
-  if (new URL(req.url).searchParams.get("diag") !== "1") return NextResponse.json({ ok: true });
+  const diag = new URL(req.url).searchParams.get("diag");
+  if (diag === "2") {
+    // Essai complet sur Toulouse, 60 jours : nombres et titres seulement, sans adresse
+    const auj = new Date().toISOString().slice(0, 10);
+    const depuis = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    const t0 = Date.now();
+    const [d, a, b] = await Promise.all([dpe(["31000", "31100", "31200", "31300", "31400", "31500"], depuis, auj), audits(["31000", "31100", "31200", "31300", "31400", "31500"], depuis), bodacc(depuis)]);
+    const resume = (x: { signaux: SignalPublic[]; erreur?: string }) => ({ n: x.signaux.length, erreur: x.erreur, exemples: x.signaux.slice(0, 3).map((s) => `${s.date} ${s.titre} (score ${s.score})`) });
+    return NextResponse.json({ ms: Date.now() - t0, dpe: resume(d), audits: resume(a), bodacc: resume(b) });
+  }
+  if (diag !== "1") return NextResponse.json({ ok: true });
   const champs = (r: { ok: boolean; status: number; data: any }) => ({ status: r.status, total: r.data?.total ?? r.data?.total_count, champs: Object.keys(r.data?.results?.[0] ?? {}) });
   const depuis = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const id = await idAudits();
