@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => setMore(false), [path]);
 
-  if (path.startsWith("/connexion") || path.startsWith("/imprimer") || path.startsWith("/renseignements/") || path.startsWith("/informations/")) return <>{children}</>;
+  if (path.startsWith("/connexion") || path.startsWith("/imprimer") || path.startsWith("/b/") || path.startsWith("/renseignements/") || path.startsWith("/informations/")) return <>{children}</>;
 
   const moreItems = [...nav.filter((n) => !MOBILE.includes(n.href)), { href: "/reglages", label: "Réglages", icon: Settings }];
   const moreActive = moreItems.some((n) => active(n.href));
