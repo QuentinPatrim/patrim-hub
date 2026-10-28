@@ -46,6 +46,7 @@ import { PartageBien } from "@/components/equipe/PartageBien";
 import { BaisseEnTete, BaisseFiche } from "@/components/baisse/BaisseFiche";
 import { DiagnosticsFiche } from "@/components/diagnostics/DiagnosticsFiche";
 import { EspaceVendeurCarte } from "@/components/vendeur/EspaceVendeurCarte";
+import { PageWebCarte } from "@/components/pageweb/PageWebCarte";
 import { VenteFiche } from "@/components/vente/VenteFiche";
 import { ApresVenteFiche, venteSignee } from "@/components/vente/ApresVente";
 import { VENTE_EN_COURS } from "@/components/vente/vente";
@@ -451,6 +452,7 @@ export default function BienPage() {
           {!aLouer && <VendeurBlock vendeurs={vendeurs} onAdd={() => setEditing("vendeur")} />}
 
           {!aLouer && b.statut !== "vendu" && b.statut !== "retire" && <EspaceVendeurCarte b={b} compatibles={matches.length} />}
+          {!aLouer && b.statut !== "vendu" && b.statut !== "retire" && <PageWebCarte b={b} vendeurs={vendeurs} />}
 
           <DiagnosticsFiche b={b} />
 
