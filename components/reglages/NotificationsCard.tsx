@@ -19,10 +19,75 @@ const versOctets = (b64: string) => {
 
 type Etat = "inconnu" | "impossible" | "ios" | "refuse" | "inactif" | "actif";
 
+/** Paire de clés de signature des notifications, créée sur ce téléphone (rien ne quitte l'appareil). */
+async function creerCles() {
+  const k = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const j = await crypto.subtle.exportKey("jwk", k.privateKey);
+  const brut = (s: string) => atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4));
+  const pub = btoa("\x04" + brut(j.x!) + brut(j.y!)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return { pub, priv: j.d! };
+}
+
+function Copiable({ nom, valeur }: { nom: string; valeur: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-semibold">{nom}</div>
+      <div className="flex gap-2">
+        <input className="input font-mono text-xs" readOnly value={valeur} onFocus={(e) => e.target.select()} />
+        <button
+          className="btn-secondary btn-sm shrink-0"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(valeur);
+              setOk(true);
+            } catch {}
+          }}
+        >
+          {ok ? <Check size={14} /> : "Copier"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Le serveur n'a pas encore ses clés : on les crée ici, le conseiller les colle dans Vercel. */
+function Configuration() {
+  const [cles, setCles] = useState<{ pub: string; priv: string } | null>(null);
+  return (
+    <div className="mt-3 space-y-3 rounded-2xl border border-line p-3">
+      <p className="text-sm">Première fois : le serveur a besoin de deux clés pour signer les notifications. Elles sont créées sur ce téléphone et ne passent par personne d&apos;autre.</p>
+      {!cles ? (
+        <button className="btn-secondary btn-sm" onClick={async () => setCles(await creerCles())}>Créer les deux clés</button>
+      ) : (
+        <>
+          <Copiable nom="VAPID_PUBLIC_KEY" valeur={cles.pub} />
+          <Copiable nom="VAPID_PRIVATE_KEY" valeur={cles.priv} />
+          <ol className="list-decimal pl-5 text-xs text-muted space-y-1">
+            <li>Sur vercel.com, projet patrim-hub : Settings, puis Environment Variables.</li>
+            <li>Ajoute les deux variables ci-dessus (Production et Preview ; « Sensitive » pour la clé privée).</li>
+            <li>Deployments : sur le dernier, menu « … » puis Redeploy.</li>
+            <li>Reviens ici et touche « Activer sur ce téléphone ».</li>
+          </ol>
+          <p className="text-xs text-warn">Ne quitte pas cette page avant d&apos;avoir collé les deux clés : elles ne sont gardées nulle part.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function NotificationsCard() {
   const [etat, setEtat] = useState<Etat>("inconnu");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [configure, setConfigure] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/push")
+      .then((r) => r.json())
+      .then((d) => setConfigure(!!d.cle))
+      .catch(() => setConfigure(null));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -107,7 +172,7 @@ export function NotificationsCard() {
             <button className="btn-secondary btn-sm" onClick={() => void tester()} disabled={busy}>Tester</button>
             <button className="btn-ghost btn-sm" onClick={couper} disabled={busy}><BellOff size={14} /> Couper</button>
           </>
-        ) : etat === "inactif" ? (
+        ) : etat === "inactif" && configure !== false ? (
           <button className="btn-primary" onClick={activer} disabled={busy}>{busy ? <Spinner /> : <Bell size={16} />} Activer sur ce téléphone</button>
         ) : etat === "ios" ? (
           <p className="text-sm">Sur iPhone, ajoute d&apos;abord le Hub à l&apos;écran d&apos;accueil (bouton Partager, puis « Sur l&apos;écran d&apos;accueil »), ouvre-le depuis l&apos;icône, puis reviens ici.</p>
@@ -117,6 +182,7 @@ export function NotificationsCard() {
           <p className="text-sm">Ce navigateur ne gère pas les notifications. Ouvre le Hub dans Chrome (Android) ou depuis l&apos;icône de l&apos;écran d&apos;accueil (iPhone).</p>
         ) : null}
       </div>
+      {configure === false && <Configuration />}
       {msg && <p className="mt-2 text-xs text-muted">{msg}</p>}
     </Card>
   );
