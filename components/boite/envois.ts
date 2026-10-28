@@ -27,8 +27,9 @@ import { noterBoite, type EtatBoite } from "./etat";
 import { bailSuivi, periodeBail } from "@/components/gestion/echeancier";
 import { locationDe } from "@/components/location/bienLocation";
 import { loyerGele } from "@/components/location/loi";
+import { lienRetour, visitesARetour, type RdvRetour } from "@/components/retour/retour";
 
-export type CategorieEnvoi = "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "pont" | "apres";
+export type CategorieEnvoi = "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "retour" | "pont" | "apres";
 
 export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" | "warn" | "ok" | "brand" | "info" | "neutral" }> = {
   lead: { label: "Nouveau lead", tone: "danger" },
@@ -37,10 +38,11 @@ export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" |
   proposition: { label: "Bien à proposer", tone: "ok" },
   vente: { label: "Point de vente", tone: "brand" },
   vendeur: { label: "Compte rendu vendeur", tone: "info" },
+  retour: { label: "Retour de visite", tone: "info" },
   pont: { label: "Gestion ↔ vente", tone: "brand" },
   apres: { label: "Après-vente", tone: "neutral" },
 };
-const ORDRE: CategorieEnvoi[] = ["lead", "vente", "baisse", "relance", "vendeur", "proposition", "pont", "apres"];
+const ORDRE: CategorieEnvoi[] = ["lead", "vente", "baisse", "relance", "retour", "vendeur", "proposition", "pont", "apres"];
 
 export interface Envoi {
   /** Identifie ce message précis : un nouvel évènement donne une nouvelle clé. */
@@ -257,6 +259,33 @@ export function envoisDuJour(d: Donnees, etat: EtatBoite | null, lienAvis?: stri
       );
   }
   propositions.sort((x, y) => (y.score ?? 0) - (x.score ?? 0)).slice(0, 15).forEach(ajouter);
+
+  // Retour de visite : lien vers le questionnaire d'une minute, par SMS
+  for (const r of visitesARetour(d.rdvs as RdvRetour[])) {
+    if (!r.retourId) continue;
+    const b = d.biens.find((x) => x.id === r.bienId);
+    const titre = b ? titrePublic(b) : "le bien";
+    const lien = lienRetour(r.retourId);
+    for (const id of r.contactIds ?? []) {
+      const c = parId.get(id);
+      if (!c?.tel) continue;
+      const cle = `retour:${r.id}:${c.id}`;
+      ajouter({
+        cle,
+        cat: "retour",
+        contact: c,
+        bien: b,
+        raison: `Visite de ${b?.titre ?? titre} faite : lui demander son avis`,
+        sujet: `Votre avis sur la visite : ${titre}`,
+        mail: [bonjour(c), "", `Merci d'avoir visité ${titre}. Pourriez-vous me donner votre avis ? Une minute suffit : ${lien}`, "", "Vos impressions m'aident à vous proposer les biens qui vous correspondent vraiment.", "", signatureMail()].join("\n"),
+        sms: [bonjour(c), `Merci pour la visite de ${titre}. Votre avis en une minute : ${lien}`, `${nomConseiller()}, PATRIM`].join("\n"),
+        fait: (canal) => {
+          void noterBoite("envoyes", cle, new Date().toISOString());
+          historique(c.id, canal, `Demande d'avis après la visite : ${titre}`);
+        },
+      });
+    }
+  }
 
   // Pont gestion ↔ vente : bailleurs dont le bail arrive à son terme ou dont le loyer est gelé,
   // acquéreurs investisseurs à qui proposer la mise en location et la gestion.

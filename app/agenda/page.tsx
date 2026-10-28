@@ -8,6 +8,7 @@ import { RdvCard } from "@/components/agenda/RdvCard";
 import { RdvForm, type RdvInitial } from "@/components/agenda/RdvForm";
 import { CompteRenduSheet } from "@/components/agenda/CompteRenduSheet";
 import { RDV_DOT, crAFaire, finDe, jourDe, lundiDe, titreRdv, type RdvExt } from "@/components/agenda/utils";
+import { Tournee } from "@/components/agenda/Tournee";
 import { useCollection } from "@/lib/store";
 import { addDays, dateCourte, dateLongue, heure, today } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
@@ -140,7 +141,10 @@ function Agenda() {
         </div>
       ) : vue === "jour" ? (
         duJour.length ? (
-          <Timeline items={duJour} render={(r) => card(r)} now={now} showNow />
+          <div className="space-y-4">
+            <Tournee rdvs={duJour} bienOf={bienOf} />
+            <Timeline items={duJour} render={(r) => card(r)} now={now} showNow />
+          </div>
         ) : (
           <div className="card">
             <Empty
