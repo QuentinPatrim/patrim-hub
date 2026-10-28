@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  FileSearch,
   ArrowLeft,
   CalendarPlus,
   ChevronDown,
@@ -296,6 +297,9 @@ export default function BienPage() {
         )}
         <Link href={`/biens/${b.id}/annonce`} className="btn-secondary shrink-0">
           <Megaphone size={16} /> Annonce
+        </Link>
+        <Link href={`/biens/${b.id}/lire`} className="btn-secondary shrink-0">
+          <FileSearch size={16} /> Lire un document
         </Link>
         <button className="btn-secondary shrink-0" onClick={() => setEditing("")}>
           <Pencil size={16} /> Modifier
