@@ -75,8 +75,12 @@ function geopoint(l: Ligne) {
 
 async function dpe(cps: string[], depuis: string, auj: string): Promise<{ signaux: SignalPublic[]; erreur?: string }> {
   // Champ de date : réception par l'ADEME, sinon établissement
-  let r = await lignesAdeme("dpe03existant", "date_reception_dpe", "code_postal_ban", cps, depuis);
-  if (!r.ok) r = await lignesAdeme("dpe03existant", "date_etablissement_dpe", "code_postal_ban", cps, depuis);
+  let r: Awaited<ReturnType<typeof json>> = { ok: false, status: 0, data: null };
+  for (const id of await idDpe()) {
+    r = await lignesAdeme(id, "date_reception_dpe", "code_postal_ban", cps, depuis);
+    if (!r.ok) r = await lignesAdeme(id, "date_etablissement_dpe", "code_postal_ban", cps, depuis);
+    if (r.ok) break;
+  }
   if (!r.ok) return { signaux: [], erreur: `Base des DPE indisponible (${r.status || "réseau"}).` };
   const lignes: Ligne[] = r.data?.results ?? [];
   const signaux = lignes
@@ -118,6 +122,14 @@ async function dpe(cps: string[], depuis: string, auj: string): Promise<{ signau
   return { signaux: [...vus.values()] };
 }
 
+/** Jeu ADEME des DPE des logements existants (l'identifiant a changé au fil des versions). */
+async function idDpe(): Promise<string[]> {
+  const r = await json(`${ADEME}?q=${encodeURIComponent("DPE logements existants")}&size=30&select=id,title`);
+  const liste: { id: string; title?: string }[] = r.data?.results ?? [];
+  const bons = liste.filter((d) => /dpe/i.test(d.id + " " + (d.title ?? "")) && /existant/i.test(d.id + " " + (d.title ?? "")) && !/tertiaire|neuf|avant|2012|audit/i.test(d.title ?? ""));
+  return [...new Set(["dpe03existant", ...bons.map((d) => d.id)])];
+}
+
 /** Jeu ADEME des audits énergétiques, s'il est publié (trouvé par recherche dans le catalogue). */
 async function idAudits(): Promise<string | undefined> {
   const r = await json(`${ADEME}?q=audit%20energetique%20logement&size=20&select=id,title`);
@@ -134,15 +146,23 @@ async function audits(cps: string[], depuis: string): Promise<{ signaux: SignalP
     ["date_reception_audit", "code_postal_ban"],
     ["date_etablissement", "code_postal_ban"],
   ]) {
-    const r = await lignesAdeme(id, date, cp, cps, depuis, 500);
+    const r = await lignesAdeme(id, date, cp, cps, depuis, 2000);
     if (!r.ok) continue;
-    const lignes: Ligne[] = r.data?.results ?? [];
+    // Une ligne par étape de travaux : on garde une ligne par audit (l'état initial)
+    const parAudit = new Map<string, Ligne>();
+    for (const l of (r.data?.results ?? []) as Ligne[]) {
+      const k = premier(l, "n_audit", "numero_audit") || premier(l, "adresse_ban");
+      const etape = premier(l, "id_etape", "etape_travaux");
+      if (!parAudit.has(k) || /^0$|initial/i.test(etape)) parAudit.set(k, l);
+    }
+    const lignes = [...parAudit.values()];
     return {
       signaux: lignes
         .map((l): SignalPublic | null => {
           const adresse = premier(l, "adresse_ban", "adresse_brut");
           if (!adresse) return null;
-          const classe = premier(l, "etiquette_dpe", "classe_bilan_dpe", "etiquette_dpe_initial").toUpperCase();
+          const classe = premier(l, "classe_bilan_dpe", "etiquette_dpe").toUpperCase();
+          const surface = nombre(l.surface_habitable_logement);
           return {
             id: `audit:${premier(l, "numero_audit", "n_audit", "_id") || adresse}`,
             source: "audit",
@@ -151,10 +171,11 @@ async function audits(cps: string[], depuis: string): Promise<{ signaux: SignalP
             codePostal: premier(l, "code_postal_ban"),
             ville: premier(l, "nom_commune_ban"),
             ...geopoint(l),
-            titre: `Audit énergétique${classe ? ` · classe ${classe}` : ""}`,
+            titre: `Audit énergétique${classe ? ` · classe ${classe}` : ""}${surface ? ` · ${Math.round(surface)} m²` : ""}`,
             detail: "Audit obligatoire avant la vente d'une maison classée E, F ou G : vente probable",
             classe,
             type: "maison",
+            surface,
             score: 6,
           };
         })
@@ -221,7 +242,7 @@ export async function GET(req: Request) {
   const id = await idAudits();
   const where = `numerodepartement="31" AND dateparution>=date'${depuis}'`;
   return NextResponse.json({
-    dpe: champs(await lignesAdeme("dpe03existant", "date_reception_dpe", "code_postal_ban", ["31000"], depuis, 1)),
+    dpe: await Promise.all((await idDpe()).map(async (id) => ({ id, ...champs(await lignesAdeme(id, "date_reception_dpe", "code_postal_ban", ["31000"], depuis, 1)) }))),
     audits: { id, ...(id ? champs(await json(`${ADEME}/${id}/lines?size=1`)) : {}) },
     bodacc: champs(await json(`${BODACC}?where=${encodeURIComponent(where)}&limit=1`)),
   });
