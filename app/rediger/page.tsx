@@ -100,14 +100,14 @@ export default function RedigerPage() {
       </div>
 
       {/* Liste */}
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="mt-8 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto no-scrollbar px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {(["tous", ...kinds.map((k) => k.v)] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setVue(v)}
-              className={cx("chip !h-9 !px-3.5 capitalize", vue === v && "!border-accent !text-accent")}
+              className={cx("chip !h-9 shrink-0 !px-3.5", vue === v && "!border-accent !text-accent")}
             >
               {v === "tous" ? "Tous" : KINDS.find((k) => k.v === v)?.label}
               <span className="ml-1.5 tabular-nums opacity-60">{compteur(v)}</span>
@@ -134,18 +134,18 @@ export default function RedigerPage() {
             <Empty icon={<Search size={20} />} title="Aucun document ici" text="Changez de filtre ou de recherche." />
           </div>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {filtres.map(({ bien, acte }) => {
               const st = statutActe(acte);
               return (
-                <li key={acte.id}>
-                  <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex gap-4 min-w-0">
+                <li key={acte.id} className="min-w-0">
+                  <Link href={lienActe(bien.id, acte)} className="card card-pad card-hover group flex min-w-0 gap-3 sm:gap-4">
                     <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-surface-2 text-brand">
                       {acte.kind === "mandat" ? <FileSignature size={18} /> : acte.kind === "offre" ? <Handshake size={18} /> : acte.kind === "bail" ? <KeyRound size={18} /> : acte.kind === "caution" ? <ShieldCheck size={18} /> : acte.kind === "gestion" ? <Building2 size={18} /> : <PenLine size={18} />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold group-hover:text-accent">{titreActe(acte)}</p>
-                      <p className="mt-0.5 truncate text-xs text-muted">{resumeActe(acte)}</p>
+                      <p className="line-clamp-2 break-words font-semibold leading-snug group-hover:text-accent">{titreActe(acte)}</p>
+                      <p className="mt-0.5 line-clamp-2 break-words text-xs text-muted">{resumeActe(acte)}</p>
                       <p className="mt-1 truncate text-[11px] text-muted">
                         <Home size={11} className="mr-1 inline" />
                         {bien.titre || bien.adresse || "Bien sans titre"}
