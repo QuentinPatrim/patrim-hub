@@ -67,10 +67,10 @@ export default function AfficheVitrine() {
 
       <div className="overflow-x-auto py-4 print:p-0">
         <div className="vitrine-feuille mx-auto flex flex-col bg-white shadow-xl" style={{ width: "210mm", height: "297mm" }}>
-          <div className="flex items-center justify-between px-[14mm] py-[8mm]" style={{ background: C.brand }}>
+          <div className="flex items-center justify-between px-[14mm] py-[7mm]" style={{ borderBottom: `2mm solid ${C.brand}` }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="PATRIM" className="h-[12mm] w-auto brightness-0 invert" />
-            <span className="text-[13pt] font-semibold uppercase tracking-[0.2em] text-white/90">{f.sousOffre ? "Sous offre" : f.disponible ? "À vendre" : "Vendu"}</span>
+            <img src="/logo.png" alt="PATRIM" className="h-[13mm] w-auto" />
+            <span className="rounded-[2mm] px-[4mm] py-[2mm] text-[13pt] font-semibold uppercase tracking-[0.2em] text-white" style={{ background: C.brand }}>{f.sousOffre ? "Sous offre" : f.disponible ? "À vendre" : "Vendu"}</span>
           </div>
           {f.photos[0] ? (
             // eslint-disable-next-line @next/next/no-img-element

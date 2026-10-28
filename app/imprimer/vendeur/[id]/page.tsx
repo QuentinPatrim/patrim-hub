@@ -55,11 +55,11 @@ export default function EspaceVendeur() {
   const s = e.stats;
   return (
     <div className="min-h-dvh pb-10" style={{ background: C.paper, color: C.ink, colorScheme: "light" }}>
-      <header className="px-4 py-4" style={{ background: C.brand }}>
+      <header className="bg-white px-4 py-3" style={{ borderBottom: `3px solid ${C.brand}` }}>
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="PATRIM" className="h-8 w-auto brightness-0 invert" />
-          <span className="text-xs font-medium text-white/80">Suivi de votre vente</span>
+          <img src="/logo.png" alt="PATRIM" className="h-8 w-auto" />
+          <span className="text-xs font-semibold" style={{ color: C.brand }}>Suivi de votre vente</span>
         </div>
       </header>
 
