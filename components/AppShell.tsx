@@ -5,6 +5,7 @@ import clsx from "clsx";
 import {
   ArrowRight,
   Building2,
+  CalendarClock,
   CalendarDays,
   Calculator,
   Home,
@@ -50,6 +51,7 @@ export const NAV_LOCATION = [
   { href: "/biens", label: "Biens à louer", icon: Building2 },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/echeancier", label: "Échéancier", icon: CalendarClock },
   { href: "/locatives", label: "Estimation locative", icon: KeyRound },
   { href: "/rediger", label: "Rédiger", icon: FileSignature },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
