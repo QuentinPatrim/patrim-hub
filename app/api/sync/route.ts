@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import { cleServiceSupabase, secretSynchro } from "@/lib/env";
+import { notifier } from "@/lib/push-server";
 import type { Bien, BienType, Contact, Rdv, RdvType, Source, Tache } from "@/lib/types";
 
 /* POST /api/sync : reçoit ce que le script Google (Gmail + Agenda) envoie.
@@ -59,6 +60,21 @@ export async function POST(req: Request) {
     const { error: e } = await db.from("hub_docs").upsert(lignes.slice(i, i + 500));
     if (e) return NextResponse.json({ error: e.message, bilan }, { status: 500 });
   }
+
+  // Nouveaux leads récents : notification sur le téléphone du conseiller (jamais au client)
+  const nouveaux = s
+    .modifies()
+    .filter((d) => d.kind === "contacts")
+    .map((d) => d.data as unknown as Contact)
+    .filter((c) => c.synchro === "gmail" && c.dateRelance === jour() && Date.now() - new Date(c.createdAt).getTime() < 10 * 60000);
+  if (nouveaux.length)
+    await notifier(db, user, {
+      titre: nouveaux.length > 1 ? `${nouveaux.length} nouveaux leads` : `Nouveau lead : ${[nouveaux[0].prenom, nouveaux[0].nom].filter(Boolean).join(" ")}`,
+      texte: nouveaux.length > 1 ? nouveaux.map((c) => [c.prenom, c.nom].filter(Boolean).join(" ")).join(", ") : (nouveaux[0].historique?.[0]?.texte ?? "").split("\n")[0] + " · Brouillon prêt dans Gmail",
+      url: nouveaux.length > 1 ? "/a-envoyer" : `/contacts/${nouveaux[0].id}`,
+      tag: "lead",
+    }).catch(() => 0);
+
   return NextResponse.json({ ok: true, bilan });
 }
 
