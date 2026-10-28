@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { roleEquipe, utilisateur } from "@/lib/auth-server";
-import { CONSERVATION_JOURS, DUREE_LIEN_JOURS, nettoyerPrenom, type ContextePublic, type KindFiche } from "@/components/fiches/fiche";
+import { CONSERVATION_JOURS, DUREE_LIEN_JOURS, nettoyerControle, nettoyerPrenom, type ContextePublic, type KindFiche } from "@/components/fiches/fiche";
 import { depotFiches, empreinte, ENTETES, nouveauJeton, type FicheServeur } from "@/components/fiches/serveur";
 
 /* Fiches vendeur et acquéreur, côté conseiller (compte de l'équipe obligatoire).
    Une fiche est visible par le conseiller qui l'a créée, le titulaire et le
    responsable ; jamais par les autres collègues.
    GET  ?bien=<id>&kind=vendeur|acquereur : fiches du bien, avec les réponses.
-   POST { action } : creer, lien, fermer, supprimer. */
+   POST { action } : creer, lien, fermer, controler (évaluation du risque par l'agence), supprimer. */
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,7 @@ function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
   };
 }
 
-const erreurBase = (e: unknown, defaut: string) => ((e as Error).message?.includes("hub_fiches") ? "La base n'est pas encore prête : il reste une mise à jour à lancer dans Supabase." : defaut);
+const erreurBase = (e: unknown, defaut: string) => (/hub_fiches|controle/.test((e as Error).message ?? "") ? "La base n'est pas encore prête : il reste une mise à jour à lancer dans Supabase." : defaut);
 const sansCompte = ({ userId: _u, ...f }: FicheServeur) => f;
 
 export async function GET(req: Request) {
@@ -97,6 +97,11 @@ export async function POST(req: Request) {
       const rouvrir = corps.ferme === false;
       await d.maj(f.id, { ferme: !rouvrir, expire: rouvrir ? prolonger() : undefined });
       return NextResponse.json({ ok: true }, { headers: ENTETES });
+    }
+    if (corps.action === "controler") {
+      const controle = nettoyerControle(corps.controle);
+      await d.maj(f.id, { controle });
+      return NextResponse.json({ controle }, { headers: ENTETES });
     }
     if (corps.action === "supprimer") {
       await d.supprimer(f.id);

@@ -8,7 +8,7 @@ import { C, MENTIONS } from "@/components/documents/charte";
 import { ACTE_PRINT_CSS, Pagine } from "@/components/documents/blocs";
 import { listerFiches } from "@/components/fiches/client";
 import { alertesFiche } from "@/components/fiches/FichesBien";
-import { groupesReponses, TITRE_FICHE, type Fiche } from "@/components/fiches/fiche";
+import { RISQUES, groupesReponses, TITRE_FICHE, type Fiche } from "@/components/fiches/fiche";
 import { useDoc } from "@/lib/store";
 import { useRetour } from "@/lib/retour";
 
@@ -73,6 +73,7 @@ export default function FicheClientPdf() {
     .map((g) => ({ ...g, lignes: g.lignes.filter(([, v]) => v) }))
     .filter((g) => g.lignes.length);
   const alertes = alertesFiche(f.kind, r, b?.prix);
+  const ctl = f.controle ?? {};
 
   return (
     <div className="acte-root min-h-dvh pb-10" style={{ background: C.paper, color: C.ink, colorScheme: "light" }}>
@@ -159,14 +160,24 @@ export default function FicheClientPdf() {
                   <p style={{ color: C.slate }}>Aucun point de vigilance particulier relevé dans les réponses.</p>
                 )}
                 <div className="mt-[3mm] grid grid-cols-3 gap-[3mm] text-[8pt]" style={{ color: C.slate }}>
-                  <span>☐ Risque faible</span>
-                  <span>☐ Risque moyen</span>
-                  <span>☐ Risque élevé</span>
-                  <span>☐ Pièce d&apos;identité vérifiée</span>
-                  <span className="col-span-2">☐ Justificatifs {f.kind === "vendeur" ? "de propriété" : "de l'origine des fonds"} reçus</span>
+                  {RISQUES.map((x) => (
+                    <span key={x.v} style={ctl.risque === x.v ? { color: C.ink, fontWeight: 600 } : undefined}>
+                      {ctl.risque === x.v ? "☒" : "☐"} {x.label}
+                    </span>
+                  ))}
+                  <span style={ctl.identiteVerifiee ? { color: C.ink } : undefined}>{ctl.identiteVerifiee ? "☒" : "☐"} Pièce d&apos;identité vérifiée</span>
+                  <span className="col-span-2" style={ctl.justificatifs ? { color: C.ink } : undefined}>
+                    {ctl.justificatifs ? "☒" : "☐"} Justificatifs {f.kind === "vendeur" ? "de propriété" : "de l'origine des fonds"} reçus
+                  </span>
                 </div>
+                {ctl.commentaire && (
+                  <p className="mt-[2mm] text-[8.4pt]">
+                    <span style={{ color: C.slate }}>Mesures et remarques : </span>
+                    {ctl.commentaire}
+                  </p>
+                )}
                 <p className="mt-[3mm] text-[8pt]" style={{ color: C.slate }}>
-                  Contrôlé par ……………………………………… le ………………………
+                  Contrôlé par {ctl.par ? <span style={{ color: C.ink }}>{ctl.par}</span> : "………………………………………"} le {ctl.le ? <span style={{ color: C.ink }}>{dateFr(ctl.le)}</span> : "………………………"}
                 </p>
               </section>
 

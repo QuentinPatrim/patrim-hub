@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, FileSignature, FileText, Handshake, Link2, Lock, RefreshCw, ShieldAlert, Trash2, UserPlus, Users } from "lucide-react";
+import { ClipboardList, FileSignature, FileText, Handshake, Link2, Lock, RefreshCw, ShieldAlert, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { Badge, Card, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { PartageLien } from "@/components/renseignements/Partage";
-import { dateCourte, eur, ilya } from "@/lib/format";
+import { dateCourte, eur, ilya, today } from "@/lib/format";
+import { nomConseiller } from "@/lib/equipe";
 import type { Bien } from "@/lib/types";
 import {
   autreOffreEnCours,
   conjointAConsentir,
   contactsDepuisFiche,
+  controlerFiche,
   contextePublic,
   creerFiche,
   fermerFiche,
@@ -23,7 +25,7 @@ import {
   preparerOffre,
   supprimerFiche,
 } from "./client";
-import { groupesReponses, manquantsReponses, TITRE_FICHE, type Fiche, type KindFiche, type Reponses } from "./fiche";
+import { controleFait, groupesReponses, manquantsReponses, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
 
 /* ============================================================
    Côté conseiller : fiches vendeur ou acquéreur envoyées pour un
@@ -60,6 +62,12 @@ export function alertesFiche(kind: KindFiche, r: Reponses, prixAffiche?: number)
   }
   return out;
 }
+
+/** Risque proposé d'après les réponses : à confirmer par le conseiller. */
+export const risqueSuggere = (kind: KindFiche, r: Reponses, prix?: number): Risque => {
+  const a = alertesFiche(kind, r, prix);
+  return a.some((x) => x.grave) ? "eleve" : a.some((x) => !/sous le prix affiché|Crédit en cours/.test(x.texte)) ? "moyen" : "faible";
+};
 
 /** Carte de la fiche du bien (vente) : résumé et accès aux deux fiches. */
 export function FichesCarte({ b }: { b: Bien }) {
@@ -99,6 +107,7 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
   const [nouveau, setNouveau] = useState(false);
   const [envoi, setEnvoi] = useState<Envoi | null>(null);
   const [voir, setVoir] = useState<Fiche | null>(null);
+  const [evaluer, setEvaluer] = useState<Fiche | null>(null);
   const [busy, setBusy] = useState(false);
   const vendeur = kind === "vendeur";
 
@@ -169,6 +178,7 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
             b={b}
             busy={busy}
             onVoir={() => setVoir(f)}
+            onEvaluer={() => setEvaluer(f)}
             onPreparer={() => preparer(f)}
             onContacts={() => {
               contactsDepuisFiche(b, f);
@@ -221,6 +231,19 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         </Sheet>
       )}
 
+      {evaluer && (
+        <Evaluation
+          f={evaluer}
+          prix={b.prix}
+          onClose={() => setEvaluer(null)}
+          onSave={async (c) => {
+            await controlerFiche(evaluer.id, c);
+            setEvaluer(null);
+            await charger();
+          }}
+        />
+      )}
+
       {envoi && (
         <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${envoi.prenom || (vendeur ? "le vendeur" : "l'acquéreur")}`}>
           <p className="mb-3 text-sm text-muted">Le message est prêt : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
@@ -244,6 +267,7 @@ function CarteFiche({
   b,
   busy,
   onVoir,
+  onEvaluer,
   onPreparer,
   onContacts,
   onLien,
@@ -254,6 +278,7 @@ function CarteFiche({
   b: Bien;
   busy: boolean;
   onVoir: () => void;
+  onEvaluer: () => void;
   onPreparer: () => void;
   onContacts: () => void;
   onLien: () => void;
@@ -293,6 +318,29 @@ function CarteFiche({
             </p>
           ))}
         </div>
+      )}
+      {avecNom && (
+        <button type="button" onClick={onEvaluer} className="flex min-h-[52px] w-full items-center gap-3 border-t border-line/70 px-5 py-2.5 text-left hover:bg-surface-2">
+          <ShieldCheck size={18} className={cx("shrink-0", controleFait(f.controle) ? "text-ok" : "text-warn")} />
+          <span className="min-w-0 flex-1 text-sm">
+            {controleFait(f.controle) ? (
+              <>
+                <span className="font-medium">{RISQUES.find((x) => x.v === f.controle!.risque)?.label}</span>
+                <span className="block text-xs text-muted">
+                  Évalué {f.controle!.par ? `par ${f.controle!.par} ` : ""}le {dateCourte(f.controle!.le!)}
+                  {f.controle!.identiteVerifiee ? " · identité vérifiée" : ""}
+                  {f.controle!.justificatifs ? " · justificatifs reçus" : ""}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-medium">Évaluer le risque</span>
+                <span className="block text-xs text-muted">Vigilance anti-blanchiment, repris dans le PDF</span>
+              </>
+            )}
+          </span>
+          {controleFait(f.controle) ? <Badge tone={f.controle!.risque === "eleve" ? "danger" : f.controle!.risque === "moyen" ? "warn" : "ok"}>Fait</Badge> : <Badge tone="warn">À faire</Badge>}
+        </button>
       )}
       <div className="card-pad !pt-3 space-y-2 border-t border-line/70">
         <div className="grid gap-2 sm:grid-cols-2">
@@ -415,6 +463,98 @@ function NouvelleFiche({ open, kind, onClose, onCree }: { open: boolean; kind: K
           <input className="input" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <p className="text-xs text-muted">Ces coordonnées servent seulement à préparer le message ; le client saisit lui-même les siennes dans la fiche. Une seule fiche suffit pour un couple ou une indivision : il y ajoute les autres personnes.</p>
+        {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
+      </div>
+    </Sheet>
+  );
+}
+
+/** Évaluation du risque par l'agence : remplace les cases à cocher du PDF imprimé. */
+function Evaluation({ f, prix, onClose, onSave }: { f: Fiche; prix?: number; onClose: () => void; onSave: (c: Controle) => Promise<void> }) {
+  const r = f.reponses ?? {};
+  const suggere = risqueSuggere(f.kind, r, prix);
+  const [c, setC] = useState<Controle>(() => ({ par: nomConseiller() || undefined, le: today(), ...f.controle, risque: f.controle?.risque ?? suggere }));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const alertes = alertesFiche(f.kind, r, prix);
+  const set = (x: Partial<Controle>) => setC((y) => ({ ...y, ...x }));
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Évaluation du risque"
+      footer={
+        <button
+          type="button"
+          className="btn-primary w-full !h-12"
+          disabled={busy || !c.risque}
+          onClick={async () => {
+            setBusy(true);
+            setErr(null);
+            try {
+              await onSave({ ...c, le: c.le || today() });
+            } catch (e) {
+              setErr((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <Spinner /> : <ShieldCheck size={16} />} Enregistrer l&apos;évaluation
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-muted">{nomFiche(f)}</p>
+        {alertes.length ? (
+          <div className="space-y-1.5">
+            {alertes.map((a) => (
+              <p key={a.texte} className={cx("rounded-xl px-3 py-2 text-xs", a.grave ? "bg-danger/10 text-danger" : "bg-warn/10")}>
+                {a.texte}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl bg-ok/10 px-3 py-2 text-xs">Aucun point de vigilance particulier dans les réponses.</p>
+        )}
+        <div>
+          <span className="label">Niveau de risque</span>
+          <div className="grid grid-cols-3 gap-2">
+            {RISQUES.map((x) => (
+              <button
+                key={x.v}
+                type="button"
+                onClick={() => set({ risque: x.v })}
+                className={cx(
+                  "min-h-12 rounded-2xl border px-2 text-sm font-medium transition active:scale-[.97]",
+                  c.risque === x.v ? (x.v === "eleve" ? "border-danger bg-danger text-white" : x.v === "moyen" ? "border-warn bg-warn text-white" : "border-ok bg-ok text-white") : "border-line bg-surface"
+                )}
+              >
+                {x.label.replace("Risque ", "")}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">Proposé d&apos;après les réponses : {RISQUES.find((x) => x.v === suggere)?.label.toLowerCase()}. À vous de trancher.</p>
+        </div>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+          <input type="checkbox" className="size-5 shrink-0 accent-[#6c191e]" checked={!!c.identiteVerifiee} onChange={(e) => set({ identiteVerifiee: e.target.checked })} />
+          Pièce d&apos;identité vérifiée (en cours de validité, conforme à la fiche)
+        </label>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+          <input type="checkbox" className="size-5 shrink-0 accent-[#6c191e]" checked={!!c.justificatifs} onChange={(e) => set({ justificatifs: e.target.checked })} />
+          {f.kind === "vendeur" ? "Justificatifs de propriété reçus (titre de propriété)" : "Justificatifs de l'origine des fonds reçus"}
+        </label>
+        <Field label="Mesures prises, remarques (facultatif)">
+          <textarea className="input min-h-[80px] text-sm" value={c.commentaire ?? ""} onChange={(e) => set({ commentaire: e.target.value })} placeholder="Ex. relevé bancaire de l'apport demandé, accord du responsable obtenu le…" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Contrôlé par">
+            <input className="input" value={c.par ?? ""} onChange={(e) => set({ par: e.target.value })} />
+          </Field>
+          <Field label="Le">
+            <input type="date" className="input" value={c.le ?? ""} onChange={(e) => set({ le: e.target.value })} />
+          </Field>
+        </div>
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
     </Sheet>
