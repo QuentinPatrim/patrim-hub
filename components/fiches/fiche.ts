@@ -131,6 +131,24 @@ export interface ContextePublic {
   conseiller?: { nom: string; tel?: string; mail?: string };
 }
 
+/** Évaluation du risque par l'agence (vigilance anti-blanchiment) : saisie par le conseiller, jamais montrée au client. */
+export type Risque = "faible" | "moyen" | "eleve";
+export interface Controle {
+  risque?: Risque;
+  identiteVerifiee?: boolean;
+  justificatifs?: boolean;
+  /** Mesures prises ou remarques (vigilance renforcée, pièces demandées…). */
+  commentaire?: string;
+  par?: string;
+  le?: string; // AAAA-MM-JJ
+}
+export const RISQUES: { v: Risque; label: string }[] = [
+  { v: "faible", label: "Risque faible" },
+  { v: "moyen", label: "Risque moyen" },
+  { v: "eleve", label: "Risque élevé" },
+];
+export const controleFait = (c?: Controle) => !!c?.risque && !!c.le;
+
 export interface Fiche {
   id: string;
   kind: KindFiche;
@@ -139,6 +157,7 @@ export interface Fiche {
   prenom: string;
   statut: StatutFiche;
   reponses?: Reponses;
+  controle?: Controle;
   ferme: boolean;
   creeLe: string;
   expire: string;
@@ -540,3 +559,16 @@ export function nettoyerReponses(kind: KindFiche, entree: unknown): Reponses {
 }
 
 export const nettoyerPrenom = (v: unknown) => propre(v, 60) ?? "";
+
+export function nettoyerControle(entree: unknown): Controle {
+  if (!entree || typeof entree !== "object" || Array.isArray(entree)) return {};
+  const s = entree as Record<string, unknown>;
+  return sansVide({
+    risque: choix(s.risque, ["faible", "moyen", "eleve"] as const),
+    identiteVerifiee: bool(s.identiteVerifiee),
+    justificatifs: bool(s.justificatifs),
+    commentaire: propre(s.commentaire, 600),
+    par: propre(s.par, 80),
+    le: date(s.le),
+  });
+}

@@ -13,7 +13,7 @@ import { ecrireMandat, lireMandat, mandatInitial, type Mandat } from "@/componen
 import { ecrireOffre, lireOffre, offreInitiale, partieDepuisContact, type ContactEtatCivil, type Offre, type Partie } from "@/components/offre/offre";
 import { dossierDe, type BienDossier } from "@/components/biens/dossier";
 import type { Bien, Contact, ContactRole } from "@/lib/types";
-import { avecAutres, libelle, OCCUPATIONS, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
+import { avecAutres, libelle, OCCUPATIONS, type Controle, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
 
 async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?: unknown }): Promise<T> {
   const r = await fetch(`/api/fiches${init.query ?? ""}`, {
@@ -33,6 +33,7 @@ export const creerFiche = (kind: KindFiche, bienId: string, contexte: ContextePu
   appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "creer", kind, bienId, contexte, prenom } });
 export const nouveauLienFiche = (id: string) => appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "lien", id } });
 export const fermerFiche = (id: string, ferme: boolean) => appeler<{ ok: true }>({ method: "POST", corps: { action: "fermer", id, ferme } });
+export const controlerFiche = (id: string, controle: Controle) => appeler<{ controle: Controle }>({ method: "POST", corps: { action: "controler", id, controle } });
 export const supprimerFiche = (id: string) => appeler<{ ok: true }>({ method: "POST", corps: { action: "supprimer", id } });
 
 export const lienFiche = (jeton: string) => `${window.location.origin}/informations/${jeton}`;

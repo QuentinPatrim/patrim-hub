@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { cleServiceSupabase } from "@/lib/env";
 import { empreinte, jetonValide, nouveauJeton, ENTETES } from "@/components/renseignements/serveur";
-import { CONSERVATION_JOURS, type ContextePublic, type Fiche, type KindFiche, type Reponses, type StatutFiche } from "./fiche";
+import { CONSERVATION_JOURS, type Controle, type ContextePublic, type Fiche, type KindFiche, type Reponses, type StatutFiche } from "./fiche";
 
 /* ============================================================
    Fiches vendeur et acquéreur : accès serveur uniquement.
@@ -26,6 +26,7 @@ type Row = {
   contexte: ContextePublic;
   prenom: string;
   reponses: Reponses;
+  controle?: Controle;
   statut: StatutFiche;
   ferme: boolean;
   created_at: string;
@@ -43,6 +44,7 @@ const ficheDe = (r: Row): FicheServeur => ({
   prenom: r.prenom,
   statut: r.statut,
   reponses: r.reponses ?? {},
+  controle: r.controle ?? {},
   ferme: r.ferme,
   creeLe: r.created_at,
   expire: r.expires_at,
@@ -54,18 +56,20 @@ export interface DepotFiches {
   fiche(id: string): Promise<FicheServeur | null>;
   duBien(bienId: string, kind?: KindFiche): Promise<FicheServeur[]>;
   creer(x: { userId: string; bienId: string; kind: KindFiche; contexte: ContextePublic; prenom: string; empreinte: string; expire: string }): Promise<string>;
-  maj(id: string, patch: { reponses?: Reponses; statut?: StatutFiche; prenom?: string; empreinte?: string; ferme?: boolean; expire?: string }): Promise<void>;
+  maj(id: string, patch: { reponses?: Reponses; controle?: Controle; statut?: StatutFiche; prenom?: string; empreinte?: string; ferme?: boolean; expire?: string }): Promise<void>;
   supprimer(id: string): Promise<void>;
   purger(): Promise<void>;
 }
 
 const limiteConservation = () => new Date(Date.now() - CONSERVATION_JOURS * 86400_000).toISOString();
-const COLS = "id,user_id,bien_id,kind,contexte,prenom,reponses,statut,ferme,created_at,updated_at,expires_at";
+// Toutes les colonnes : la colonne « controle » (migration 0008) peut manquer sans tout bloquer.
+const COLS = "*";
 
 function ligneMaj(patch: Parameters<DepotFiches["maj"]>[1]) {
   const row: Record<string, unknown> = {};
   if (patch.reponses || patch.statut || patch.prenom != null) row.updated_at = new Date().toISOString();
   if (patch.reponses) row.reponses = patch.reponses;
+  if (patch.controle) row.controle = patch.controle;
   if (patch.statut) row.statut = patch.statut;
   if (patch.prenom != null) row.prenom = patch.prenom;
   if (patch.empreinte) row.token_hash = patch.empreinte;
