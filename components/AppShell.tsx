@@ -1,5 +1,6 @@
 "use client";
 
+import { Dictee } from "@/components/dictee/Dictee";
 import clsx from "clsx";
 import {
   ArrowRight,
@@ -116,6 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button onClick={() => setSearch(true)} className="relative mx-4 mb-5 flex items-center gap-2 h-10 rounded-xl bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] px-3 text-[13px] text-white/50 hover:bg-white/10 hover:text-white/70 transition">
           <Search size={15} /> Rechercher <span className="ml-auto rounded-md border border-white/15 px-1.5 py-px text-[10px] font-medium">⌘K</span>
         </button>
+        <Dictee label className="relative mx-4 -mt-3 mb-5 flex items-center gap-2 h-10 rounded-xl bg-white/[0.06] ring-1 ring-inset ring-white/[0.06] px-3 text-[13px] text-white/60 hover:bg-white/10 hover:text-white/80 transition" />
         <div className="relative px-6 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Menu</div>
         <nav className="relative flex-1 px-3 space-y-0.5">
           {nav.map(({ href, label, icon: Icon }) => {
@@ -165,6 +167,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <Dictee className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" />
             <button onClick={() => setSearch(true)} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Rechercher">
               <Search size={19} />
             </button>
