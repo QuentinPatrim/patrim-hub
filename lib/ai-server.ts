@@ -43,7 +43,11 @@ export async function complete(opts: { system?: string; messages: AiMessage[]; s
     system: [voixPatrim(opts.conseiller), opts.system].filter(Boolean).join("\n\n"),
     output_config: { effort: opts.effort ?? "medium" },
     messages: opts.messages,
-  } as Anthropic.MessageCreateParamsNonStreaming);
+  } as Anthropic.MessageCreateParamsNonStreaming).catch((e: unknown) => {
+    if (/credit balance is too low/i.test(e instanceof Error ? e.message : String(e)))
+      throw new Error("Crédit de l'assistant épuisé : recharge-le sur console.anthropic.com (Plans & Billing), puis réessaie.");
+    throw e;
+  });
   return res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
 }
 
