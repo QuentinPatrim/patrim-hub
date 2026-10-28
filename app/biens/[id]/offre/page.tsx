@@ -3,22 +3,21 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, FileSignature, PenLine, RotateCcw, TriangleAlert } from "lucide-react";
+import { ArrowRight, Check, FileSignature, PenLine, RotateCcw, Send, TriangleAlert } from "lucide-react";
 import { EtapeBtn, Etat, PartieForm } from "@/components/documents/Parties";
 import { Card, Empty, Field, PageHeader } from "@/components/ui";
 import { ContactPicker } from "@/components/biens/ContactPicker";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { NumInput } from "@/components/contacts/CriteresEditor";
 import { PickChip } from "@/components/contacts/bits";
-import { adresseComplete } from "@/components/biens/utils";
 import { enLettres } from "@/components/documents/charte";
 import {
-  designationDepuisBien,
   detailFinancement,
   ecrireOffre,
   effacerOffre,
   enregistrerParties,
   lireOffre,
+  offreInitiale,
   mailDemande,
   manquants,
   partieDepuisContact,
@@ -40,27 +39,6 @@ import type { Bien } from "@/lib/types";
    2. La rédaction : quelques champs, puis le PDF brandé PATRIM
       prêt à déposer sur ICSIGN.
    ============================================================ */
-
-function offreInitiale(b: Bien, vendeurs: Partie[]): Offre {
-  const honoraires = b.honoraires ?? (b.prix && b.netVendeur ? b.prix - b.netVendeur : undefined);
-  return {
-    bienId: b.id,
-    acquereurs: [],
-    vendeurs,
-    designation: designationDepuisBien(b),
-    adresseBien: adresseComplete(b),
-    mandatNumero: b.mandat?.numero,
-    prix: b.prix,
-    honoraires,
-    charge: b.honorairesCharge ?? "acquereur",
-    financement: "pret",
-    conditionSuspensive: true,
-    motif: "pret",
-    validiteJours: 7,
-    date: today(),
-    maj: new Date().toISOString(),
-  };
-}
 
 export default function OffreAchatPage() {
   const { id } = useParams<{ id: string }>();
@@ -150,6 +128,16 @@ export default function OffreAchatPage() {
             <p className="mt-2 text-xs text-muted">Deux acquéreurs au plus (couple, co-acquéreurs).</p>
             <Etat parties={o.acquereurs} onDemande={(p) => setDemande({ p, role: "acquereur" })} />
           </Card>
+          <Link href={`/biens/${b.id}/fiche-acquereur`} className="card card-pad card-hover flex items-center gap-3 animate-fade-up">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
+              <Send size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Faire remplir la fiche acquéreur</span>
+              <span className="block text-xs text-muted">Un lien : il saisit identité, prix, financement et origine des fonds. Ses réponses remplissent l&apos;offre.</span>
+            </span>
+            <ArrowRight size={16} className="shrink-0 text-muted" />
+          </Link>
 
           <Card title="Vendeur">
             <ContactPicker value={o.vendeurs.map((p) => p.contactId!).filter(Boolean)} onChange={(ids) => choisir("vendeurs", ids)} role="vendeur" max={4} placeholder="Rechercher le vendeur…" />

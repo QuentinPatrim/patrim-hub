@@ -10,8 +10,8 @@ import { chargerMoi, conseiller, viderAppareil } from "@/lib/equipe";
 export function AuthGate({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  // Fiche d'un bien envoyée à un acquéreur, fiche de renseignements d'un candidat locataire : sans compte.
-  const publique = path.startsWith("/imprimer/partage/") || path.startsWith("/renseignements/");
+  // Fiche d'un bien envoyée à un acquéreur, fiche de renseignements d'un candidat locataire, fiche vendeur ou acquéreur : sans compte.
+  const publique = path.startsWith("/imprimer/partage/") || path.startsWith("/renseignements/") || path.startsWith("/informations/");
   const [ok, setOk] = useState(!supabase || publique);
 
   useEffect(() => {

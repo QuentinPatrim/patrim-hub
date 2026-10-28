@@ -59,6 +59,7 @@ import type { Bien, BienStatut, Contact } from "@/lib/types";
 
 import { LocationBien } from "@/components/location/LocationBien";
 import { RenseignementsCarte } from "@/components/renseignements/DossiersBien";
+import { FichesCarte } from "@/components/fiches/FichesBien";
 import { choisirEspace, useEspace } from "@/components/espace/espace";
 import { STATUT_LOCATION, locationDe, locationSeule } from "@/components/location/bienLocation";
 /** Champ manquant → section du formulaire. */
@@ -338,6 +339,7 @@ export default function BienPage() {
           {(b.statut === "vendu" || venteSignee(b)) && <ApresVenteFiche b={b} />}
 
           {!locationSeule(b) && <AcquereursCompatibles bien={b} matches={matches} />}
+          {!aLouer && <FichesCarte b={b} />}
 
           {aLouer && <LocationBien b={b} />}
           {aLouer && <RenseignementsCarte b={b} />}
