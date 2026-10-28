@@ -19,6 +19,7 @@ import {
   X,
   Settings,
   Send,
+  Radar,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -39,6 +40,7 @@ export const NAV_VENTE = [
   { href: "/estimations", label: "Estimations", icon: Calculator },
   { href: "/rediger", label: "Rédiger", icon: FileSignature },
   { href: "/a-envoyer", label: "À envoyer", icon: Send },
+  { href: "/radar", label: "Radar vendeurs", icon: Radar },
   { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
