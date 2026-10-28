@@ -5,9 +5,9 @@
 
 import clsx from "clsx";
 import { ChevronLeft, X } from "lucide-react";
-import Link from "next/link";
 import { useEffect, type ReactNode } from "react";
 import type { Tone } from "@/lib/format";
+import { useRetour } from "@/lib/retour";
 
 export { clsx as cx };
 
@@ -29,9 +29,7 @@ export function PageHeader({ title, subtitle, actions, back }: { title: ReactNod
     <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between animate-fade-up">
       <div className="min-w-0">
         {back ? (
-          <Link href={back} className="-ml-1 mb-2 inline-flex items-center gap-1 h-8 pl-1 pr-2.5 rounded-full text-xs font-medium text-muted hover:text-fg hover:bg-fg/[0.05] transition">
-            <ChevronLeft size={16} /> Retour
-          </Link>
+          <BoutonRetour parent={back} />
         ) : (
           <span aria-hidden className="mb-3 block h-[3px] w-7 rounded-full bg-coral" />
         )}
@@ -40,6 +38,16 @@ export function PageHeader({ title, subtitle, actions, back }: { title: ReactNod
       </div>
       {actions && <div className="flex flex-wrap gap-2 [&>*]:min-w-0">{actions}</div>}
     </div>
+  );
+}
+
+/** « Retour » : page précédente de l'appli s'il y en a une, sinon la page parente `parent`. */
+export function BoutonRetour({ parent, label = "Retour", className }: { parent: string; label?: ReactNode; className?: string }) {
+  const retour = useRetour(parent);
+  return (
+    <button type="button" onClick={retour} className={clsx("-ml-1 mb-2 inline-flex items-center gap-1 h-8 pl-1 pr-2.5 rounded-full text-xs font-medium text-muted hover:text-fg hover:bg-fg/[0.05] transition", className)}>
+      <ChevronLeft size={16} /> {label}
+    </button>
   );
 }
 

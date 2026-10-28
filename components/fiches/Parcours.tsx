@@ -29,6 +29,7 @@ import {
   type Societe,
   type VuePublique,
 } from "./fiche";
+import { useEtapesHistorique } from "@/lib/retour";
 
 /* ============================================================
    Page publique de la fiche vendeur ou acquéreur, ouverte depuis
@@ -49,6 +50,13 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [ecran, setEcran] = useState<Ecran>("accueil");
   const [etape, setEtape] = useState(0);
+  // Chaque écran et chaque étape ont leur entrée d'historique : le geste retour revient d'une étape.
+  const aller = useEtapesHistorique<Ecran | number>("parcours", ecran === "fiche" ? etape : ecran, (p) => {
+    if (typeof p === "number") {
+      setEtape(p);
+      setEcran("fiche");
+    } else setEcran(p);
+  });
   const [r, setR] = useState<Reponses>({});
   const [envoi, setEnvoi] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -128,7 +136,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
       <Cadre>
         <div className="sticky top-0 z-10 -mx-4 bg-bg/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center gap-3">
-            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => (etape ? setEtape(etape - 1) : setEcran("accueil"))}>
+            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(etape ? etape - 1 : "accueil")}>
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0 flex-1">
@@ -153,7 +161,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           {etape === 4 && (kind === "vendeur" ? <EtapeBien r={r} setR={setR} kind={kind} /> : <EtapeOffre r={r} setR={setR} kind={kind} prix={vue.contexte.prix} />)}
           {etape === 5 && (kind === "vendeur" ? <EtapeOrigine r={r} setR={setR} kind={kind} /> : <EtapeFinancement r={r} setR={setR} kind={kind} />)}
           {etape === 6 && <EtapeLegales r={r} setR={setR} kind={kind} />}
-          {etape === derniere && <EtapeVerification r={r} setR={setR} kind={kind} manque={manque} allerA={setEtape} />}
+          {etape === derniere && <EtapeVerification r={r} setR={setR} kind={kind} manque={manque} allerA={aller} />}
         </div>
 
         {msg && <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{msg}</p>}
@@ -164,7 +172,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
               className="btn-primary w-full !h-12"
               disabled={envoi}
               onClick={async () => {
-                if (await enregistrer()) setEtape(etape + 1);
+                if (await enregistrer()) aller(etape + 1);
               }}
             >
               Continuer <ArrowRight size={17} />
@@ -175,7 +183,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
               className="btn-primary w-full !h-12"
               disabled={envoi || manque.length > 0 || !r.accord}
               onClick={async () => {
-                if (await enregistrer(true)) setEcran("merci");
+                if (await enregistrer(true)) aller("merci");
               }}
             >
               <Check size={17} /> Envoyer ma fiche
@@ -200,7 +208,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
             Votre fiche est bien arrivée chez votre conseiller PATRIM, qui prépare {kind === "vendeur" ? "votre mandat de vente" : "votre offre d'achat"}. Vous la recevrez pour signature électronique (ICSIGN) sur le mail
             et le portable indiqués. Vous pourrez encore corriger votre fiche avec ce même lien.
           </p>
-          <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => setEcran("accueil")}>
+          <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => aller("accueil")}>
             Revenir à ma fiche
           </button>
         </div>
@@ -220,8 +228,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
         <button
           type="button"
           onClick={() => {
-            setEtape(vue.statut === "termine" ? derniere : 0);
-            setEcran("fiche");
+            aller(vue.statut === "termine" ? derniere : 0);
           }}
           className="card card-pad card-hover flex w-full items-center gap-3 text-left"
         >

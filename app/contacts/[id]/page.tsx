@@ -43,6 +43,7 @@ import { dateLettres, ne, type ContactEtatCivil } from "@/components/offre/offre
 import { useCollection, useDoc } from "@/lib/store";
 import type { Bien, Contact, ContactRole, Criteres, EtapeAcquereur, Rdv, Source } from "@/lib/types";
 import { couverture } from "@/lib/photoAuto";
+import { useRetour } from "@/lib/retour";
 
 type Section = "suivi" | "recherche" | "biens";
 
@@ -111,6 +112,7 @@ export default function ContactPage() {
 
 function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>) => unknown; remove: () => unknown }) {
   const router = useRouter();
+  const retour = useRetour("/contacts");
   const { items: biens } = useCollection("biens");
   const { items: rdvs } = useCollection("rdvs");
   const [section, setSection] = useState<Section>("suivi");
@@ -167,8 +169,8 @@ function Fiche({ c, update, remove }: { c: Contact; update: (p: Partial<Contact>
     <div className="pb-4">
       {/* En-tête */}
       <div className="mb-3 flex items-center justify-between gap-2 animate-fade-up">
-        <button onClick={() => (history.length > 1 ? router.back() : router.push("/contacts"))} className="btn-ghost btn-sm !h-10 -ml-2 text-muted">
-          <ArrowLeft size={16} /> Contacts
+        <button onClick={retour} className="btn-ghost btn-sm !h-10 -ml-2 text-muted">
+          <ArrowLeft size={16} /> Retour
         </button>
         <div className="flex gap-1">
           <button className="btn-ghost btn-sm !h-10" onClick={() => setEdit(true)}>

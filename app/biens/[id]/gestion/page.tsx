@@ -16,6 +16,7 @@ import { locationDe } from "@/components/location/bienLocation";
 import { enregistrerActe, type BienActes } from "@/components/documents/archive";
 import { getAll, useCollection, useDoc } from "@/lib/store";
 import { nomComplet, today } from "@/lib/format";
+import { useEtapesHistorique } from "@/lib/retour";
 
 /* ============================================================
    Rédiger un mandat de gestion locative : 1. les propriétaires (ce qui
@@ -34,6 +35,8 @@ export default function GestionPage() {
   const contacts = contactsRaw as ContactEtatCivil[];
   const [g, setG] = useState<Gestion | null>(null);
   const [etape, setEtape] = useState<"parties" | "redaction">("parties");
+  // Passer d'une étape à l'autre ajoute une entrée d'historique : le geste retour revient aux parties.
+  const allerEtape = useEtapesHistorique("document", etape, setEtape);
   const [demande, setDemande] = useState<Partie | null>(null);
   const [waited, setWaited] = useState(false);
   const init = useRef(false);
@@ -99,10 +102,10 @@ export default function GestionPage() {
       <PageHeader back={`/biens/${b.id}`} title="Mandat de gestion" subtitle={b.titre} />
 
       <div className="grid grid-cols-2 gap-2 animate-fade-up">
-        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => setEtape("parties")}>
+        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => allerEtape("parties")}>
           Les propriétaires
         </EtapeBtn>
-        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => setEtape("redaction")} disabled={!g.mandants.length}>
+        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => allerEtape("redaction")} disabled={!g.mandants.length}>
           Rédaction
         </EtapeBtn>
       </div>
@@ -126,7 +129,7 @@ export default function GestionPage() {
             ) : (
               <p className="text-sm text-muted">Choisissez au moins un propriétaire pour commencer.</p>
             )}
-            <button className="btn-primary w-full !h-12" disabled={!g.mandants.length} onClick={() => setEtape("redaction")}>
+            <button className="btn-primary w-full !h-12" disabled={!g.mandants.length} onClick={() => allerEtape("redaction")}>
               <PenLine size={16} /> Rédiger le mandat maintenant <ArrowRight size={16} />
             </button>
           </div>

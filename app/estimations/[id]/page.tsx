@@ -31,10 +31,12 @@ import { ask } from "@/lib/ai";
 import { dateLongue, eur, eurK, today } from "@/lib/format";
 import { create, getAll, update, useCollection, useDoc } from "@/lib/store";
 import type { MandatType } from "@/lib/types";
+import { useRetour } from "@/lib/retour";
 
 export default function EstimationPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const retour = useRetour("/estimations");
   const { doc: e, update: maj, remove } = useDoc("estimations", id);
   const { items: contacts } = useCollection("contacts");
   const { items: biens } = useCollection("biens");
@@ -165,9 +167,9 @@ export default function EstimationPage() {
     <div className="space-y-4">
       {/* En-tête */}
       <div className="animate-fade-up">
-        <Link href="/estimations" className="text-xs text-muted hover:text-fg">
-          ← Estimations
-        </Link>
+        <button type="button" onClick={retour} className="text-xs text-muted hover:text-fg">
+          ← Retour
+        </button>
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">

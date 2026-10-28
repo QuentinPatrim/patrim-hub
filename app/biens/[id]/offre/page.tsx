@@ -30,6 +30,7 @@ import { enregistrerActe } from "@/components/documents/archive";
 import { getAll, useCollection, useDoc } from "@/lib/store";
 import { eur, nomComplet, today } from "@/lib/format";
 import type { Bien } from "@/lib/types";
+import { useEtapesHistorique } from "@/lib/retour";
 
 /* ============================================================
    Rédiger une offre d'achat, en deux temps :
@@ -48,6 +49,8 @@ export default function OffreAchatPage() {
   const contacts = contactsRaw as ContactEtatCivil[];
   const [o, setO] = useState<Offre | null>(null);
   const [etape, setEtape] = useState<"parties" | "redaction">("parties");
+  // Passer d'une étape à l'autre ajoute une entrée d'historique : le geste retour revient aux parties.
+  const allerEtape = useEtapesHistorique("document", etape, setEtape);
   const [demande, setDemande] = useState<{ p: Partie; role: "acquereur" | "vendeur" } | null>(null);
   const [waited, setWaited] = useState(false);
   const init = useRef(false);
@@ -113,10 +116,10 @@ export default function OffreAchatPage() {
 
       {/* Étapes */}
       <div className="grid grid-cols-2 gap-2 animate-fade-up">
-        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => setEtape("parties")}>
+        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => allerEtape("parties")}>
           Les parties
         </EtapeBtn>
-        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => setEtape("redaction")} disabled={!o.acquereurs.length}>
+        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => allerEtape("redaction")} disabled={!o.acquereurs.length}>
           Rédaction
         </EtapeBtn>
       </div>
@@ -157,7 +160,7 @@ export default function OffreAchatPage() {
             ) : (
               <p className="text-sm text-muted">Choisissez au moins un acquéreur pour commencer.</p>
             )}
-            <button className="btn-primary w-full !h-12" disabled={!o.acquereurs.length} onClick={() => setEtape("redaction")}>
+            <button className="btn-primary w-full !h-12" disabled={!o.acquereurs.length} onClick={() => allerEtape("redaction")}>
               <PenLine size={16} /> Rédiger l&apos;offre maintenant <ArrowRight size={16} />
             </button>
           </div>
@@ -171,7 +174,7 @@ export default function OffreAchatPage() {
             <PartieForm key={p.contactId ?? i} titre={o.vendeurs.length > 1 ? `Vendeur ${i + 1}` : "Vendeur"} p={p} onChange={(x) => setPartie("vendeurs", i, x)} />
           ))}
           {!o.vendeurs.length && (
-            <button className="card card-pad w-full text-left text-sm text-muted" onClick={() => setEtape("parties")}>
+            <button className="card card-pad w-full text-left text-sm text-muted" onClick={() => allerEtape("parties")}>
               Aucun vendeur choisi : <span className="text-accent font-medium">l&apos;ajouter</span>
             </button>
           )}

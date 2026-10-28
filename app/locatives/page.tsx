@@ -26,6 +26,7 @@ import { CONDITIONS } from "@/lib/expressEstimate";
 import { dateCourte, eur, pct } from "@/lib/format";
 import { useRevenus } from "@/components/revenus/stockage";
 import { useCollection as useBiens } from "@/lib/store";
+import { useEtapesHistorique } from "@/lib/retour";
 
 const DRAFT_KEY = "patrim-hub:locative-brouillon";
 
@@ -111,6 +112,8 @@ export default function LocativesPage() {
   const s = b.saisie;
   const setS = (patch: Partial<Saisie>) => setB((x) => ({ ...x, saisie: { ...x.saisie, ...patch } }));
   const set = (patch: Partial<Brouillon>) => setB((x) => ({ ...x, ...patch }));
+  // Chaque étape a son entrée d'historique : le geste retour revient à l'étape précédente.
+  const allerStep = useEtapesHistorique("locative", b.step, (step) => set({ step }));
 
   const quartier = quartierDe(s.lat, s.lon, s.citycode, s.ville);
   const comps = useMemo(() => [...b.comps, ...saisies], [b.comps, saisies]);
@@ -266,7 +269,7 @@ export default function LocativesPage() {
             const done = i < b.step;
             return (
               <li key={label}>
-                <button type="button" disabled={!reachable} onClick={() => set({ step: i })} className="group w-full text-left disabled:opacity-50">
+                <button type="button" disabled={!reachable} onClick={() => allerStep(i)} className="group w-full text-left disabled:opacity-50">
                   <span className={cx("block h-1.5 rounded-full transition-colors", on ? "bg-accent" : done ? "bg-accent/45" : "bg-line")} />
                   <span className={cx("mt-1.5 flex items-center gap-1 text-[11px] font-medium", on ? "text-fg" : "text-muted")}>
                     {done ? <Check size={12} className="text-accent" /> : <span className="tabular-nums">{i + 1}.</span>}
@@ -394,7 +397,7 @@ export default function LocativesPage() {
             </div>
           </Card>
           <div className="flex justify-end">
-            <button type="button" className="btn-primary !h-12 w-full sm:w-auto sm:px-6" disabled={!etape1Ok} onClick={() => set({ step: 1 })}>
+            <button type="button" className="btn-primary !h-12 w-full sm:w-auto sm:px-6" disabled={!etape1Ok} onClick={() => allerStep(1)}>
               Chercher les loyers du secteur <ArrowRight size={17} />
             </button>
           </div>
@@ -511,11 +514,11 @@ export default function LocativesPage() {
           )}
 
           <div className="flex gap-2 pt-1">
-            <button type="button" className="btn-secondary !h-12" onClick={() => set({ step: 0 })}>
+            <button type="button" className="btn-secondary !h-12" onClick={() => allerStep(0)}>
               <ArrowLeft size={17} />
               <span className="hidden sm:inline">Le bien</span>
             </button>
-            <button type="button" className="btn-primary !h-12 flex-1 sm:flex-none sm:ml-auto sm:px-6" disabled={!etape2Ok} onClick={() => set({ step: 2 })}>
+            <button type="button" className="btn-primary !h-12 flex-1 sm:flex-none sm:ml-auto sm:px-6" disabled={!etape2Ok} onClick={() => allerStep(2)}>
               Voir l'avis locatif <ArrowRight size={17} />
             </button>
           </div>
@@ -641,7 +644,7 @@ export default function LocativesPage() {
           </Card>
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <button type="button" className="btn-secondary !h-12" onClick={() => set({ step: 1 })}>
+            <button type="button" className="btn-secondary !h-12" onClick={() => allerStep(1)}>
               <ArrowLeft size={17} />
               <span className="hidden sm:inline">Loyers</span>
             </button>

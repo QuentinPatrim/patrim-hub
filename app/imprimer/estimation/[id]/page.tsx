@@ -13,6 +13,7 @@ import { useCollection, useDoc } from "@/lib/store";
 import { useSignature } from "@/lib/profil";
 import { nomConseiller } from "@/lib/equipe";
 import { photoAuto } from "@/lib/photoAuto";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Avis de valeur imprimable (A4), mise en page reprise à
@@ -44,6 +45,7 @@ type Comp = { id: string; adresse: string; prix: number; surface?: number; sqm: 
 export default function AvisDeValeur() {
   const { id } = useParams<{ id: string }>();
   const { doc: e } = useDoc("estimations", id);
+  const retour = useRetour(`/estimations/${id}`);
   const { items: contacts } = useCollection("contacts");
   const { items: biens } = useCollection("biens");
   const [zoom, setZoom] = useState(1);
@@ -306,9 +308,9 @@ export default function AvisDeValeur() {
       {/* Barre d'outils (non imprimée) */}
       <div className="no-print sticky top-0 z-10 border-b border-black/5 bg-white/85 backdrop-blur">
         <div className="safe-top mx-auto flex max-w-[860px] items-center gap-1.5 px-3 py-2.5 text-[#1d1d1f]">
-          <Link href={`/estimations/${e.id}`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Retour
-          </Link>
+          </button>
           <Link href={`/estimations/${e.id}#avis`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
             <Pencil size={15} /> Compléter
           </Link>

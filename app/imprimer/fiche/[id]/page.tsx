@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -9,6 +8,7 @@ import { FICHE_PRINT_CSS, FicheDocument } from "@/components/fiche/FicheDocument
 import { ficheDepuisBien } from "@/components/fiche/fiche";
 import { useCollection, useDoc } from "@/lib/store";
 import type { Contact } from "@/lib/types";
+import { useRetour } from "@/lib/retour";
 
 /* Fiche du bien à enregistrer en PDF (même contenu que le lien envoyé à l'acquéreur). */
 export default function FichePdfPage() {
@@ -22,6 +22,7 @@ export default function FichePdfPage() {
 function FichePdf() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
+  const retour = useRetour(`/biens/${id}`);
   const { doc: b } = useDoc("biens", id);
   const { items: contacts } = useCollection("contacts");
   const [adresse, setAdresse] = useState(params.get("adresse") === "1");
@@ -49,9 +50,9 @@ function FichePdf() {
       <style>{FICHE_PRINT_CSS}</style>
       <div className="no-print sticky top-0 z-10 border-b backdrop-blur" style={{ background: "rgba(255,255,255,.88)", borderColor: C.line }}>
         <div className="mx-auto flex max-w-[860px] items-center gap-2 px-3 py-2.5 safe-top">
-          <Link href={`/biens/${id}`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Retour
-          </Link>
+          </button>
           <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs" style={{ color: C.slate }}>
             <input type="checkbox" checked={adresse} onChange={(e) => setAdresse(e.target.checked)} className="size-4 accent-[#6c191e]" />
             Adresse exacte

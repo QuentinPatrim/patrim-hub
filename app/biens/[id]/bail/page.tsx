@@ -41,6 +41,7 @@ import { IRL, PLAFONDS, ZONES, ajouterMois, periodeConstruction, dateActe, duree
 import { getAll, useCollection, useDoc } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { titrePublic } from "@/lib/titrePublic";
+import { useEtapesHistorique } from "@/lib/retour";
 
 /* ============================================================
    Rédiger un bail d'habitation (vide ou meublé) : 1. les parties
@@ -58,6 +59,8 @@ export default function BailPage() {
   const contacts = contactsRaw as ContactEtatCivil[];
   const [x, setX] = useState<Bail | null>(null);
   const [etape, setEtape] = useState<"parties" | "redaction">("parties");
+  // Passer d'une étape à l'autre ajoute une entrée d'historique : le geste retour revient aux parties.
+  const allerEtape = useEtapesHistorique("document", etape, setEtape);
   const [demande, setDemande] = useState<{ p: Partie; role: "locataire" | "bailleur" } | null>(null);
   const [waited, setWaited] = useState(false);
   const [totalHono, setTotalHono] = useState<number | undefined>();
@@ -142,10 +145,10 @@ export default function BailPage() {
       <PageHeader back={`/biens/${b.id}`} title="Bail de location" subtitle={b.titre} />
 
       <div className="grid grid-cols-2 gap-2 animate-fade-up">
-        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => setEtape("parties")}>
+        <EtapeBtn n={1} actif={etape === "parties"} fait={etape === "redaction"} onClick={() => allerEtape("parties")}>
           Les parties
         </EtapeBtn>
-        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => setEtape("redaction")} disabled={!x.locataires.length}>
+        <EtapeBtn n={2} actif={etape === "redaction"} onClick={() => allerEtape("redaction")} disabled={!x.locataires.length}>
           Rédaction
         </EtapeBtn>
       </div>
@@ -175,7 +178,7 @@ export default function BailPage() {
             ) : (
               <p className="text-sm text-muted">Choisissez au moins un locataire pour commencer.</p>
             )}
-            <button className="btn-primary w-full !h-12" disabled={!x.locataires.length} onClick={() => setEtape("redaction")}>
+            <button className="btn-primary w-full !h-12" disabled={!x.locataires.length} onClick={() => allerEtape("redaction")}>
               <PenLine size={16} /> Rédiger le bail maintenant <ArrowRight size={16} />
             </button>
           </div>

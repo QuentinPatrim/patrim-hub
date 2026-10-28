@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowLeft, Banknote, CheckCircle, Home, KeyRound, Leaf, Mail, Printer, Star, ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { FitToPage, MAX_DENSITY } from "@/components/estimations/FitToPage";
@@ -11,6 +10,7 @@ import { BrouillonMail } from "@/components/matching/BrouillonMail";
 import { useCollection } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import type { Contact } from "@/lib/types";
+import { useRetour } from "@/lib/retour";
 
 /* ============================================================
    Avis locatif express — version imprimable (A4), mise en page
@@ -45,6 +45,7 @@ export default function Page() {
 
 function AvisLocatif() {
   const p = useSearchParams();
+  const retour = useRetour("/locatives");
   const g = (k: string) => p.get(k) ?? undefined;
   const adresse = g("adresse") ?? "";
   const ville = g("ville");
@@ -179,9 +180,9 @@ function AvisLocatif() {
       {/* Barre d'outils (non imprimée) */}
       <div className="no-print sticky top-0 z-10 border-b border-black/5 bg-white/85 backdrop-blur">
         <div className="safe-top mx-auto flex max-w-[860px] items-center gap-1.5 px-3 py-2.5 text-[#1d1d1f]">
-          <Link href="/locatives" className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
+          <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
             <ArrowLeft size={16} /> Retour
-          </Link>
+          </button>
           {proprio && (
             <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-[#6e6e73]">
               <input type="checkbox" checked={afficherNom} onChange={(ev) => setAfficherNom(ev.target.checked)} className="size-4 accent-[#8a0e01]" />
