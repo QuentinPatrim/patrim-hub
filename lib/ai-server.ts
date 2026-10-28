@@ -8,9 +8,7 @@ export const MODEL_FAST = process.env.CLAUDE_MODEL_FAST || "claude-sonnet-5-5";
 export const MODEL_SMART = process.env.CLAUDE_MODEL_SMART || "claude-opus-5-5";
 
 /** Ton PATRIM, au nom du conseiller connecté (Quentin par défaut). */
-export const voixPatrim = (
-  conseiller = "Quentin Delsol",
-) => `Tu travailles pour ${conseiller}, conseiller en vente de l'agence immobilière PATRIM (45 allées Jean Jaurès, 31000 Toulouse, 05 61 99 08 08). 
+export const voixPatrim = (conseiller = "Quentin Delsol") => `Tu travailles pour ${conseiller}, conseiller en vente de l'agence immobilière PATRIM (45 allées Jean Jaurès, 31000 Toulouse, 05 61 99 08 08). 
 Style PATRIM : français, vouvoiement avec les clients, ton simple, chaleureux et transparent, phrases courtes, pas de superlatifs ni de clichés d'agence ("rare", "coup de cœur", "exceptionnel" interdits sauf fait objectif). 
 Règles : n'invente jamais un fait sur un bien (surface, étage, DPE, charges…) ; si une info manque, écris [À compléter : …]. Ne révèle jamais l'identité ou la situation du vendeur, le montant des offres, la marge de négociation ni les autres acquéreurs. N'indique jamais la durée d'une visite ou d'un appel. Mentionne la classe DPE dans toute annonce quand elle est connue (obligation légale) et le prix honoraires inclus.`;
 
@@ -25,57 +23,32 @@ export async function checkAccess(req: Request): Promise<string | null> {
     return error || !data.user ? "Session expirée, reconnectez-vous." : null;
   }
   const code = process.env.APP_PASSCODE;
-  if (code && req.headers.get("x-passcode") !== code)
-    return "Code d'accès requis (Réglages).";
+  if (code && req.headers.get("x-passcode") !== code) return "Code d'accès requis (Réglages).";
   return null;
 }
 
 export function anthropic() {
   const apiKey = cleClaude();
-  if (!apiKey)
-    throw new Error("Clé ANTHROPIC_API_KEY absente dans les variables Vercel.");
+  if (!apiKey) throw new Error("Clé ANTHROPIC_API_KEY absente dans les variables Vercel.");
   return new Anthropic({ apiKey });
 }
 
-export type AiMessage = {
-  role: "user" | "assistant";
-  content: string | Anthropic.ContentBlockParam[];
-};
+export type AiMessage = { role: "user" | "assistant"; content: string | Anthropic.ContentBlockParam[] };
 
-export async function complete(opts: {
-  system?: string;
-  messages: AiMessage[];
-  smart?: boolean;
-  effort?: "low" | "medium" | "high";
-  maxTokens?: number;
-  conseiller?: string;
-}) {
+export async function complete(opts: { system?: string; messages: AiMessage[]; smart?: boolean; effort?: "low" | "medium" | "high"; maxTokens?: number; conseiller?: string }) {
   const client = anthropic();
-  const res = await client.messages
-    .create({
-      model: opts.smart ? MODEL_SMART : MODEL_FAST,
-      max_tokens: opts.maxTokens ?? 8000,
-      system: [voixPatrim(opts.conseiller), opts.system]
-        .filter(Boolean)
-        .join("\n\n"),
-      output_config: { effort: opts.effort ?? "medium" },
-      messages: opts.messages,
-    } as Anthropic.MessageCreateParamsNonStreaming)
-    .catch((e: unknown) => {
-      if (
-        /credit balance is too low/i.test(
-          String(e instanceof Error ? e.message : e),
-        )
-      )
-        throw new Error(
-          "Crédit de l'assistant épuisé : recharge-le sur console.anthropic.com (Plans & Billing), puis réessaie.",
-        );
-      throw e;
-    });
-  return res.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("\n")
-    .trim();
+  const res = await client.messages.create({
+    model: opts.smart ? MODEL_SMART : MODEL_FAST,
+    max_tokens: opts.maxTokens ?? 8000,
+    system: [voixPatrim(opts.conseiller), opts.system].filter(Boolean).join("\n\n"),
+    output_config: { effort: opts.effort ?? "medium" },
+    messages: opts.messages,
+  } as Anthropic.MessageCreateParamsNonStreaming).catch((e: unknown) => {
+    if (/credit balance is too low/i.test(e instanceof Error ? e.message : String(e)))
+      throw new Error("Crédit de l'assistant épuisé : recharge-le sur console.anthropic.com (Plans & Billing), puis réessaie.");
+    throw e;
+  });
+  return res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
 }
 
 /** Extrait le premier objet ou tableau JSON d'une réponse. */
