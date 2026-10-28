@@ -30,6 +30,7 @@ export default function Radar() {
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [cpTexte, setCpTexte] = useState("");
   const [pret, setPret] = useState(false);
+  const [vus, setVus] = useState(150);
   const cps = suivi?.codesPostaux?.length ? suivi.codesPostaux : CP_TOULOUSE;
 
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function Radar() {
         {Object.keys(sources).length > 0 && (
           <p className="text-xs text-muted">
             {Object.entries(sources)
-              .map(([k, v]) => `${{ dpe: "DPE", audit: "Audits", bodacc: "BODACC" }[k] ?? k} : ${typeof v === "number" ? v : v}`)
+              .map(([k, v]) => `${{ dpe: "DPE", audit: "Audits", bodacc: "BODACC" }[k] ?? k} : ${typeof v === "number" && k === "dpe" && v > 600 ? `${v} (600 plus parlants gardés)` : v}`)
               .join(" · ")}
           </p>
         )}
@@ -132,9 +133,16 @@ export default function Radar() {
 
       {liste.length ? (
         <ul className="space-y-2.5">
-          {liste.slice(0, 150).map((s) => (
+          {liste.slice(0, vus).map((s) => (
             <Carte key={s.id} s={s} etat={etatDe(s)} />
           ))}
+          {liste.length > vus && (
+            <li>
+              <button className="btn-secondary w-full" onClick={() => setVus(vus + 150)}>
+                Voir {Math.min(150, liste.length - vus)} de plus ({liste.length - vus} restants)
+              </button>
+            </li>
+          )}
         </ul>
       ) : (
         <Empty icon={<IconeRadar size={22} />} title={publics.length ? "Rien à traiter ici" : "Lance le radar"} text="Le radar cherche les DPE récents, les audits énergétiques et les sociétés immobilières en liquidation sur tes secteurs, et reprend les estimations restées sans mandat." />

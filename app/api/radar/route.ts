@@ -78,6 +78,8 @@ function geopoint(l: Ligne) {
   return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : {};
 }
 
+const MAX_DPE = 600;
+
 async function dpe(cps: string[], depuis: string, auj: string): Promise<{ signaux: SignalPublic[]; erreur?: string }> {
   // Champ de date : réception par l'ADEME, sinon établissement
   let r: Awaited<ReturnType<typeof json>> = { ok: false, status: 0, data: null };
@@ -234,7 +236,8 @@ export async function POST(req: Request) {
   const [d, a, s] = await Promise.all([dpe(cps, depuis, auj), audits(cps, depuis), bodacc(depuis)]);
   return NextResponse.json({
     depuis,
-    signaux: [...a.signaux, ...s.signaux, ...d.signaux],
+    // Les DPE sont des milliers sur Toulouse : on garde les plus parlants (F/G, maisons, plus récents).
+    signaux: [...a.signaux, ...s.signaux, ...[...d.signaux].sort((x, y) => y.score - x.score || y.date.localeCompare(x.date)).slice(0, MAX_DPE)],
     sources: { dpe: d.erreur ?? d.signaux.length, audit: a.erreur ?? a.signaux.length, bodacc: s.erreur ?? s.signaux.length },
   });
 }
