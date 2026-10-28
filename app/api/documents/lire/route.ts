@@ -102,3 +102,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: /page|too large|too long/i.test(m) ? "Document trop long : garde seulement les pages utiles (100 pages au plus)." : m || "Lecture impossible." }, { status: 500 });
   }
 }
+
+/** Contrôle technique : lit un petit PV d'AG fictif généré ici (aucune donnée réelle). GET ?diag=1 */
+export async function GET(req: Request) {
+  if (new URL(req.url).searchParams.get("diag") !== "1") return NextResponse.json({ ok: true });
+  const lignes = ["PROCES-VERBAL D'ASSEMBLEE GENERALE DU 12/05/2026", "Residence Exemple - 40 lots principaux - Syndic : Cabinet Exemple", "Resolution 8 : ravalement des facades vote, budget 120 000 EUR, appels au 01/01/2027", "Resolution 9 : remplacement de l'ascenseur refuse", "Budget previsionnel 2026 : 48 000 EUR"];
+  const flux = `BT /F1 11 Tf 50 780 Td 14 TL ${lignes.map((l) => `(${l}) Tj T*`).join(" ")} ET`;
+  const objets = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${flux.length} >>\nstream\n${flux}\nendstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const pos: number[] = [];
+  objets.forEach((o, i) => {
+    pos.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objets.length + 1}\n0000000000 65535 f \n${pos.map((p) => `${String(p).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objets.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  const t0 = Date.now();
+  try {
+    const text = await complete({
+      messages: [{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(pdf, "latin1").toString("base64") } }, { type: "text", text: CONSIGNE }] }],
+      smart: true,
+      effort: "medium",
+      maxTokens: 6000,
+    });
+    return NextResponse.json({ ms: Date.now() - t0, lecture: parseJson(text) });
+  } catch (e) {
+    return NextResponse.json({ ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
+  }
+}
