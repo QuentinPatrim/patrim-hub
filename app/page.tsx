@@ -34,6 +34,7 @@ import { ChoixEspace } from "@/components/espace/ChoixEspace";
 import { AccueilLocation } from "@/components/location/AccueilLocation";
 import { etapeDe } from "@/components/contacts/helpers";
 import { couverture } from "@/lib/photoAuto";
+import { CarteAEnvoyer } from "@/components/boite/CarteAEnvoyer";
 
 const LIEN: Record<string, string> = { bien: "/biens/", contact: "/contacts/", estimation: "/estimations/", rdv: "/agenda?rdv=", page: "/" };
 const TYPE_POINT: Record<Briefing["points"][number]["type"], { label: string; tone: "info" | "ok" | "warn" | "danger" | "brand" | "neutral" }> = {
@@ -202,6 +203,8 @@ function Accueil() {
           </Link>
         ))}
       </div>
+
+      <CarteAEnvoyer />
 
       <BriefingCard brief={brief} />
 
