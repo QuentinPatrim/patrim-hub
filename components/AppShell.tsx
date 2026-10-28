@@ -157,20 +157,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* En-tête mobile */}
       <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/95 backdrop-blur-xl backdrop-saturate-150 border-b border-line/40 no-print">
-        <div className="flex items-center gap-3 h-14 px-4">
-          <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil PATRIM">
+        <div className="flex items-center gap-2 h-14 px-3 min-[400px]:gap-3 min-[400px]:px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Accueil PATRIM">
             <Image src="/emblem.png" alt="" width={30} height={30} className="rounded-lg shadow-xs" />
-            <span className="leading-none">
+            {/* Mot PATRIM masqué sur les petits écrans : le badge d'espace et les boutons doivent tenir sur une ligne */}
+            <span className={clsx("leading-none", choisi && "hidden min-[420px]:block")}>
               <span className="block font-semibold tracking-[0.22em] text-[13px]">PATRIM</span>
               <span className="mt-1 block h-[2px] w-6 rounded-full bg-coral" />
             </span>
           </Link>
           {choisi && (
-            <button onClick={changer} className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-fg/80 active:scale-[.97]" aria-label={`Aller sur Hub ${NOM_ESPACE[autre]}`}>
-              {espace === "location" ? <KeyRound size={13} className="text-accent" /> : <Building2 size={13} className="text-accent" />} {NOM_ESPACE[espace]}
+            <button onClick={changer} className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-fg/80 active:scale-[.97]" aria-label={`Aller sur Hub ${NOM_ESPACE[autre]}`}>
+              {espace === "location" ? <KeyRound size={13} className="shrink-0 text-accent" /> : <Building2 size={13} className="shrink-0 text-accent" />} <span className="truncate">{NOM_ESPACE[espace]}</span>
             </button>
           )}
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex shrink-0 items-center min-[400px]:gap-1">
             <Dictee className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" />
             <button onClick={() => setSearch(true)} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Rechercher">
               <Search size={19} />
