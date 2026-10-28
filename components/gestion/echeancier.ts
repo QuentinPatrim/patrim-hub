@@ -107,6 +107,17 @@ export function calculRevision(x: BailEnCours, date: string, dpe?: string) {
   return { ancien: x.loyer, nouveau: Math.round(((x.loyer * irl.valeur) / x.irlValeur) * 100) / 100, irl, provisoire: !publie, gele: loyerGele(dpe) };
 }
 
+/** Fin de la période en cours du bail et date limite du congé du bailleur. */
+export function periodeBail(x: BailEnCours, auj: string) {
+  const duree = dureeBail({ type: x.type, qualiteBailleur: x.morale ? "morale" : "physique", etudiant: x.etudiant });
+  const reconduction = x.type === "meuble" ? 12 : duree;
+  let n = duree;
+  if (!x.etudiant) while (veille(ajoutMois(x.debut, n)) < auj) n += reconduction;
+  const suivante = ajoutMois(x.debut, n); // lendemain de la fin de période
+  const preavis = x.type === "meuble" ? 3 : 6;
+  return { fin: veille(suivante), limiteConge: veille(ajoutMois(suivante, -preavis)), preavis, reconduction };
+}
+
 export function evenements(b: Bien, auj: string, horizon = 120): Evenement[] {
   const x = bailSuivi(b);
   if (!x) return [];
@@ -134,14 +145,7 @@ export function evenements(b: Bien, auj: string, horizon = 120): Evenement[] {
   }
 
   // Fin de la période du bail (reconduction tacite) et congé du bailleur
-  const duree = dureeBail({ type: x.type, qualiteBailleur: x.morale ? "morale" : "physique", etudiant: x.etudiant });
-  const reconduction = x.type === "meuble" ? 12 : duree;
-  let n = duree;
-  if (!x.etudiant) while (veille(ajoutMois(x.debut, n)) < auj) n += reconduction;
-  const suivante = ajoutMois(x.debut, n); // lendemain de la fin de période
-  const fin = veille(suivante);
-  const preavis = x.type === "meuble" ? 3 : 6;
-  const limiteConge = veille(ajoutMois(suivante, -preavis));
+  const { fin, limiteConge, preavis, reconduction } = periodeBail(x, auj);
   if (ok(limiteConge) && limiteConge >= auj)
     out.push({
       cle: "conge",
