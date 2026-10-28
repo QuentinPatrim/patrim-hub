@@ -13,7 +13,7 @@ import { addDays, eur, nomComplet, today } from "@/lib/format";
 import { ACQUEREUR_ACTIF, BIEN_DISPONIBLE, matchScore } from "@/lib/matching";
 import { getAll, update } from "@/lib/store";
 import { titrePublic } from "@/lib/titrePublic";
-import { nomConseiller } from "@/lib/equipe";
+import { conseiller, nomConseiller } from "@/lib/equipe";
 import type { Bien, Contact, Rdv } from "@/lib/types";
 import { texteProposition } from "@/components/biens/utils";
 import { marquerPropose } from "@/components/biens/AcquereursCompatibles";
@@ -29,9 +29,10 @@ import { locationDe } from "@/components/location/bienLocation";
 import { loyerGele } from "@/components/location/loi";
 import { lienRetour, visitesARetour, type RdvRetour } from "@/components/retour/retour";
 
-export type CategorieEnvoi = "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "retour" | "pont" | "apres";
+export type CategorieEnvoi = "reservation" | "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "retour" | "pont" | "apres";
 
 export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" | "warn" | "ok" | "brand" | "info" | "neutral" }> = {
+  reservation: { label: "Visite réservée", tone: "danger" },
   lead: { label: "Nouveau lead", tone: "danger" },
   relance: { label: "Relance", tone: "warn" },
   baisse: { label: "Baisse de prix", tone: "ok" },
@@ -42,7 +43,7 @@ export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" |
   pont: { label: "Gestion ↔ vente", tone: "brand" },
   apres: { label: "Après-vente", tone: "neutral" },
 };
-const ORDRE: CategorieEnvoi[] = ["lead", "vente", "baisse", "relance", "retour", "vendeur", "proposition", "pont", "apres"];
+const ORDRE: CategorieEnvoi[] = ["reservation", "lead", "vente", "baisse", "relance", "retour", "vendeur", "proposition", "pont", "apres"];
 
 export interface Envoi {
   /** Identifie ce message précis : un nouvel évènement donne une nouvelle clé. */
@@ -134,6 +135,35 @@ export function envoisDuJour(d: Donnees, etat: EtatBoite | null, lienAvis?: stri
     if (rep && rep > auj) return;
     if (!out.some((x) => x.cle === e.cle)) out.push(e);
   };
+
+  // Visites réservées en ligne (page web du bien) : confirmation au visiteur, avec l'adresse
+  for (const r of d.rdvs as (Rdv & { reserveEnLigne?: string })[]) {
+    if (!r.reserveEnLigne || r.statut !== "prevu" || new Date(r.debut).getTime() < Date.now()) continue;
+    const b = d.biens.find((x) => x.id === r.bienId);
+    const titre = b ? titrePublic(b) : "le bien";
+    const quand = new Date(r.debut).toLocaleString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).replace(":", "h");
+    const ou = b?.adresse ? `Rendez-vous au ${b.adresse}${b.ville && !b.adresse.includes(b.ville) ? `, ${b.ville}` : ""}.` : "";
+    const tel = conseiller().tel;
+    for (const id of r.contactIds ?? []) {
+      const c = parId.get(id);
+      if (!c) continue;
+      const cle = `resa:${r.id}:${c.id}`;
+      ajouter({
+        cle,
+        cat: "reservation",
+        contact: c,
+        bien: b,
+        raison: `A réservé en ligne la visite du ${quand}`,
+        sujet: `Votre visite : ${titre}`,
+        mail: [bonjour(c), "", `Je vous confirme la visite de ${titre} le ${quand}.`, ou, `En cas d'empêchement, prévenez-moi${tel ? ` au ${tel}` : ""}.`, "", "À très bientôt,", "", signatureMail()].filter((l, i, t) => l || t[i - 1]).join("\n"),
+        sms: [bonjour(c), `Je vous confirme la visite de ${titre} le ${quand}.`, ou, "En cas d'empêchement, prévenez-moi par retour de SMS.", `${nomConseiller()}, PATRIM`].filter(Boolean).join("\n"),
+        fait: (canal) => {
+          void noterBoite("envoyes", cle, new Date().toISOString());
+          historique(c.id, canal, `Visite du ${quand} confirmée`, { prochaineAction: undefined, dateRelance: undefined });
+        },
+      });
+    }
+  }
 
   // Leads arrivés de Gmail : la réponse attend en brouillon dans Gmail.
   for (const c of d.contacts) {
