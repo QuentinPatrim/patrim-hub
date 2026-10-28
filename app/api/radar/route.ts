@@ -61,11 +61,16 @@ async function json(url: string, timeout = 15000): Promise<{ ok: boolean; status
 }
 
 /** Lignes d'un jeu ADEME, filtrées par codes postaux et date (syntaxe Lucene de data-fair). */
-async function lignesAdeme(dataset: string, champDate: string, champCp: string, cps: string[], depuis: string, taille = 1000) {
+async function lignesAdeme(dataset: string, champDate: string, champCp: string, cps: string[], depuis: string, taille = 1000, champs?: string[]) {
   const qs = `${champCp}:(${cps.map((c) => `"${c}"`).join(" OR ")}) AND ${champDate}:[${depuis} TO *]`;
-  const url = `${ADEME}/${dataset}/lines?size=${taille}&sort=-${champDate}&qs=${encodeURIComponent(qs)}`;
-  return json(url);
+  const url = `${ADEME}/${dataset}/lines?size=${taille}&sort=-${champDate}&qs=${encodeURIComponent(qs)}${champs ? `&select=${champs.join(",")}` : ""}`;
+  const r = await json(url, 25000);
+  // Champ inconnu dans cette version du jeu : on reprend sans sélection
+  return r.ok || !champs ? r : json(url.replace(/&select=[^&]*/, ""), 25000);
 }
+
+const CHAMPS_DPE = ["numero_dpe", "date_etablissement_dpe", "date_reception_dpe", "adresse_ban", "adresse_brut", "complement_adresse_logement", "code_postal_ban", "nom_commune_ban", "etiquette_dpe", "type_batiment", "surface_habitable_logement", "numero_etage_appartement", "annee_construction", "_geopoint"];
+const CHAMPS_AUDIT = ["n_audit", "id_etape", "etape_travaux", "date_etablissement_audit", "date_reception_audit", "adresse_ban", "adresse_brut", "code_postal_ban", "nom_commune_ban", "classe_bilan_dpe", "surface_habitable_logement", "_geopoint"];
 
 function geopoint(l: Ligne) {
   const g = txt(l._geopoint);
@@ -77,8 +82,8 @@ async function dpe(cps: string[], depuis: string, auj: string): Promise<{ signau
   // Champ de date : réception par l'ADEME, sinon établissement
   let r: Awaited<ReturnType<typeof json>> = { ok: false, status: 0, data: null };
   for (const id of await idDpe()) {
-    r = await lignesAdeme(id, "date_reception_dpe", "code_postal_ban", cps, depuis);
-    if (!r.ok) r = await lignesAdeme(id, "date_etablissement_dpe", "code_postal_ban", cps, depuis);
+    r = await lignesAdeme(id, "date_reception_dpe", "code_postal_ban", cps, depuis, 5000, CHAMPS_DPE);
+    if (!r.ok) r = await lignesAdeme(id, "date_etablissement_dpe", "code_postal_ban", cps, depuis, 5000, CHAMPS_DPE);
     if (r.ok) break;
   }
   if (!r.ok) return { signaux: [], erreur: `Base des DPE indisponible (${r.status || "réseau"}).` };
@@ -146,7 +151,7 @@ async function audits(cps: string[], depuis: string): Promise<{ signaux: SignalP
     ["date_reception_audit", "code_postal_ban"],
     ["date_etablissement", "code_postal_ban"],
   ]) {
-    const r = await lignesAdeme(id, date, cp, cps, depuis, 2000);
+    const r = await lignesAdeme(id, date, cp, cps, depuis, 3000, CHAMPS_AUDIT);
     if (!r.ok) continue;
     // Une ligne par étape de travaux : on garde une ligne par audit (l'état initial)
     const parAudit = new Map<string, Ligne>();
