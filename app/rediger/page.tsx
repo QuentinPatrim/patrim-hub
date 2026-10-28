@@ -12,7 +12,7 @@
    Chaque document déjà rédigé est listé ici, trié par date.
    ============================================================ */
 
-import { Building2, ClipboardList, FileSignature, FileText, Handshake, Home, KeyRound, PenLine, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Building2, ClipboardList, FileSignature, FileText, Handshake, Home, KeyRound, PenLine, Plus, Search, Send, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -30,14 +30,20 @@ import { locationSeule } from "@/components/location/bienLocation";
 
 const LOCATION: Vue[] = ["bail", "caution", "gestion", "candidat"];
 const deLocation = (v: Vue) => LOCATION.includes(v);
+/** Page de rédaction ; une fiche client s'ouvre directement sur « Nouvelle fiche ». */
+const chemin = (bienId: string, kind: Vue) => `/biens/${bienId}/${kind === "tous" ? "mandat" : kind}${FICHES.includes(kind) ? "?nouveau=1" : ""}`;
 
-type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "bail" | "caution" | "gestion" | "candidat";
+type Vue = "tous" | "mandat" | "offre" | "avenant" | "bon" | "fiche-vendeur" | "fiche-acquereur" | "bail" | "caution" | "gestion" | "candidat";
+/** Fiches à remplir par le client : pas de document rangé sur le bien, donc pas de filtre dans la liste. */
+const FICHES: Vue[] = ["fiche-vendeur", "fiche-acquereur"];
 
 const KINDS: { v: Vue; label: string; icon: typeof Home; desc: string }[] = [
   { v: "mandat", label: "Mandat de vente", icon: FileSignature, desc: "Simple, semi-exclusif ou exclusif. Le bien peut être créé automatiquement." },
   { v: "offre", label: "Offre d'achat", icon: Handshake, desc: "Sur un bien existant, ou un bien saisi à la volée." },
   { v: "avenant", label: "Avenant", icon: PenLine, desc: "Nouveau prix, durée, sur un bien déjà en mandat." },
   { v: "bon", label: "Bon de visite", icon: FileText, desc: "Fait signer les visiteurs d'un bien en vente." },
+  { v: "fiche-vendeur", label: "Fiche vendeur", icon: Send, desc: "Lien envoyé au vendeur avant le mandat : il remplit tout, vérifications anti-blanchiment comprises." },
+  { v: "fiche-acquereur", label: "Fiche acquéreur", icon: Send, desc: "Lien envoyé à l'acquéreur qui veut faire une offre : identité, financement, origine des fonds." },
   { v: "bail", label: "Bail de location", icon: KeyRound, desc: "Logement vide ou meublé, avec ses annexes, prêt pour ICSIGN." },
   { v: "caution", label: "Acte de cautionnement", icon: ShieldCheck, desc: "Une caution par acte (couple marié : un seul), reprend le bail du bien." },
   { v: "gestion", label: "Mandat de gestion", icon: Building2, desc: "Gestion locative d'un bien, avec les tarifs de l'agence et la rétractation." },
@@ -102,7 +108,7 @@ export default function RedigerPage() {
       {/* Liste */}
       <div className="mt-8 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
         <div className="-mx-4 flex min-w-0 gap-1.5 overflow-x-auto no-scrollbar px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-          {(["tous", ...kinds.map((k) => k.v)] as Vue[]).map((v) => (
+          {(["tous", ...kinds.map((k) => k.v).filter((v) => !FICHES.includes(v))] as Vue[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -274,7 +280,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
     if (numeroMandat) nouveau.mandat = { numero: numeroMandat };
     const b = create("biens", nouveau as Omit<Bien, "id" | "createdAt" | "updatedAt">);
     onClose();
-    router.push(`/biens/${b.id}/${kind === "tous" ? "mandat" : kind}`);
+    router.push(chemin(b.id, kind));
   };
 
   const peutCreer = mode === "nouveau" && (adresse.trim().length > 3 || (surface ?? 0) > 0);
@@ -308,7 +314,7 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
                       type="button"
                       onClick={() => {
                         onClose();
-                        router.push(`/biens/${b.id}/${kind === "tous" ? "mandat" : kind}`);
+                        router.push(chemin(b.id, kind));
                       }}
                       className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left transition hover:bg-surface-2"
                     >
@@ -336,6 +342,8 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
                 ? "Le bien sera créé automatiquement avec le mandat, prêt à compléter ensuite."
                 : kind === "bail"
                 ? "Le logement sera créé maintenant, puis le bail se rédige dessus."
+                : FICHES.includes(kind)
+                ? "Le bien sera créé maintenant, puis vous envoyez le lien de la fiche."
                 : "Le bien sera créé maintenant, puis l'offre se rédige dessus."}
             </p>
             <Field label="Adresse du bien">
@@ -355,12 +363,12 @@ function FeuilleChoixBien({ kind, label, biens, router, onClose }: { kind: Vue; 
                 <Nombre value={pieces} onChange={setPieces} placeholder="3" />
               </Field>
             </div>
-            {kind === "offre" && (
+            {(kind === "offre" || kind === "fiche-acquereur") && (
               <Field label="Prix affiché (honoraires inclus)">
                 <Nombre value={prix} onChange={setPrix} unit="€" placeholder="295 000" />
               </Field>
             )}
-            {(kind === "mandat" || kind === "bail" || kind === "gestion") && (
+            {(kind === "mandat" || kind === "fiche-vendeur" || kind === "bail" || kind === "gestion") && (
               <div>
                 <span className="label">Propriétaire (facultatif)</span>
                 <ContactPicker value={proprietaireId} onChange={setProprietaireId} />

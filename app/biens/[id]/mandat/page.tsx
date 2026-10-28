@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, FileSignature, PenLine, RotateCcw } from "lucide-react";
+import { ArrowRight, Check, FileSignature, PenLine, RotateCcw, Send } from "lucide-react";
 import { Card, Empty, Field, PageHeader } from "@/components/ui";
 import { ContactPicker } from "@/components/biens/ContactPicker";
 import { BrouillonMail } from "@/components/matching/BrouillonMail";
@@ -107,6 +107,16 @@ export default function MandatPage() {
             <ContactPicker value={m.mandants.map((p) => p.contactId!).filter(Boolean)} onChange={choisir} role="vendeur" max={4} placeholder="Rechercher le vendeur…" />
             <Etat parties={m.mandants} champs={CHAMPS_MANDAT} onDemande={setDemande} />
           </Card>
+          <Link href={`/biens/${b.id}/fiche-vendeur`} className="card card-pad card-hover flex items-center gap-3 animate-fade-up">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand/10 text-brand">
+              <Send size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Faire remplir la fiche vendeur</span>
+              <span className="block text-xs text-muted">Un lien : il saisit état civil, régime, propriétaires, bien et vérifications anti-blanchiment. Ses réponses remplissent le mandat.</span>
+            </span>
+            <ArrowRight size={16} className="shrink-0 text-muted" />
+          </Link>
           <div className="card card-pad space-y-3 animate-fade-up">
             {totalManquants > 0 ? (
               <p className="text-sm">

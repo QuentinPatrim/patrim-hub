@@ -10,6 +10,8 @@
 import { update } from "@/lib/store";
 import { titrePublic } from "@/lib/titrePublic";
 import { AGENCE } from "@/components/documents/charte";
+import { adresseComplete } from "@/components/biens/utils";
+import { today } from "@/lib/format";
 import type { Bien, Contact } from "@/lib/types";
 
 export type ContactEtatCivil = Contact & { dateNaissance?: string; lieuNaissance?: string; profession?: string };
@@ -55,6 +57,30 @@ export interface Offre {
   conditionsParticulieres?: string;
   date: string; // AAAA-MM-JJ
   maj: string;
+}
+
+/* ---------- Offre de départ ---------- */
+
+/** Offre de départ : le bien, ses vendeurs, le prix affiché. */
+export function offreInitiale(b: Bien, vendeurs: Partie[]): Offre {
+  const honoraires = b.honoraires ?? (b.prix && b.netVendeur ? b.prix - b.netVendeur : undefined);
+  return {
+    bienId: b.id,
+    acquereurs: [],
+    vendeurs,
+    designation: designationDepuisBien(b),
+    adresseBien: adresseComplete(b),
+    mandatNumero: b.mandat?.numero,
+    prix: b.prix,
+    honoraires,
+    charge: b.honorairesCharge ?? "acquereur",
+    financement: "pret",
+    conditionSuspensive: true,
+    motif: "pret",
+    validiteJours: 7,
+    date: today(),
+    maj: new Date().toISOString(),
+  };
 }
 
 /* ---------- Brouillon sur l'appareil ---------- */
