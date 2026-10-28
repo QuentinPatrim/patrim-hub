@@ -18,6 +18,7 @@ import {
   Users,
   X,
   Settings,
+  Send,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -37,6 +38,7 @@ export const NAV_VENTE = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/estimations", label: "Estimations", icon: Calculator },
   { href: "/rediger", label: "Rédiger", icon: FileSignature },
+  { href: "/a-envoyer", label: "À envoyer", icon: Send },
   { href: "/a-regler", label: "À régler", icon: ListChecks },
   { href: "/assistant", label: "Assistant", icon: Sparkles },
 ];
