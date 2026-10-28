@@ -24,8 +24,11 @@ import { acquereursDe, venteDe } from "@/components/vente/vente";
 import { apresAFaire, type RoleClient } from "@/components/vente/apres";
 import { messageAcquereur, messageMerci, messageNouvelles, messageVendeur, noterApres, noterPoint, type Canal } from "@/components/vente/messages";
 import { noterBoite, type EtatBoite } from "./etat";
+import { bailSuivi, periodeBail } from "@/components/gestion/echeancier";
+import { locationDe } from "@/components/location/bienLocation";
+import { loyerGele } from "@/components/location/loi";
 
-export type CategorieEnvoi = "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "apres";
+export type CategorieEnvoi = "lead" | "relance" | "baisse" | "proposition" | "vente" | "vendeur" | "pont" | "apres";
 
 export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" | "warn" | "ok" | "brand" | "info" | "neutral" }> = {
   lead: { label: "Nouveau lead", tone: "danger" },
@@ -34,9 +37,10 @@ export const CATEGORIE: Record<CategorieEnvoi, { label: string; tone: "danger" |
   proposition: { label: "Bien à proposer", tone: "ok" },
   vente: { label: "Point de vente", tone: "brand" },
   vendeur: { label: "Compte rendu vendeur", tone: "info" },
+  pont: { label: "Gestion ↔ vente", tone: "brand" },
   apres: { label: "Après-vente", tone: "neutral" },
 };
-const ORDRE: CategorieEnvoi[] = ["lead", "vente", "baisse", "relance", "vendeur", "proposition", "apres"];
+const ORDRE: CategorieEnvoi[] = ["lead", "vente", "baisse", "relance", "vendeur", "proposition", "pont", "apres"];
 
 export interface Envoi {
   /** Identifie ce message précis : un nouvel évènement donne une nouvelle clé. */
@@ -253,6 +257,89 @@ export function envoisDuJour(d: Donnees, etat: EtatBoite | null, lienAvis?: stri
       );
   }
   propositions.sort((x, y) => (y.score ?? 0) - (x.score ?? 0)).slice(0, 15).forEach(ajouter);
+
+  // Pont gestion ↔ vente : bailleurs dont le bail arrive à son terme ou dont le loyer est gelé,
+  // acquéreurs investisseurs à qui proposer la mise en location et la gestion.
+  const dateFr = (ymd: string) => ymd.split("-").reverse().join("/");
+  const pont = (cle: string, c: Contact, b: Bien, raison: string, sujet: string, corps: string[], sms: string) =>
+    ajouter({
+      cle,
+      cat: "pont",
+      contact: c,
+      bien: b,
+      raison,
+      sujet,
+      mail: [bonjour(c), "", corps.join("\n\n"), "", signatureMail()].join("\n"),
+      sms: [bonjour(c), sms, `${nomConseiller()}, PATRIM`].join("\n"),
+      fait: (canal) => {
+        void noterBoite("envoyes", cle, new Date().toISOString());
+        historique(c.id, canal, `${CATEGORIE.pont.label} : ${sujet}`);
+      },
+    });
+  for (const b of d.biens) {
+    const loc = locationDe(b);
+    if (!loc || !["loue", "preavis"].includes(loc.statut)) continue;
+    const proprios = (b.vendeurIds ?? []).map((id) => parId.get(id)).filter((c): c is Contact => !!c && !!(c.email || c.tel));
+    if (!proprios.length) continue;
+    const x = bailSuivi(b);
+    const lieu = [b.quartier, b.ville].filter(Boolean).join(", ") || b.adresse;
+    if (x && !(x.type === "meuble" && x.etudiant)) {
+      const { fin, limiteConge, preavis } = periodeBail(x, auj);
+      const dans = Math.round((new Date(limiteConge).getTime() - new Date(auj).getTime()) / 86400000);
+      if (dans >= 45 && dans <= 270)
+        for (const c of proprios)
+          pont(
+            `pont-fin:${b.id}:${fin}:${c.id}`,
+            c,
+            b,
+            `Le bail de ${b.titre} arrive à son terme le ${dateFr(fin)} : congé pour vendre possible jusqu'au ${dateFr(limiteConge)}`,
+            "L'échéance de votre bail : le bon moment pour faire le point",
+            [
+              `Le bail de votre logement${lieu ? ` (${lieu})` : ""} arrive à son terme le ${dateFr(fin)}. Sans démarche de votre part, il se reconduira automatiquement.`,
+              `Si vous envisagez de vendre, c'est le moment d'y réfléchir : un logement vendu libre se négocie en général mieux qu'occupé, et le congé pour vente doit être reçu par le locataire au moins ${preavis} mois avant l'échéance, soit avant le ${dateFr(limiteConge)}.`,
+              "Je vous propose de faire le point ensemble, avec une estimation gratuite de votre bien, pour que vous puissiez décider en connaissance de cause : garder, relouer ou vendre.",
+            ],
+            `Le bail de votre logement arrive à son terme le ${dateFr(fin)}. Si vous pensez à vendre, le congé doit partir avant le ${dateFr(limiteConge)}. Voulez-vous que je vous fasse une estimation gratuite ?`,
+          );
+    }
+    if (loyerGele(b.dpe))
+      for (const c of proprios)
+        pont(
+          `pont-dpe:${b.id}:${auj.slice(0, 4)}:${c.id}`,
+          c,
+          b,
+          `${b.titre} est classé ${b.dpe} : loyer gelé${b.dpe === "F" ? ", location interdite en 2028" : ""}`,
+          "Votre logement classé " + b.dpe + " : vos options",
+          [
+            `Votre logement${lieu ? ` (${lieu})` : ""} est classé ${b.dpe} au DPE. Son loyer ne peut plus être augmenté ni révisé${b.dpe === "F" ? ", et il ne pourra plus être loué à partir du 1er janvier 2028" : ", et il ne peut plus faire l'objet d'un nouveau bail"}.`,
+            "Deux voies s'offrent à vous : engager des travaux de rénovation énergétique (avec des aides possibles), ou vendre, éventuellement à l'échéance du bail.",
+            "Je vous propose d'en parler, avec une estimation gratuite de votre bien en l'état, pour comparer les deux options.",
+          ],
+          `Votre logement est classé ${b.dpe} : loyer gelé et location bientôt interdite. Je peux vous faire une estimation gratuite pour comparer travaux et vente. Qu'en pensez-vous ?`,
+        );
+  }
+  for (const b of d.biens) {
+    const v = venteDe(b);
+    const signe = v.acteSigne ?? v.signature;
+    if (!signe || signe > auj || jours(signe) > 150) continue;
+    for (const id of acquereursDe(b)) {
+      const c = parId.get(id);
+      if (!c?.criteres?.investissement || !(c.email || c.tel)) continue;
+      pont(
+        `pont-gestion:${b.id}:${c.id}`,
+        c,
+        b,
+        `Acquéreur investisseur de ${b.titre} : proposer la mise en location et la gestion`,
+        "La mise en location de votre futur logement",
+        [
+          `Votre projet d'investissement avance${v.acteSigne ? " : félicitations pour votre acquisition" : ""} ! Avez-vous déjà pensé à la mise en location ?`,
+          "Le service gestion locative de PATRIM peut s'en charger : recherche et sélection du locataire, bail, état des lieux, encaissement des loyers, révision annuelle, et garantie des loyers impayés si vous le souhaitez.",
+          "Je peux vous mettre en relation avec notre service gestion et vous donner une estimation du loyer que vous pouvez en attendre.",
+        ],
+        "Pour votre investissement, notre service gestion peut s'occuper de la mise en location (locataire, bail, loyers). Voulez-vous une estimation du loyer ?",
+      );
+    }
+  }
 
   // Après l'acte : remerciement, puis nouvelles à la date anniversaire
   for (const b of d.biens) {
