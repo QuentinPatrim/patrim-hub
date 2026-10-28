@@ -1,5 +1,5 @@
 // Service worker PATRIM Hub : appli installable + pages déjà vues disponibles hors connexion.
-const CACHE = "patrim-hub-v1";
+const CACHE = "patrim-hub-v2";
 const SHELL = ["/", "/logo.png", "/emblem.png", "/icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -25,5 +25,35 @@ self.addEventListener("fetch", (e) => {
         return res;
       })
       .catch(() => caches.match(req).then((r) => r || caches.match("/")))
+  );
+});
+
+// Notifications envoyées par le Hub (nouveaux leads, briefing du matin)
+self.addEventListener("push", (e) => {
+  let n = {};
+  try {
+    n = e.data ? e.data.json() : {};
+  } catch {}
+  e.waitUntil(
+    self.registration.showNotification(n.titre || "PATRIM Hub", {
+      body: n.texte || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: n.tag,
+      renotify: !!n.tag && !n.discret,
+      silent: !!n.discret,
+      data: { url: n.url || "/" },
+    })
+  );
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((tous) => {
+      const ouvert = tous.find((c) => c.url.startsWith(self.location.origin));
+      if (ouvert) return ouvert.focus().then((c) => (c && "navigate" in c ? c.navigate(url) : undefined));
+      return self.clients.openWindow(url);
+    })
   );
 });

@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { analyser, resumeCourt, type Donnees } from "@/lib/briefing";
 import { complete, parseJson } from "@/lib/ai-server";
 import type { Briefing, Kind } from "@/lib/types";
+import { notifier } from "@/lib/push-server";
 
 /* Agent de nuit, lancé chaque matin par Vercel Cron (voir vercel.json).
    Pour chaque utilisateur : analyse le portefeuille, crée les tâches du jour
@@ -81,6 +82,8 @@ export async function GET(req: Request) {
     ];
     const ins = await db.from("hub_docs").insert(docs);
     bilan.push({ user, points: a.points.length, taches: ins.error ? -1 : a.nouvellesTaches.length });
+    // Briefing prêt : notification discrète (sans son), lue au réveil
+    if (!ins.error && a.points.length) await notifier(db, user, { titre: "Ta journée est prête", texte: resumeCourt(a), url: "/", tag: "briefing", discret: true }).catch(() => 0);
   }
   return NextResponse.json({ ok: true, date, bilan });
 }
