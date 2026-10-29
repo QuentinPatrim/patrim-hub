@@ -3,9 +3,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import { cleServiceSupabase } from "@/lib/env";
 import { notifier } from "@/lib/push-server";
+import { creneauxDispo, type Dispo } from "@/components/visites/disponibilites";
 
-/* GET /api/b/:id : créneaux de visite encore libres (ceux proposés par le conseiller,
-   moins ceux qui chevauchent un rendez-vous de son agenda). Seules les heures sont données.
+/* GET /api/b/:id : créneaux de visite encore libres (les disponibilités du conseiller et les
+   créneaux ajoutés sur ce bien, moins ceux qui chevauchent un rendez-vous de son agenda, Google
+   Agenda compris). Seules les heures sont données.
    POST /api/b/:id : « Demander une visite » depuis la page web d'un bien (QR vitrine).
    Crée une fiche acquéreur chez le conseiller qui a publié la page, à rappeler aujourd'hui,
    et le prévient sur son téléphone. Avec un créneau choisi, la visite est posée dans son
@@ -13,14 +15,20 @@ import { notifier } from "@/lib/push-server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Db = SupabaseClient;
-type Page = { user_id: string; data: { titre?: string; creneaux?: string[]; dureeVisite?: number } };
+type Page = { user_id: string; data: { titre?: string; disponible?: boolean; creneaux?: string[]; dureeVisite?: number; sansDispo?: boolean } };
 
 /** Créneaux proposés, à venir (2 h au moins) et sans rendez-vous qui les chevauche. */
 async function creneauxLibres(db: Db, page: Page) {
-  const duree = (page.data.dureeVisite ?? 45) * 60_000;
+  let dispo: Dispo | undefined;
+  if (page.data.disponible !== false && !page.data.sansDispo) {
+    const { data } = await db.from("hub_docs").select("data").eq("user_id", page.user_id).eq("kind", "dispo").order("updated_at", { ascending: false }).limit(1);
+    dispo = (data?.[0] as { data: Dispo } | undefined)?.data;
+  }
+  const minutes = page.data.dureeVisite ?? (dispo?.actif ? dispo.duree : undefined) ?? 45;
+  const duree = minutes * 60_000;
   const tot = Date.now() + 2 * 3600_000;
-  const proposes = (page.data.creneaux ?? []).filter((c) => new Date(c).getTime() > tot).sort();
-  if (!proposes.length) return [];
+  const proposes = [...new Set([...(page.data.creneaux ?? []), ...creneauxDispo(dispo)])].filter((c) => new Date(c).getTime() > tot).sort();
+  if (!proposes.length) return { libres: [] as string[], minutes };
   const de = new Date(new Date(proposes[0]).getTime() - 86400_000).toISOString();
   const a = new Date(new Date(proposes[proposes.length - 1]).getTime() + 86400_000).toISOString();
   const { data } = await db.from("hub_docs").select("data").eq("user_id", page.user_id).eq("kind", "rdvs").gte("data->>debut", de).lte("data->>debut", a);
@@ -32,10 +40,11 @@ async function creneauxLibres(db: Db, page: Page) {
       return [d, r.fin ? new Date(r.fin).getTime() : d + 3600_000] as const;
     });
   // 15 minutes de battement autour de chaque rendez-vous pour le trajet
-  return proposes.filter((c) => {
+  const libres = proposes.filter((c) => {
     const d = new Date(c).getTime();
     return !pris.some(([x, y]) => d < y + 15 * 60_000 && d + duree > x - 15 * 60_000);
   });
+  return { libres, minutes };
 }
 
 export const dynamic = "force-dynamic";
@@ -49,7 +58,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: page } = await db.from("hub_docs").select("user_id,data").eq("id", id).eq("kind", "partage").maybeSingle();
   if (!page) return NextResponse.json({ creneaux: [] });
   const p = page as Page;
-  return NextResponse.json({ creneaux: await creneauxLibres(db, p), duree: p.data.dureeVisite ?? 45 }, { headers: { "cache-control": "no-store" } });
+  const { libres, minutes } = await creneauxLibres(db, p);
+  return NextResponse.json({ creneaux: libres, duree: minutes }, { headers: { "cache-control": "no-store" } });
 }
 
 const txt = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, max) : "");
@@ -76,7 +86,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userId = (page as Page).user_id;
   const titre = String((page as Page).data?.titre ?? "le bien");
   const creneau = txt(b?.creneau, 40);
-  if (creneau && !(await creneauxLibres(db, page as Page)).includes(creneau)) return NextResponse.json({ error: "Ce créneau vient d'être pris. Choisissez-en un autre.", pris: true }, { status: 409 });
+  const libre = creneau ? await creneauxLibres(db, page as Page) : undefined;
+  if (creneau && !libre!.libres.includes(creneau)) return NextResponse.json({ error: "Ce créneau vient d'être pris. Choisissez-en un autre.", pris: true }, { status: 409 });
   const { data: bien } = await db.from("hub_docs").select("id").eq("user_id", userId).eq("kind", "biens").eq("data->pageWeb->>id", id).maybeSingle();
 
   // Pas plus de 20 demandes par heure sur une même page (protection contre les envois en masse)
@@ -120,7 +131,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       updatedAt: maintenant,
       type: "visite",
       debut: debut.toISOString(),
-      fin: new Date(debut.getTime() + ((page as Page).data.dureeVisite ?? 45) * 60_000).toISOString(),
+      fin: new Date(debut.getTime() + (libre?.minutes ?? 45) * 60_000).toISOString(),
       titre: `Visite ${titre} (réservée en ligne)`,
       bienId: (bien as { id: string } | null)?.id,
       contactIds: [contactId],

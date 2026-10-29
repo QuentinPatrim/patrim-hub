@@ -87,6 +87,7 @@ function Demande({ id, f, creneaux, setCreneaux }: { id: string; f: FichePubliqu
   const [v, setV] = useState({ prenom: "", nom: "", tel: "", email: "", message: "", rappel: false, site: "" });
   const [choix, setChoix] = useState("");
   const [autre, setAutre] = useState(false);
+  const [nbJours, setNbJours] = useState(4);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState<false | { quand?: string }>(false);
@@ -138,7 +139,7 @@ function Demande({ id, f, creneaux, setCreneaux }: { id: string; f: FichePubliqu
           <form onSubmit={envoyer} className="mt-4 space-y-3">
             {libre && (
               <div className="space-y-3">
-                {Object.entries(parJour).map(([jour, liste]) => (
+                {Object.entries(parJour).slice(0, nbJours).map(([jour, liste]) => (
                   <div key={jour}>
                     <div className="text-sm font-semibold first-letter:uppercase">{jour}</div>
                     <div className="mt-1.5 flex flex-wrap gap-2">
@@ -150,7 +151,12 @@ function Demande({ id, f, creneaux, setCreneaux }: { id: string; f: FichePubliqu
                     </div>
                   </div>
                 ))}
-                <button type="button" className="text-sm underline" style={{ color: C.slate }} onClick={() => setAutre(true)}>
+                {Object.keys(parJour).length > nbJours && (
+                  <button type="button" className="h-10 w-full rounded-xl border text-sm font-semibold" style={{ borderColor: C.line, color: C.brand }} onClick={() => setNbJours(nbJours + 5)}>
+                    Voir d&apos;autres jours
+                  </button>
+                )}
+                <button type="button" className="block text-sm underline" style={{ color: C.slate }} onClick={() => setAutre(true)}>
                   Aucun créneau ne vous convient ? Proposez vos disponibilités
                 </button>
               </div>
