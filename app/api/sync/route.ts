@@ -3,13 +3,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import { cleServiceSupabase, secretSynchro } from "@/lib/env";
 import { notifier } from "@/lib/push-server";
+import { RDV_TYPE } from "@/lib/format";
 import type { Bien, BienType, Contact, Rdv, RdvType, Source, Tache } from "@/lib/types";
 
 /* POST /api/sync : reçoit ce que le script Google (Gmail + Agenda) envoie.
    - lead    : nouveau lead d'un portail → fiche contact + tâche « Rappeler »
    - reponse : réponse d'un client à un mail → historique du contact (+ RDV)
    - agenda  : événements Google Agenda des prochaines semaines → Agenda de l'appli ;
-               en retour, les visites réservées en ligne à créer dans Google Agenda (aCreer),
+               en retour, les rendez-vous du Hub à créer dans Google Agenda (aCreer),
                reconnues ensuite grâce à la marque [hub:id] de leur description
    Protégé par un secret partagé (en-tête x-hub-secret). N'envoie jamais rien à un client. */
 
@@ -80,29 +81,36 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, bilan, ...(p.agenda ? { aCreer: aCreerDansGoogle(s) } : {}) });
 }
 
-/** Visites réservées en ligne pas encore dans Google Agenda (le script les crée avec la marque [hub:id]). */
+/** Rendez-vous du Hub (saisis dans l'appli ou réservés en ligne) pas encore dans Google Agenda : le script
+    les crée avec la marque [hub:id]. Seulement dans la fenêtre que le script relit (29 jours), pour qu'il les retrouve. */
 function aCreerDansGoogle(s: Etat) {
   const contacts = s.liste<Contact>("contacts");
   const biens = s.liste<Bien>("biens");
-  return s
-    .liste<Rdv & { reserveEnLigne?: string }>("rdvs")
-    .filter((r) => r.reserveEnLigne && !r.externalId && r.statut === "prevu" && new Date(r.debut).getTime() > Date.now())
+  const maintenant = Date.now();
+  const tous = s.liste<Rdv & { reserveEnLigne?: string }>("rdvs");
+  // Heures déjà occupées par un événement Google : un doublon saisi des deux côtés n'est pas recréé
+  const google = new Set(tous.filter((r) => r.externalId && r.statut === "prevu").map((r) => Math.round(new Date(r.debut).getTime() / 60_000)));
+  return tous
+    .filter((r) => {
+      const t = new Date(r.debut).getTime();
+      return !r.externalId && r.statut === "prevu" && t > maintenant && t < maintenant + 29 * 86400_000 && !google.has(Math.round(t / 60_000));
+    })
     .slice(0, 20)
     .map((r) => {
       const c = contacts.find((x) => r.contactIds?.includes(x.id));
       const b = biens.find((x) => x.id === r.bienId);
       return {
         hubId: r.id,
-        titre: c ? `Visite ${b?.titre ?? ""} · ${[c.prenom, c.nom].filter(Boolean).join(" ")}`.replace(/\s+/g, " ") : r.titre ?? "Visite",
+        titre: r.reserveEnLigne && c ? `Visite ${b?.titre ?? ""} · ${[c.prenom, c.nom].filter(Boolean).join(" ")}`.replace(/\s+/g, " ") : r.titre || [RDV_TYPE[r.type] ?? "Rendez-vous", c && [c.prenom, c.nom].filter(Boolean).join(" "), b?.titre].filter(Boolean).join(" · "),
         debut: r.debut,
         fin: r.fin ?? new Date(new Date(r.debut).getTime() + 45 * 60000).toISOString(),
         lieu: [b?.adresse, b?.ville].filter(Boolean).join(", "),
         description: [
-          "Visite réservée en ligne depuis la page du bien (QR code).",
+          r.reserveEnLigne ? "Visite réservée en ligne depuis la page du bien (QR code)." : "Rendez-vous ajouté depuis PATRIM Hub.",
           c && [c.prenom, c.nom].filter(Boolean).join(" "),
           c?.tel && `Tél. ${c.tel}`,
           c?.email,
-          "La confirmation au visiteur t'attend dans « À envoyer » du Hub.",
+          r.reserveEnLigne && "La confirmation au visiteur t'attend dans « À envoyer » du Hub.",
           `[hub:${r.id}]`,
         ]
           .filter(Boolean)
@@ -315,7 +323,12 @@ function traiterAgenda(s: Etat, a: NonNullable<Payload["agenda"]>, bilan: Record
     };
     // Visite créée par le Hub dans Google Agenda : retrouvée par sa marque [hub:id]
     const marque = /\[hub:([0-9a-f-]{36})\]/i.exec(e.description ?? "")?.[1];
-    const existant = rdvs.find((r) => r.externalId === e.id) ?? (marque ? rdvs.find((r) => r.id === marque) : undefined);
+    const t0 = new Date(e.debut).getTime();
+    const existant =
+      rdvs.find((r) => r.externalId === e.id) ??
+      (marque ? rdvs.find((r) => r.id === marque) : undefined) ??
+      // Même rendez-vous saisi à la main dans le Hub et dans Google : on les relie au lieu de le doubler
+      rdvs.find((r) => !r.externalId && !apparies.has(r.id) && r.statut === "prevu" && Math.abs(new Date(r.debut).getTime() - t0) < 60_000);
     if (existant) {
       apparies.add(existant.id);
       const change = existant.externalId !== data.externalId || existant.debut !== data.debut || existant.titre !== data.titre || existant.lieu !== data.lieu || existant.fin !== data.fin;
