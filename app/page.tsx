@@ -120,7 +120,7 @@ function Accueil() {
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* Bandeau d'accueil */}
-      <section className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#561317] to-ink text-white shadow-lift animate-fade-up">
+      <section className="hero-accueil relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-brand via-[#561317] to-ink text-white shadow-lift animate-fade-up">
         <div aria-hidden className="arcades absolute inset-x-0 bottom-0 h-32 sm:h-40 opacity-[0.11] -z-10" />
         <div aria-hidden className="absolute -right-16 -top-24 size-72 rounded-full bg-coral/25 blur-3xl -z-10" />
         <div aria-hidden className="absolute inset-0 bg-[radial-gradient(120%_70%_at_0%_0%,rgba(255,255,255,.08),transparent_60%)] -z-10" />
@@ -372,8 +372,8 @@ function BriefingCard({ brief }: { brief?: Briefing }) {
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-ink text-white shadow-card ring-1 ring-inset ring-white/[0.06] animate-fade-up [animation-delay:90ms]">
-      <div className="absolute inset-0 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(108,25,30,.7),transparent_60%)]" />
+    <section className="hero-accueil relative overflow-hidden rounded-2xl bg-ink text-white shadow-card ring-1 ring-inset ring-white/[0.06] animate-fade-up [animation-delay:90ms]">
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(110%_90%_at_100%_0%,rgba(108,25,30,.7),transparent_60%)]" />
       <div className="absolute left-0 top-5 bottom-5 w-[3px] rounded-r-full bg-coral/80" />
       <div className="relative p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">

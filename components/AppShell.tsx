@@ -12,6 +12,7 @@ import {
   Home,
   KeyRound,
   FileSignature,
+  Gauge,
   LayoutGrid,
   ListChecks,
   Moon,
@@ -30,7 +31,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getAll } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
-import { useTheme } from "@/lib/theme";
+import { themeSuivant, useTheme } from "@/lib/theme";
+import { Fond } from "@/components/Fond";
 import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
 import { locationSeule } from "@/components/location/bienLocation";
 import { useSuiviRetour } from "@/lib/retour";
@@ -98,8 +100,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-dvh lg:pl-[264px]">
+      <Fond />
       {/* Barre latérale (ordinateur / tablette) */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[264px] flex-col overflow-hidden bg-ink text-white/90 no-print">
+      <aside className="app-aside hidden lg:flex fixed inset-y-0 left-0 w-[264px] flex-col overflow-hidden bg-ink text-white/90 no-print">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_40%_at_0%_0%,rgba(108,25,30,.55),transparent_70%)]" />
         <div aria-hidden className="arcades pointer-events-none absolute inset-x-0 bottom-16 h-24 opacity-[0.05]" />
         <div className="relative px-5 pt-6 pb-6">
@@ -149,14 +152,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/reglages" className={clsx("flex-1 flex items-center gap-3 h-10 px-3 rounded-xl text-sm font-medium transition", active("/reglages") ? "bg-white/[0.09] text-white" : "text-white/60 hover:text-white hover:bg-white/[0.05]")}>
             <Settings size={17} strokeWidth={1.8} /> Réglages
           </Link>
-          <button onClick={toggle} className="grid place-items-center size-10 rounded-xl text-white/60 hover:text-white hover:bg-white/[0.05] transition" aria-label="Changer de thème">
-            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          <button onClick={toggle} className="grid place-items-center size-10 rounded-xl text-white/60 hover:text-white hover:bg-white/[0.05] transition" aria-label={`Passer au thème ${NOM_THEME[themeSuivant(theme)]}`}>
+            <IconeTheme theme={themeSuivant(theme)} size={17} />
           </button>
         </div>
       </aside>
 
       {/* En-tête mobile */}
-      <header className="lg:hidden sticky top-0 z-30 safe-top bg-bg/95 backdrop-blur-xl backdrop-saturate-150 border-b border-line/40 no-print">
+      <header className="app-header lg:hidden sticky top-0 z-30 safe-top bg-bg/95 backdrop-blur-xl backdrop-saturate-150 border-b border-line/40 no-print">
         <div className="flex items-center gap-2 h-14 px-3 min-[400px]:gap-3 min-[400px]:px-4">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Accueil PATRIM">
             <Image src="/emblem.png" alt="" width={30} height={30} className="rounded-lg shadow-xs" />
@@ -176,8 +179,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button onClick={() => setSearch(true)} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Rechercher">
               <Search size={19} />
             </button>
-            <button onClick={toggle} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label="Changer de thème">
-              {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
+            <button onClick={toggle} className="grid place-items-center size-10 rounded-full text-fg/80 hover:bg-fg/[0.05] transition" aria-label={`Passer au thème ${NOM_THEME[themeSuivant(theme)]}`}>
+              <IconeTheme theme={themeSuivant(theme)} size={19} />
             </button>
           </div>
         </div>
@@ -186,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-14 min-w-0">{children}</main>
 
       {/* Barre d'onglets mobile */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
+      <nav className="app-tabbar lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
         <div className="grid grid-cols-5 h-[62px] px-1">
           {nav.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => {
             const on = active(href);
@@ -236,6 +239,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       {search && <SearchPalette onClose={() => setSearch(false)} />}
     </div>
   );
+}
+
+const NOM_THEME = { light: "clair", dark: "sombre", dashboard: "Dashboard" } as const;
+function IconeTheme({ theme, size }: { theme: keyof typeof NOM_THEME; size: number }) {
+  return theme === "light" ? <Sun size={size} /> : theme === "dark" ? <Moon size={size} /> : <Gauge size={size} />;
 }
 
 /** Recherche globale : biens, contacts, estimations, pages. */

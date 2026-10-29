@@ -38,7 +38,7 @@ export function AccueilLocation() {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <section className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-ink via-[#2a1416] to-brand text-white shadow-lift animate-fade-up">
+      <section className="hero-accueil relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-ink via-[#2a1416] to-brand text-white shadow-lift animate-fade-up">
         <div aria-hidden className="arcades absolute inset-x-0 bottom-0 h-32 opacity-[0.11] -z-10" />
         <div className="p-5 pt-6 sm:p-8">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">

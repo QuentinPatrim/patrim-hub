@@ -10,6 +10,7 @@ import { AvisCard } from "@/components/reglages/AvisCard";
 import { NotificationsCard } from "@/components/reglages/NotificationsCard";
 import { DisponibilitesCard } from "@/components/visites/DisponibilitesCard";
 import { EquipeCard } from "@/components/reglages/EquipeCard";
+import { ApparenceCard } from "@/components/reglages/ApparenceCard";
 import { useMoi } from "@/lib/equipe";
 import { bulkCreate, getAll } from "@/lib/store";
 import { cloudEnabled, supabase } from "@/lib/supabase";
@@ -78,8 +79,9 @@ export default function Reglages() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <PageHeader title="Réglages" subtitle="Compte, données et sauvegardes" />
+      <PageHeader title="Réglages" subtitle="Apparence, compte, données et sauvegardes" />
 
+      <ApparenceCard />
       <NotificationsCard />
       <DisponibilitesCard />
 
