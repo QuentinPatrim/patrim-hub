@@ -13,7 +13,7 @@ import { ecrireMandat, lireMandat, mandatInitial, type Mandat } from "@/componen
 import { ecrireOffre, lireOffre, offreInitiale, partieDepuisContact, type ContactEtatCivil, type Offre, type Partie } from "@/components/offre/offre";
 import { dossierDe, type BienDossier } from "@/components/biens/dossier";
 import type { Bien, Contact, ContactRole } from "@/lib/types";
-import { avecAutres, libelle, OCCUPATIONS, type Controle, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
+import { avecAutres, decouperAdresse, libelle, OCCUPATIONS, type Civilite, type Controle, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
 
 async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?: unknown }): Promise<T> {
   const r = await fetch(`/api/fiches${init.query ?? ""}`, {
@@ -29,8 +29,8 @@ async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?
 
 export const listerFiches = (bienId: string, kind?: KindFiche) =>
   appeler<{ fiches: Fiche[] }>({ method: "GET", query: `?bien=${encodeURIComponent(bienId)}${kind ? `&kind=${kind}` : ""}` }).then((r) => r.fiches);
-export const creerFiche = (kind: KindFiche, bienId: string, contexte: ContextePublic, prenom: string) =>
-  appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "creer", kind, bienId, contexte, prenom } });
+export const creerFiche = (kind: KindFiche, bienId: string, contexte: ContextePublic, prenom: string, reponses?: Reponses) =>
+  appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "creer", kind, bienId, contexte, prenom, reponses } });
 export const nouveauLienFiche = (id: string) => appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "lien", id } });
 export const fermerFiche = (id: string, ferme: boolean) => appeler<{ ok: true }>({ method: "POST", corps: { action: "fermer", id, ferme } });
 export const controlerFiche = (id: string, controle: Controle) => appeler<{ controle: Controle }>({ method: "POST", corps: { action: "controler", id, controle } });
@@ -50,19 +50,99 @@ export function contextePublic(b: Bien, kind: KindFiche): ContextePublic {
   };
 }
 
-/** Texte prêt à envoyer avec le lien (SMS, WhatsApp, mail). */
-export function messageFiche(kind: KindFiche, prenom: string, contexte: ContextePublic, url: string) {
+/** La personne à qui le lien est envoyé. */
+export interface Destinataire {
+  civilite?: Civilite;
+  prenom?: string;
+  nom?: string;
+}
+
+/** « Bonjour Monsieur DUPONT, » : formule de politesse du message. */
+export function salutation(d: Destinataire) {
+  const nom = d.nom?.trim().toUpperCase();
+  if (nom && d.civilite) return `Bonjour ${d.civilite === "M." ? "Monsieur" : "Madame"} ${nom},`;
+  const qui = [d.prenom?.trim(), nom].filter(Boolean).join(" ");
+  return qui ? `Bonjour ${qui},` : "Bonjour,";
+}
+
+export const objetFiche = (kind: KindFiche, contexte: ContextePublic) =>
+  kind === "vendeur" ? "Votre fiche vendeur – PATRIM" : `Votre offre d'achat – ${contexte.titre}${contexte.ville ? `, ${contexte.ville}` : ""}`;
+
+/** Texte prêt à envoyer avec le lien (mail, SMS, WhatsApp). */
+export function messageFiche(kind: KindFiche, d: Destinataire, contexte: ContextePublic, url: string, dejaRempli = false) {
+  const c = contexte.conseiller;
   const pour =
     kind === "vendeur"
-      ? "Pour préparer votre mandat de vente, voici le lien de votre fiche vendeur. Elle réunit en une fois les informations du mandat et les vérifications que la loi impose aux agences :"
-      : `Pour rédiger votre offre d'achat sur le bien « ${contexte.titre} »${contexte.ville ? ` à ${contexte.ville}` : ""}, voici le lien de votre fiche acquéreur :`;
+      ? "Afin de préparer votre mandat de vente, je vous invite à compléter votre fiche vendeur à l'aide du lien ci-dessous. Elle réunit en une seule fois les informations nécessaires au mandat et les vérifications que la réglementation impose aux agences immobilières."
+      : `Afin de rédiger votre offre d'achat pour le bien « ${contexte.titre} »${contexte.ville ? ` à ${contexte.ville}` : ""}, je vous invite à compléter votre fiche acquéreur à l'aide du lien ci-dessous.`;
   return [
-    `Bonjour${prenom ? ` ${prenom}` : ""},`,
+    salutation(d),
+    "",
     pour,
+    ...(dejaRempli ? ["J'y ai déjà indiqué les informations dont je dispose : il vous suffira de les vérifier et de compléter le reste."] : []),
+    "",
     url,
-    "Comptez une dizaine de minutes, depuis votre téléphone. Ce lien est personnel : merci de ne pas le transférer.",
-    `${nomConseiller()} – PATRIM`,
+    "",
+    "Vous pouvez la remplir sur votre téléphone ou sur votre ordinateur ; comptez une dizaine de minutes. Ce lien vous est personnel, merci de ne pas le transférer.",
+    "",
+    "Je reste à votre disposition pour toute question.",
+    "",
+    "Bien cordialement,",
+    [nomConseiller(), "PATRIM"].join(" – "),
+    ...(c?.tel ? [c.tel] : []),
   ].join("\n");
+}
+
+/* ---------- Ce que le Hub sait déjà ---------- */
+
+const NATURE_DE: Partial<Record<Bien["type"], Reponses["bienNature"]>> = { appartement: "Appartement", maison: "Maison", local: "Local", immeuble: "Immeuble", parking: "Garage", terrain: "Terrain" };
+
+/** Identité et coordonnées d'un contact du Hub, pour la fiche. */
+function personneDe(c?: ContactEtatCivil, d?: Destinataire & { tel?: string; email?: string }): Personne {
+  return {
+    civilite: d?.civilite || c?.civilite || undefined,
+    prenom: d?.prenom || c?.prenom,
+    nom: (d?.nom || (c?.nom && !c.nom.includes("[À compléter]") ? c.nom : undefined))?.toUpperCase(),
+    dateNaissance: c?.dateNaissance,
+    lieuNaissance: c?.lieuNaissance,
+    profession: c?.profession,
+    tel: d?.tel || c?.tel,
+    email: d?.email || c?.email,
+    ...decouperAdresse(c?.adresse),
+  };
+}
+
+/** La fiche pré-remplie avec ce que le Hub sait déjà (le client vérifie et complète). */
+export function reponsesInitiales(b: Bien, kind: KindFiche, d: Destinataire & { tel?: string; email?: string }, contactId?: string): Reponses {
+  const contacts = getAll("contacts") as ContactEtatCivil[];
+  const c = contactId ? contacts.find((x) => x.id === contactId) : undefined;
+  const r: Reponses = personneDe(c, d);
+  if (kind === "acquereur") {
+    if (c?.financement?.apport != null) r.apport = c.financement.apport;
+    if (c?.financement?.courtier) r.banque = c.financement.courtier;
+    return r;
+  }
+  const dossier = dossierDe(b) ?? {};
+  // Les autres propriétaires déjà connus (couple, indivision)
+  const autres = (b.vendeurIds ?? []).filter((id) => id !== contactId).map((id) => contacts.find((x) => x.id === id)).filter(Boolean) as ContactEtatCivil[];
+  if (autres.length) {
+    r.parties = "plusieurs";
+    r.autres = autres.slice(0, 5).map((x) => personneDe(x));
+  }
+  return {
+    ...r,
+    bienRue: b.adresse || undefined,
+    bienCp: b.codePostal || undefined,
+    bienVille: b.ville || undefined,
+    bienNature: NATURE_DE[b.type],
+    lots: dossier.lots,
+    carrez: b.type === "appartement" && b.surface ? `${String(b.surface).replace(".", ",")} m²` : undefined,
+    syndic: dossier.syndic,
+    chargesAnnuelles: b.chargesAnnuelles,
+    taxeFonciere: b.taxeFonciere,
+    anneeConstruction: b.anneeConstruction,
+    notaireVente: dossier.notaire,
+  };
 }
 
 /* ---------- Des réponses vers le Hub ---------- */

@@ -64,7 +64,7 @@ export function messageLien(prenom: string, role: PersonneDossier["role"], logem
     `Bonjour${prenom ? ` ${prenom}` : ""},`,
     `Voici le lien pour remplir votre fiche de renseignements ${pour} le logement « ${logement.titre} »${logement.ville ? ` à ${logement.ville}` : ""} :`,
     url,
-    "Cela prend quelques minutes depuis votre téléphone. Ce lien est personnel : merci de ne pas le transférer.",
+    "Cela prend quelques minutes sur téléphone ou sur ordinateur. Ce lien est personnel : merci de ne pas le transférer.",
     `${nomConseiller()} – PATRIM`,
   ].join("\n");
 }

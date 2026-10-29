@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ClipboardList, FileSignature, FileText, Handshake, Link2, Lock, RefreshCw, ShieldAlert, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { Badge, Card, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { PartageLien } from "@/components/renseignements/Partage";
+import { ContactPicker } from "@/components/biens/ContactPicker";
+import { useCollection } from "@/lib/store";
 import { dateCourte, eur, ilya, today } from "@/lib/format";
 import { nomConseiller } from "@/lib/equipe";
 import type { Bien } from "@/lib/types";
@@ -21,11 +23,14 @@ import {
   listerFiches,
   messageFiche,
   nouveauLienFiche,
+  objetFiche,
+  reponsesInitiales,
+  type Destinataire,
   preparerMandat,
   preparerOffre,
   supprimerFiche,
 } from "./client";
-import { controleFait, groupesReponses, manquantsReponses, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
+import { controleFait, groupesReponses, manquantsReponses, PIECES, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
 
 /* ============================================================
    Côté conseiller : fiches vendeur ou acquéreur envoyées pour un
@@ -83,7 +88,7 @@ export function FichesCarte({ b }: { b: Bien }) {
   };
   return (
     <Card title="Fiches à remplir par le client">
-      <p className="text-sm text-muted">Envoyez un lien : le vendeur ou l&apos;acquéreur remplit sa fiche sur son téléphone, vérifications anti-blanchiment comprises. Ses réponses remplissent le mandat ou l&apos;offre.</p>
+      <p className="text-sm text-muted">Envoyez un lien : le vendeur ou l&apos;acquéreur remplit sa fiche en ligne, sur téléphone ou ordinateur, vérifications anti-blanchiment comprises. Ses réponses remplissent le mandat ou l&apos;offre.</p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Link href={`/biens/${b.id}/fiche-vendeur`} className="btn-secondary !h-11 !justify-start">
           <FileSignature size={16} className="text-accent" /> Fiche vendeur
@@ -98,7 +103,7 @@ export function FichesCarte({ b }: { b: Bien }) {
   );
 }
 
-type Envoi = { prenom: string; jeton: string; tel?: string; email?: string };
+type Envoi = { dest: Destinataire; jeton: string; tel?: string; email?: string; rempli?: boolean };
 
 export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
   const router = useRouter();
@@ -187,7 +192,8 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
             onLien={() =>
               agir(async () => {
                 const { jeton } = await nouveauLienFiche(f.id);
-                setEnvoi({ prenom: f.reponses?.prenom || f.prenom, jeton, tel: f.reponses?.tel, email: f.reponses?.email });
+                const r = f.reponses ?? {};
+                setEnvoi({ dest: { civilite: r.civilite, prenom: r.prenom || f.prenom, nom: r.nom }, jeton, tel: r.tel, email: r.email, rempli: f.statut === "a_remplir" && !!r.nom });
               })
             }
             onFermer={() => agir(() => fermerFiche(f.id, !f.ferme))}
@@ -212,10 +218,11 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         open={nouveau}
         kind={kind}
         onClose={() => setNouveau(false)}
-        onCree={async (prenom, tel, email) => {
-          const r = await creerFiche(kind, b.id, ctx, prenom);
+        b={b}
+        onCree={async ({ contactId, pieces, ...d }) => {
+          const r = await creerFiche(kind, b.id, { ...ctx, pieces }, d.prenom ?? "", reponsesInitiales(b, kind, d, contactId));
           setNouveau(false);
-          setEnvoi({ prenom, jeton: r.jeton, tel, email });
+          setEnvoi({ dest: d, jeton: r.jeton, tel: d.tel, email: d.email, rempli: true });
           await charger();
         }}
       />
@@ -245,12 +252,12 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
       )}
 
       {envoi && (
-        <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${envoi.prenom || (vendeur ? "le vendeur" : "l'acquéreur")}`}>
+        <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${[envoi.dest.prenom, envoi.dest.nom?.toUpperCase()].filter(Boolean).join(" ") || (vendeur ? "le vendeur" : "l'acquéreur")}`}>
           <p className="mb-3 text-sm text-muted">Le message est prêt : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
-          <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{messageFiche(kind, envoi.prenom, ctx, lienFiche(envoi.jeton))}</pre>
+          <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{messageFiche(kind, envoi.dest, ctx, lienFiche(envoi.jeton), envoi.rempli)}</pre>
           <PartageLien
-            texte={messageFiche(kind, envoi.prenom, ctx, lienFiche(envoi.jeton))}
-            sujet={vendeur ? "Votre fiche vendeur – PATRIM" : `Votre offre d'achat – ${ctx.titre}`}
+            texte={messageFiche(kind, envoi.dest, ctx, lienFiche(envoi.jeton), envoi.rempli)}
+            sujet={objetFiche(kind, ctx)}
             tel={envoi.tel}
             email={envoi.email}
             url={lienFiche(envoi.jeton)}
@@ -420,49 +427,101 @@ function Reponses({ f, prix }: { f: Fiche; prix?: number }) {
   );
 }
 
-function NouvelleFiche({ open, kind, onClose, onCree }: { open: boolean; kind: KindFiche; onClose: () => void; onCree: (prenom: string, tel?: string, email?: string) => Promise<void> }) {
-  const [prenom, setPrenom] = useState("");
-  const [tel, setTel] = useState("");
-  const [email, setEmail] = useState("");
+export type Saisie = Destinataire & { tel?: string; email?: string; contactId?: string; pieces: string[] };
+
+function NouvelleFiche({ open, b, kind, onClose, onCree }: { open: boolean; b: Bien; kind: KindFiche; onClose: () => void; onCree: (s: Saisie) => Promise<void> }) {
+  const vendeur = kind === "vendeur";
+  const { items: contacts } = useCollection("contacts");
+  const vide = (): Saisie => ({ pieces: [...PIECES[kind]] });
+  const [s, setS] = useState<Saisie>(vide);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const qui = kind === "vendeur" ? "du vendeur" : "de l'acquéreur";
+  const set = (x: Partial<Saisie>) => setS((y) => ({ ...y, ...x }));
+  // Choisir un contact du Hub : ses coordonnées et son identité passent dans la fiche
+  const choisir = useCallback(
+    (id?: string) => {
+      const c = id ? contacts.find((x) => x.id === id) : undefined;
+      setS((y) => ({
+        ...y,
+        contactId: c?.id,
+        civilite: c?.civilite || undefined,
+        prenom: c?.prenom ?? "",
+        nom: c?.nom && !c.nom.includes("[À compléter]") ? c.nom : "",
+        tel: c?.tel ?? "",
+        email: c?.email ?? "",
+      }));
+    },
+    [contacts],
+  );
+  // Fiche vendeur : le premier propriétaire connu du bien est proposé d'office
+  useEffect(() => {
+    if (open && vendeur && !s.contactId && !s.nom && b.vendeurIds?.[0] && contacts.some((c) => c.id === b.vendeurIds![0])) choisir(b.vendeurIds[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, contacts.length]);
   const creer = async () => {
     setBusy(true);
     setErr(null);
     try {
-      await onCree(prenom.trim(), tel.trim() || undefined, email.trim() || undefined);
-      setPrenom("");
-      setTel("");
-      setEmail("");
+      await onCree({ ...s, prenom: s.prenom?.trim(), nom: s.nom?.trim(), tel: s.tel?.trim() || undefined, email: s.email?.trim() || undefined });
+      setS(vide());
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  const basculer = (x: string) => set({ pieces: s.pieces.includes(x) ? s.pieces.filter((y) => y !== x) : [...s.pieces, x] });
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title={TITRE_FICHE[kind]}
       footer={
-        <button type="button" className="btn-primary w-full !h-12" disabled={busy || !prenom.trim()} onClick={creer}>
+        <button type="button" className="btn-primary w-full !h-12" disabled={busy || !s.nom?.trim()} onClick={creer}>
           {busy ? <Spinner /> : <Link2 size={16} />} Créer le lien
         </button>
       }
     >
       <div className="space-y-3">
-        <Field label={`Prénom ${qui}`}>
-          <input className="input" value={prenom} onChange={(e) => setPrenom(e.target.value)} autoFocus />
+        <Field label={vendeur ? "Propriétaire déjà dans le Hub (facultatif)" : "Acquéreur déjà dans le Hub (facultatif)"} hint="Ce que le Hub sait déjà sur lui et sur le bien est mis dans la fiche : il n'a plus qu'à vérifier et compléter.">
+          <ContactPicker value={s.contactId ? [s.contactId] : []} onChange={(ids) => choisir(ids[0])} role={vendeur ? "vendeur" : "acquereur"} max={1} />
         </Field>
+        <Field label="Civilité">
+          <div className="flex gap-2">
+            {(["M.", "Mme"] as const).map((c) => (
+              <button key={c} type="button" onClick={() => set({ civilite: s.civilite === c ? undefined : c })} className={cx("chip !h-10 !px-4 !text-sm", s.civilite === c && "!bg-accent/10 !text-accent !border-accent/30")}>
+                {c === "M." ? "Monsieur" : "Madame"}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Prénom">
+            <input className="input" value={s.prenom ?? ""} onChange={(e) => set({ prenom: e.target.value })} autoComplete="off" />
+          </Field>
+          <Field label="Nom">
+            <input className="input" value={s.nom ?? ""} onChange={(e) => set({ nom: e.target.value })} autoComplete="off" />
+          </Field>
+        </div>
         <Field label="Portable (facultatif)" hint="Pour ouvrir le SMS ou WhatsApp directement vers lui.">
-          <input className="input" type="tel" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} />
+          <input className="input" type="tel" inputMode="tel" value={s.tel ?? ""} onChange={(e) => set({ tel: e.target.value })} />
         </Field>
         <Field label="E-mail (facultatif)">
-          <input className="input" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="input" type="email" inputMode="email" value={s.email ?? ""} onChange={(e) => set({ email: e.target.value })} />
         </Field>
-        <p className="text-xs text-muted">Ces coordonnées servent seulement à préparer le message ; le client saisit lui-même les siennes dans la fiche. Une seule fiche suffit pour un couple ou une indivision : il y ajoute les autres personnes.</p>
+        <div>
+          <div className="mb-1.5 text-sm font-medium">Documents à lui demander</div>
+          <p className="mb-2 text-xs text-muted">Décochez ceux que vous avez déjà : il ne verra que les autres.</p>
+          <div className="space-y-1.5">
+            {PIECES[kind].map((x) => (
+              <label key={x} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line/70 px-3 py-2.5 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--accent))]" checked={s.pieces.includes(x)} onChange={() => basculer(x)} />
+                <span>{x}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-muted">Une seule fiche suffit pour un couple ou une indivision : il y ajoute les autres personnes.</p>
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
     </Sheet>

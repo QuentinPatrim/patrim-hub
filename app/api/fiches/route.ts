@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { roleEquipe, utilisateur } from "@/lib/auth-server";
-import { CONSERVATION_JOURS, DUREE_LIEN_JOURS, nettoyerControle, nettoyerPrenom, type ContextePublic, type KindFiche } from "@/components/fiches/fiche";
+import { CONSERVATION_JOURS, DUREE_LIEN_JOURS, PIECES, nettoyerControle, nettoyerPrenom, nettoyerReponses, type ContextePublic, type KindFiche } from "@/components/fiches/fiche";
 import { depotFiches, empreinte, ENTETES, nouveauJeton, type FicheServeur } from "@/components/fiches/serveur";
 
 /* Fiches vendeur et acquéreur, côté conseiller (compte de l'équipe obligatoire).
@@ -34,12 +34,15 @@ function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
   const c = s.conseiller as Record<string, unknown> | undefined;
   const photo = texte(s.photo, 500);
   const prix = typeof s.prix === "number" && Number.isFinite(s.prix) && s.prix > 0 && s.prix < 100_000_000 ? s.prix : undefined;
+  // Documents demandés par le conseiller (il a peut-être déjà les autres)
+  const pieces = Array.isArray(s.pieces) ? [...new Set(s.pieces.filter((x): x is string => typeof x === "string" && PIECES[kind].includes(x)))] : undefined;
   return {
     titre,
     ville: texte(s.ville, 80),
     // Le vendeur connaît son bien : seul l'acquéreur voit le prix affiché
     prix: kind === "acquereur" ? prix : undefined,
     photo: photo && /^https:\/\//.test(photo) ? photo : undefined,
+    pieces,
     conseiller: c && texte(c.nom, 80) ? { nom: texte(c.nom, 80)!, tel: texte(c.tel, 24), mail: texte(c.mail, 120) } : undefined,
   };
 }
@@ -77,7 +80,9 @@ export async function POST(req: Request) {
       const contexte = kind && contexteDe(corps.contexte, kind);
       if (!kind || !bienId || !contexte) return refus("Bien incomplet", 400);
       const jeton = nouveauJeton();
-      const id = await d.creer({ userId: moi.id, bienId, kind, contexte, prenom: nettoyerPrenom(corps.prenom), empreinte: empreinte(jeton), expire: jours(DUREE_LIEN_JOURS) });
+      // Ce que le Hub sait déjà (identité, adresse, bien) : le client n'a qu'à vérifier et compléter
+      const { accord: _a, ...reponses } = nettoyerReponses(kind, corps.reponses);
+      const id = await d.creer({ userId: moi.id, bienId, kind, contexte, prenom: nettoyerPrenom(corps.prenom), reponses, empreinte: empreinte(jeton), expire: jours(DUREE_LIEN_JOURS) });
       return NextResponse.json({ id, jeton }, { headers: ENTETES });
     }
 

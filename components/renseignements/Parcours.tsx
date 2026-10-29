@@ -643,7 +643,7 @@ function Foyer({ vue, appeler, recharger }: { vue: VuePublique; appeler: (c?: un
 
   return (
     <div className="mt-4 space-y-4 animate-fade-up">
-      <p className="text-sm text-muted">Chaque personne reçoit son propre lien et remplit sa fiche depuis son téléphone. Vous voyez ici qui a terminé, jamais leurs réponses.</p>
+      <p className="text-sm text-muted">Chaque personne reçoit son propre lien et remplit sa fiche en ligne, sur téléphone ou ordinateur. Vous voyez ici qui a terminé, jamais leurs réponses.</p>
       <div className="card card-pad !py-1 divide-y divide-line/70">
         {groupes.map(({ l, garants }) => (
           <div key={l.id}>
