@@ -278,7 +278,9 @@ export const SYSTEM_COMMENTAIRE =
 
 /* ---------- Divers ---------- */
 
-export const contactLabel = (c?: Contact) => (c ? [c.civilite, c.prenom, c.nom].filter(Boolean).join(" ") : "");
+/** « Monsieur DUPONT Nicolas » : civilité en toutes lettres, nom en capitales puis prénom (usage des actes). */
+export const contactLabel = (c?: Contact) =>
+  c ? [c.civilite === "M." ? "Monsieur" : c.civilite === "Mme" ? "Madame" : "", c.nom?.toLocaleUpperCase("fr-FR"), c.prenom].filter(Boolean).join(" ") : "";
 
 export const arrondi = (n: number, pas = 1000) => Math.round(n / pas) * pas;
 

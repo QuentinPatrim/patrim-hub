@@ -4,7 +4,7 @@ import { ArrowLeft, Banknote, BarChart3, CheckCircle, Home, Leaf, Pencil, Printe
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { asPlus, parkingLabel, typeLabel, ventesDe, type Vente } from "@/components/estimations/shared";
+import { asPlus, contactLabel, parkingLabel, typeLabel, ventesDe, type Vente } from "@/components/estimations/shared";
 import { PARAMS_DEFAUT, calculerImmeuble, loyersAnnuels, pctTexte, resumeLots, typeLotLabel } from "@/components/estimations/immeuble";
 import { avisComplet, type BienEnVente } from "@/components/estimations/avis";
 import { FitToPage, MAX_DENSITY } from "@/components/estimations/FitToPage";
@@ -100,7 +100,7 @@ export default function AvisDeValeur() {
   const bien = e.bienId ? biens.find((b) => b.id === e.bienId) : undefined;
   const avis = avisComplet(e, bien);
   const proprio = contacts.find((c) => c.id === e.proprietaireId);
-  const clientName = afficherNom && proprio ? [proprio.civilite, proprio.prenom, proprio.nom].filter(Boolean).join(" ") : "";
+  const clientName = afficherNom && proprio ? contactLabel(proprio) : "";
   const clientAddress = afficherNom ? avis.clientAdresse ?? proprio?.adresse : undefined;
   const city = cpMatch ? cpMatch[1].trim() : [e.codePostal, e.ville].filter(Boolean).join(" ");
   const today = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
