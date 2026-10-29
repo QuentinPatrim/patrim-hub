@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ClipboardList, FileSignature, FileText, Handshake, Link2, Lock, RefreshCw, ShieldAlert, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { BellRing, Check, ClipboardList, Clock, FileSignature, FileText, FolderCheck, Handshake, Link2, Lock, RefreshCw, ShieldAlert, ShieldCheck, Sparkles, Trash2, UserPlus, Users } from "lucide-react";
 import { Badge, Card, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { PartageLien } from "@/components/renseignements/Partage";
 import { ContactPicker } from "@/components/biens/ContactPicker";
@@ -12,6 +12,7 @@ import { dateCourte, eur, ilya, today } from "@/lib/format";
 import { nomConseiller } from "@/lib/equipe";
 import type { Bien } from "@/lib/types";
 import {
+  acquereursProbables,
   autreOffreEnCours,
   conjointAConsentir,
   contactsDepuisFiche,
@@ -22,15 +23,18 @@ import {
   lienFiche,
   listerFiches,
   messageFiche,
+  messageRelance,
   nouveauLienFiche,
   objetFiche,
+  piecesFiche,
+  piecesProposees,
   reponsesInitiales,
   type Destinataire,
   preparerMandat,
   preparerOffre,
   supprimerFiche,
 } from "./client";
-import { controleFait, groupesReponses, manquantsReponses, PIECES, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
+import { controleFait, groupesReponses, manquantsReponses, piecesDemandees, PIECES, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
 
 /* ============================================================
    Côté conseiller : fiches vendeur ou acquéreur envoyées pour un
@@ -113,6 +117,8 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
   const [envoi, setEnvoi] = useState<Envoi | null>(null);
   const [voir, setVoir] = useState<Fiche | null>(null);
   const [evaluer, setEvaluer] = useState<Fiche | null>(null);
+  const [documents, setDocuments] = useState<Fiche | null>(null);
+  const [relance, setRelance] = useState<Fiche | null>(null);
   const [busy, setBusy] = useState(false);
   const vendeur = kind === "vendeur";
 
@@ -184,6 +190,8 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
             busy={busy}
             onVoir={() => setVoir(f)}
             onEvaluer={() => setEvaluer(f)}
+            onDocuments={() => setDocuments(f)}
+            onRelancer={() => setRelance(f)}
             onPreparer={() => preparer(f)}
             onContacts={() => {
               contactsDepuisFiche(b, f);
@@ -219,6 +227,7 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         kind={kind}
         onClose={() => setNouveau(false)}
         b={b}
+        fiches={fiches ?? []}
         onCree={async ({ contactId, pieces, ...d }) => {
           const r = await creerFiche(kind, b.id, { ...ctx, pieces }, d.prenom ?? "", reponsesInitiales(b, kind, d, contactId));
           setNouveau(false);
@@ -251,6 +260,50 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         />
       )}
 
+      {documents && (
+        <DocumentsFiche
+          f={documents}
+          onClose={() => setDocuments(null)}
+          onSave={async (pieces, recues) => {
+            await piecesFiche(documents.id, pieces, recues);
+            setDocuments(null);
+            await charger();
+          }}
+        />
+      )}
+
+      {relance && (
+        <Sheet open onClose={() => setRelance(null)} title="Relancer">
+          {(() => {
+            const r = relance.reponses ?? {};
+            const dest = { civilite: r.civilite, prenom: r.prenom || relance.prenom, nom: r.nom };
+            const texte = messageRelance(kind, dest, relance.creeLe, relance.statut === "en_cours");
+            return (
+              <>
+                <p className="mb-3 text-sm text-muted">Le client garde le même lien : ses réponses déjà saisies l&apos;attendent.</p>
+                <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{texte}</pre>
+                <PartageLien texte={texte} sujet={objetFiche(kind, ctx)} tel={r.tel} email={r.email} url={texte} />
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm mx-auto mt-3 flex"
+                  disabled={busy}
+                  onClick={() => {
+                    const f = relance;
+                    setRelance(null);
+                    void agir(async () => {
+                      const { jeton } = await nouveauLienFiche(f.id);
+                      setEnvoi({ dest, jeton, tel: r.tel, email: r.email });
+                    });
+                  }}
+                >
+                  <RefreshCw size={14} /> Il a perdu le lien : en envoyer un nouveau
+                </button>
+              </>
+            );
+          })()}
+        </Sheet>
+      )}
+
       {envoi && (
         <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${[envoi.dest.prenom, envoi.dest.nom?.toUpperCase()].filter(Boolean).join(" ") || (vendeur ? "le vendeur" : "l'acquéreur")}`}>
           <p className="mb-3 text-sm text-muted">Le message est prêt : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
@@ -275,6 +328,8 @@ function CarteFiche({
   busy,
   onVoir,
   onEvaluer,
+  onDocuments,
+  onRelancer,
   onPreparer,
   onContacts,
   onLien,
@@ -286,6 +341,8 @@ function CarteFiche({
   busy: boolean;
   onVoir: () => void;
   onEvaluer: () => void;
+  onDocuments: () => void;
+  onRelancer: () => void;
   onPreparer: () => void;
   onContacts: () => void;
   onLien: () => void;
@@ -296,6 +353,11 @@ function CarteFiche({
   const avecNom = !!r.nom?.trim();
   const alertes = f.statut === "a_remplir" ? [] : alertesFiche(f.kind, r, b.prix);
   const manque = manquantsReponses(f.kind, r);
+  const demandes = piecesDemandees(f.kind, f.contexte);
+  const recues = demandes.filter((x) => f.contexte.recues?.includes(x)).length;
+  const jours = Math.ceil((Date.parse(f.expire) - Date.now()) / 86400_000);
+  const expire = jours <= 0;
+  const attente = !f.ferme && f.statut !== "termine";
   return (
     <div className={cx("card overflow-hidden animate-fade-up", f.ferme && "opacity-75")}>
       <button type="button" onClick={onVoir} className="card-pad !pb-3 block w-full text-left hover:bg-surface-2">
@@ -316,6 +378,11 @@ function CarteFiche({
           </div>
         )}
         {f.statut === "en_cours" && manque.length > 0 && <p className="mt-2 text-xs text-muted">Pas encore rempli : {manque.slice(0, 4).join(", ")}{manque.length > 4 ? "…" : ""}</p>}
+        {attente && (
+          <p className={cx("mt-2 flex items-center gap-1.5 text-xs", expire ? "text-danger" : jours <= 5 ? "text-warn" : "text-muted")}>
+            <Clock size={12} /> {expire ? "Lien expiré : envoyez un nouveau lien, les réponses sont gardées." : `Lien valable encore ${jours} jour${jours > 1 ? "s" : ""}`}
+          </p>
+        )}
       </button>
       {alertes.length > 0 && (
         <div className="space-y-1.5 border-t border-line/70 px-5 py-3">
@@ -349,6 +416,20 @@ function CarteFiche({
           {controleFait(f.controle) ? <Badge tone={f.controle!.risque === "eleve" ? "danger" : f.controle!.risque === "moyen" ? "warn" : "ok"}>Fait</Badge> : <Badge tone="warn">À faire</Badge>}
         </button>
       )}
+      {demandes.length > 0 && (
+        <button type="button" onClick={onDocuments} className="flex min-h-[52px] w-full items-center gap-3 border-t border-line/70 px-5 py-2.5 text-left hover:bg-surface-2">
+          <FolderCheck size={18} className={cx("shrink-0", recues === demandes.length ? "text-ok" : "text-muted")} />
+          <span className="min-w-0 flex-1 text-sm">
+            <span className="font-medium">Documents</span>
+            <span className="block text-xs text-muted">
+              {recues === demandes.length ? "Tout est reçu" : `${recues} reçu${recues > 1 ? "s" : ""} sur ${demandes.length} · cochez ce qui arrive, le client ne verra que le reste`}
+            </span>
+          </span>
+          <Badge tone={recues === demandes.length ? "ok" : "neutral"}>
+            {recues}/{demandes.length}
+          </Badge>
+        </button>
+      )}
       <div className="card-pad !pt-3 space-y-2 border-t border-line/70">
         <div className="grid gap-2 sm:grid-cols-2">
           <button type="button" className="btn-primary !h-11" disabled={!avecNom} onClick={onPreparer}>
@@ -359,6 +440,11 @@ function CarteFiche({
           </Link>
         </div>
         <div className="flex flex-wrap gap-1">
+          {attente && !expire && (
+            <button type="button" className="btn-ghost btn-sm" onClick={onRelancer}>
+              <BellRing size={14} /> Relancer
+            </button>
+          )}
           <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={onLien}>
             <RefreshCw size={14} /> Nouveau lien
           </button>
@@ -429,10 +515,11 @@ function Reponses({ f, prix }: { f: Fiche; prix?: number }) {
 
 export type Saisie = Destinataire & { tel?: string; email?: string; contactId?: string; pieces: string[] };
 
-function NouvelleFiche({ open, b, kind, onClose, onCree }: { open: boolean; b: Bien; kind: KindFiche; onClose: () => void; onCree: (s: Saisie) => Promise<void> }) {
+function NouvelleFiche({ open, b, kind, fiches, onClose, onCree }: { open: boolean; b: Bien; kind: KindFiche; fiches: Fiche[]; onClose: () => void; onCree: (s: Saisie) => Promise<void> }) {
   const vendeur = kind === "vendeur";
   const { items: contacts } = useCollection("contacts");
-  const vide = (): Saisie => ({ pieces: [...PIECES[kind]] });
+  // Documents cochés d'office selon le bien et ce qui a déjà été reçu
+  const vide = (): Saisie => ({ pieces: piecesProposees(b, kind, fiches) });
   const [s, setS] = useState<Saisie>(vide);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -455,9 +542,20 @@ function NouvelleFiche({ open, b, kind, onClose, onCree }: { open: boolean; b: B
   );
   // Fiche vendeur : le premier propriétaire connu du bien est proposé d'office
   useEffect(() => {
-    if (open && vendeur && !s.contactId && !s.nom && b.vendeurIds?.[0] && contacts.some((c) => c.id === b.vendeurIds![0])) choisir(b.vendeurIds[0]);
+    if (!open) return;
+    setS((y) => ({ ...y, pieces: y.contactId || y.nom ? y.pieces : piecesProposees(b, kind, fiches) }));
+    if (vendeur && !s.contactId && !s.nom && b.vendeurIds?.[0] && contacts.some((c) => c.id === b.vendeurIds![0])) choisir(b.vendeurIds[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, contacts.length]);
+  }, [open, contacts.length, fiches.length]);
+  // En un geste : les autres propriétaires du bien, ou les acquéreurs qui ont visité / veulent faire une offre
+  const suggestions = open
+    ? vendeur
+      ? (b.vendeurIds ?? [])
+          .map((id) => contacts.find((c) => c.id === id))
+          .filter((c): c is NonNullable<typeof c> => !!c)
+          .map((c) => ({ id: c.id, nom: [c.prenom, c.nom?.includes("[À compléter]") ? "" : c.nom?.toUpperCase()].filter(Boolean).join(" ") || "Sans nom", raison: "propriétaire" }))
+      : acquereursProbables(b)
+    : [];
   const creer = async () => {
     setBusy(true);
     setErr(null);
@@ -483,6 +581,29 @@ function NouvelleFiche({ open, b, kind, onClose, onCree }: { open: boolean; b: B
       }
     >
       <div className="space-y-3">
+        {suggestions.length > 0 && (
+          <div>
+            <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
+              <Sparkles size={14} className="text-accent" /> {vendeur ? "Propriétaires du bien" : "Acquéreurs probables"}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  onClick={() => choisir(s.contactId === x.id ? undefined : x.id)}
+                  className={cx("chip !h-auto min-h-10 !px-3 !py-1.5 text-left !text-sm", s.contactId === x.id && "!bg-accent/10 !text-accent !border-accent/30")}
+                >
+                  {s.contactId === x.id && <Check size={13} />}
+                  <span>
+                    {x.nom}
+                    <span className="block text-[11px] font-normal text-muted">{x.raison}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <Field label={vendeur ? "Propriétaire déjà dans le Hub (facultatif)" : "Acquéreur déjà dans le Hub (facultatif)"} hint="Ce que le Hub sait déjà sur lui et sur le bien est mis dans la fiche : il n'a plus qu'à vérifier et compléter.">
           <ContactPicker value={s.contactId ? [s.contactId] : []} onChange={(ids) => choisir(ids[0])} role={vendeur ? "vendeur" : "acquereur"} max={1} />
         </Field>
@@ -511,7 +632,7 @@ function NouvelleFiche({ open, b, kind, onClose, onCree }: { open: boolean; b: B
         </Field>
         <div>
           <div className="mb-1.5 text-sm font-medium">Documents à lui demander</div>
-          <p className="mb-2 text-xs text-muted">Décochez ceux que vous avez déjà : il ne verra que les autres.</p>
+          <p className="mb-2 text-xs text-muted">Cochés d&apos;office selon le bien (et sans ce qui a déjà été reçu). Décochez ceux que vous avez déjà : il ne verra que les autres.</p>
           <div className="space-y-1.5">
             {PIECES[kind].map((x) => (
               <label key={x} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line/70 px-3 py-2.5 text-sm">
@@ -616,6 +737,77 @@ function Evaluation({ f, prix, onClose, onSave }: { f: Fiche; prix?: number; onC
         </div>
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
+    </Sheet>
+  );
+}
+
+/** Documents demandés au client et reçus par l'agence : le client ne voit que ceux qui manquent encore. */
+function DocumentsFiche({ f, onClose, onSave }: { f: Fiche; onClose: () => void; onSave: (pieces: string[], recues: string[]) => Promise<void> }) {
+  const [pieces, setPieces] = useState<string[]>(() => piecesDemandees(f.kind, f.contexte));
+  const [recues, setRecues] = useState<string[]>(() => f.contexte.recues ?? []);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const etat = (x: string) => (!pieces.includes(x) ? "non" : recues.includes(x) ? "recu" : "attendu");
+  const regler = (x: string, e: "non" | "attendu" | "recu") => {
+    setPieces((p) => (e === "non" ? p.filter((y) => y !== x) : p.includes(x) ? p : [...p, x]));
+    setRecues((r) => (e === "recu" ? (r.includes(x) ? r : [...r, x]) : r.filter((y) => y !== x)));
+  };
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Documents du client"
+      footer={
+        <button
+          type="button"
+          className="btn-primary w-full !h-12"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setErr(null);
+            try {
+              await onSave(pieces, recues.filter((x) => pieces.includes(x)));
+            } catch (e) {
+              setErr((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <Spinner /> : <FolderCheck size={16} />} Enregistrer
+        </button>
+      }
+    >
+      <p className="mb-3 text-sm text-muted">Sur son lien, le client ne voit que les documents « Attendu ». Ce que vous marquez « Reçu » disparaît de sa liste.</p>
+      <div className="space-y-2">
+        {PIECES[f.kind].map((x) => (
+          <div key={x} className="rounded-2xl border border-line/70 px-3 py-2.5">
+            <div className="text-sm">{x}</div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  ["non", "Pas besoin"],
+                  ["attendu", "Attendu"],
+                  ["recu", "Reçu"],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => regler(x, v)}
+                  className={cx(
+                    "min-h-10 rounded-xl border text-xs font-medium transition active:scale-[.97]",
+                    etat(x) === v ? (v === "recu" ? "border-ok bg-ok text-white" : v === "attendu" ? "border-brand bg-brand text-white" : "border-line bg-surface-2 text-fg") : "border-line bg-surface text-muted"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {err && <p className="mt-3 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
     </Sheet>
   );
 }

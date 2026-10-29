@@ -12,8 +12,9 @@ import { titrePublic } from "@/lib/titrePublic";
 import { ecrireMandat, lireMandat, mandatInitial, type Mandat } from "@/components/mandat/mandat";
 import { ecrireOffre, lireOffre, offreInitiale, partieDepuisContact, type ContactEtatCivil, type Offre, type Partie } from "@/components/offre/offre";
 import { dossierDe, type BienDossier } from "@/components/biens/dossier";
-import type { Bien, Contact, ContactRole } from "@/lib/types";
-import { avecAutres, decouperAdresse, libelle, OCCUPATIONS, type Civilite, type Controle, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
+import type { Bien, Contact, ContactRole, Rdv } from "@/lib/types";
+import { diagnosticsDe, type CleDiag } from "@/components/diagnostics/diagnostics";
+import { avecAutres, decouperAdresse, DIAGNOSTICS, libelle, OCCUPATIONS, PIECES, type Civilite, type Controle, type ContextePublic, type Fiche, type KindFiche, type Personne, type Reponses } from "./fiche";
 
 async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?: unknown }): Promise<T> {
   const r = await fetch(`/api/fiches${init.query ?? ""}`, {
@@ -34,6 +35,7 @@ export const creerFiche = (kind: KindFiche, bienId: string, contexte: ContextePu
 export const nouveauLienFiche = (id: string) => appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "lien", id } });
 export const fermerFiche = (id: string, ferme: boolean) => appeler<{ ok: true }>({ method: "POST", corps: { action: "fermer", id, ferme } });
 export const controlerFiche = (id: string, controle: Controle) => appeler<{ controle: Controle }>({ method: "POST", corps: { action: "controler", id, controle } });
+export const piecesFiche = (id: string, pieces: string[], recues: string[]) => appeler<{ contexte: ContextePublic }>({ method: "POST", corps: { action: "pieces", id, pieces, recues } });
 export const supprimerFiche = (id: string) => appeler<{ ok: true }>({ method: "POST", corps: { action: "supprimer", id } });
 
 export const lienFiche = (jeton: string) => `${window.location.origin}/informations/${jeton}`;
@@ -142,7 +144,26 @@ export function reponsesInitiales(b: Bien, kind: KindFiche, d: Destinataire & { 
     taxeFonciere: b.taxeFonciere,
     anneeConstruction: b.anneeConstruction,
     notaireVente: dossier.notaire,
+    occupation: dossier.occupation ? (/lou/i.test(dossier.occupation) ? "loue" : /libre|vide/i.test(dossier.occupation) ? "libre" : undefined) : undefined,
+    diagnostics: diagnosticsConnus(b),
   };
+}
+
+/** Diagnostics dont le rapport est déjà daté dans le Hub (carte « Diagnostics » du bien). */
+const DIAG_FICHE: Partial<Record<CleDiag, (typeof DIAGNOSTICS)[number]>> = {
+  dpe: "Diagnostic de performance énergétique",
+  amiante: "État amiante",
+  plomb: "Constat de risque d'exposition au plomb",
+  termites: "État parasitaire",
+  electricite: "État de l'installation intérieure d'électricité",
+  gaz: "État de l'installation intérieure de gaz",
+  erp: "État des risques",
+  assainissement: "Contrôle assainissement (collectif ou individuel)",
+};
+function diagnosticsConnus(b: Bien): string[] | undefined {
+  const d = diagnosticsDe(b);
+  const out = (Object.keys(DIAG_FICHE) as CleDiag[]).filter((k) => d[k]?.date).map((k) => DIAG_FICHE[k]!);
+  return out.length ? out : undefined;
 }
 
 /* ---------- Des réponses vers le Hub ---------- */
@@ -315,4 +336,52 @@ export function preparerOffre(b: Bien, f: Fiche): Offre {
   };
   ecrireOffre(o);
   return o;
+}
+
+/* ---------- Pour aller plus vite à la création du lien ---------- */
+
+/** Documents à cocher d'office : rien d'inutile pour ce bien, rien de déjà reçu sur une autre fiche du bien. */
+export function piecesProposees(b: Bien, kind: KindFiche, fiches: Fiche[] = []): string[] {
+  const dejaRecues = new Set(fiches.filter((f) => f.kind === kind).flatMap((f) => f.contexte.recues ?? []));
+  const occupation = dossierDe(b)?.occupation;
+  return PIECES[kind].filter((x) => {
+    if (x.startsWith("Pièce d'identité")) return true; // une pièce par personne : toujours demandée
+    if (dejaRecues.has(x)) return false;
+    if (kind === "vendeur" && x.startsWith("Copropriété") && (b.type === "maison" || b.type === "terrain")) return false;
+    if (kind === "vendeur" && x.startsWith("Bien loué") && occupation && !/lou/i.test(occupation)) return false;
+    return true;
+  });
+}
+
+/** Acquéreurs probables pour ce bien : offre en cours, visite faite ou prévue, bien proposé ou lead entrant. */
+export function acquereursProbables(b: Bien): { id: string; nom: string; raison: string }[] {
+  const contacts = (getAll("contacts") as Contact[]).filter((c) => c.roles?.includes("acquereur") && c.etape !== "perdu" && c.etape !== "gagne");
+  const visites = new Set((getAll("rdvs") as Rdv[]).filter((r) => r.bienId === b.id && r.type === "visite" && r.statut !== "annule").flatMap((r) => r.contactIds ?? []));
+  const rang = (c: Contact) => (c.etape === "offre" ? 0 : visites.has(c.id) ? 1 : 2);
+  return contacts
+    .filter((c) => visites.has(c.id) || c.biensProposes?.includes(b.id) || c.bienOrigineId === b.id)
+    .sort((x, y) => rang(x) - rang(y) || (y.updatedAt ?? "").localeCompare(x.updatedAt ?? ""))
+    .slice(0, 6)
+    .map((c) => ({
+      id: c.id,
+      nom: [c.prenom, c.nom && !c.nom.includes("[À compléter]") ? c.nom.toUpperCase() : ""].filter(Boolean).join(" ") || "Sans nom",
+      raison: c.etape === "offre" ? "veut faire une offre" : visites.has(c.id) ? "a visité" : c.bienOrigineId === b.id ? "a demandé ce bien" : "bien proposé",
+    }));
+}
+
+/** Relance polie, sans nouveau lien : le client reprend celui qu'il a déjà reçu. */
+export function messageRelance(kind: KindFiche, d: Destinataire, envoyeLe: string, commencee: boolean) {
+  const le = new Date(envoyeLe).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+  return [
+    salutation(d),
+    "",
+    commencee
+      ? `Je me permets de revenir vers vous au sujet de votre fiche ${kind === "vendeur" ? "vendeur" : "acquéreur"}, que vous avez commencé à remplir. Vos réponses sont gardées : il vous suffit de rouvrir le lien que je vous ai adressé le ${le} pour la terminer.`
+      : `Je me permets de revenir vers vous au sujet de la fiche ${kind === "vendeur" ? "vendeur" : "acquéreur"} que je vous ai adressée le ${le}. Elle me permettra de ${kind === "vendeur" ? "préparer votre mandat de vente" : "rédiger votre offre d'achat"} sans vous redemander ces informations.`,
+    "",
+    "Si vous ne retrouvez plus le lien, dites-le-moi et je vous en envoie un nouveau.",
+    "",
+    "Bien cordialement,",
+    [nomConseiller(), "PATRIM"].join(" – "),
+  ].join("\n");
 }

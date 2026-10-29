@@ -137,6 +137,8 @@ export interface ContextePublic {
   photo?: string;
   /** Documents demandés (le conseiller a peut-être déjà les autres). Absent : toute la liste. */
   pieces?: string[];
+  /** Documents déjà reçus par le conseiller : le client ne les envoie pas en double. */
+  recues?: string[];
   conseiller?: { nom: string; tel?: string; mail?: string };
 }
 
@@ -281,6 +283,8 @@ export const PIECES: Record<KindFiche, string[]> = {
   ],
 };
 export const piecesDemandees = (kind: KindFiche, c: ContextePublic) => (c.pieces ? PIECES[kind].filter((x) => c.pieces!.includes(x)) : PIECES[kind]);
+/** Documents demandés et pas encore reçus par le conseiller. */
+export const piecesAttendues = (kind: KindFiche, c: ContextePublic) => piecesDemandees(kind, c).filter((x) => !c.recues?.includes(x));
 
 /** « 12 rue X, 31000 Toulouse » à partir des trois champs. */
 export const composerAdresse = (rue?: string, cp?: string, ville?: string) => [rue, [cp, ville].filter(Boolean).join(" ")].filter(Boolean).join(", ") || undefined;
@@ -307,6 +311,40 @@ export const ETAPES: Record<KindFiche, readonly string[]> = {
   acquereur: ["Identité", "Coordonnées", "Situation familiale", "Les acquéreurs", "Votre offre", "Financement", "Vérifications légales", "Vérification"],
 };
 
+/** Étape où se remplit chaque champ manquant (pour y retourner d'un geste). */
+const ETAPE_DU_CHAMP: Record<string, number> = {
+  Civilité: 0,
+  Prénom: 0,
+  Nom: 0,
+  "Date de naissance": 0,
+  "Lieu de naissance": 0,
+  Nationalité: 0,
+  Profession: 0,
+  Adresse: 1,
+  Portable: 1,
+  "E-mail": 1,
+  "Situation familiale": 2,
+  "Régime matrimonial": 2,
+  Propriétaires: 3,
+  Acquéreurs: 3,
+  "Autres propriétaires": 3,
+  "Autres acquéreurs": 3,
+  Société: 3,
+  "Adresse du bien": 4,
+  "Occupation du bien": 4,
+  "Prix proposé": 4,
+  "Origine de propriété": 5,
+  Financement: 5,
+  "Origine des fonds": 5,
+  "Personne politiquement exposée": 6,
+  "Pour votre compte": 6,
+};
+export const etapeDuChamp = (champ: string) => ETAPE_DU_CHAMP[champ] ?? 0;
+
+/** Mêmes règles que le serveur : un portable ou un e-mail mal saisi n'est pas enregistré. */
+export const telValide = (v?: string) => !v?.trim() || /^[+\d][\d .()-]{5,22}$/.test(v.trim());
+export const mailValide = (v?: string) => !v?.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
 /** Champs à remplir avant de pouvoir envoyer. */
 export function manquantsReponses(kind: KindFiche, r: Reponses): string[] {
   const out: string[] = [];
@@ -319,8 +357,8 @@ export function manquantsReponses(kind: KindFiche, r: Reponses): string[] {
   if (t(r.nationalite)) out.push("Nationalité");
   if (t(r.profession)) out.push("Profession");
   if (t(r.adresse)) out.push("Adresse");
-  if (t(r.tel)) out.push("Portable");
-  if (t(r.email)) out.push("E-mail");
+  if (t(r.tel) || !telValide(r.tel)) out.push("Portable");
+  if (t(r.email) || !mailValide(r.email)) out.push("E-mail");
   if (!r.situation) out.push("Situation familiale");
   if (estMarie(r) && !r.regime) out.push("Régime matrimonial");
   if (!r.parties) out.push(kind === "vendeur" ? "Propriétaires" : "Acquéreurs");
