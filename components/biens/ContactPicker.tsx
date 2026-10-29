@@ -130,7 +130,7 @@ export function ContactPicker({
               className="input pl-9"
             />
             {focus && (
-              <div className="absolute z-20 mt-1.5 w-full rounded-xl border border-line bg-surface shadow-card overflow-hidden animate-fade-up">
+              <div className="liste-suggestions absolute z-20 mt-1.5 w-full rounded-xl border border-line bg-surface shadow-card overflow-hidden animate-fade-up">
                 {results.map((c) => (
                   <button
                     type="button"
