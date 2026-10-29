@@ -40,7 +40,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const etageCourt = (etage: number) => (etage === 0 ? "RDC" : `${etage}${etage === 1 ? "er" : "e"}`);
 
 /** Comparable affiché sur la page « Le marché » (vente notariée ou bien en vente). */
-type Comp = { id: string; adresse: string; prix: number; surface?: number; sqm: number; meta: string };
+type Comp = { id: string; adresse: string; prix: number; surface?: number; sqm: number; meta: string; photo?: string };
 
 export default function AvisDeValeur() {
   const { id } = useParams<{ id: string }>();
@@ -129,6 +129,8 @@ export default function AvisDeValeur() {
   const proches = [...ventes].sort((a, b) => (b.bloc ? 1 : 0) - (a.bloc ? 1 : 0) || (a.distance ?? 1e9) - (b.distance ?? 1e9)); // immeuble : ventes en bloc d'abord
   const versComp = (v: Vente): Comp => ({
     id: v.id,
+    // Vente DVF : adresse exacte, donc la façade vue de la rue (Panoramax) ou le toit (IGN)
+    photo: photoAuto({ adresse: v.adresse, ville: v.ville, lat: v.lat, lon: v.lon }),
     adresse: [v.adresse, v.ville].filter(Boolean).join(", "),
     prix: v.prix,
     surface: v.surface,
@@ -144,6 +146,8 @@ export default function AvisDeValeur() {
     surface: c.surface,
     sqm: c.surface ? c.prix / c.surface : 0,
     meta: [c.surface ? `${surf(c.surface)} m²` : "", c.portail ?? ""].filter(Boolean).join(" · "),
+    // Seulement avec un numéro de rue : sans lui, la photo tomberait n'importe où dans la rue
+    photo: /^\s*\d/.test(c.adresse ?? "") ? photoAuto({ adresse: c.adresse, ville: e?.ville, codePostal: e?.codePostal }) : undefined,
   }));
   const vendus = proches.map(versComp);
   const allComps = [...vendus, ...enVente];
@@ -258,8 +262,12 @@ export default function AvisDeValeur() {
     const delta = ref > 0 && comp.sqm > 0 ? Math.round(((comp.sqm - ref) / ref) * 100) : null;
     return (
       <div key={comp.id} className={`flex items-center gap-3.5 border-b border-[#f0f0f2] last:border-b-0 ${compactComps ? "py-[1.7mm]" : "py-[2.6mm]"}`}>
-        <div className={`${compactComps ? "h-[11.5mm] w-[11.5mm]" : "h-[15mm] w-[15mm]"} flex shrink-0 items-center justify-center rounded-[10px] bg-[#f5f5f7]`}>
+        <div className={`${compactComps ? "h-[11.5mm] w-[11.5mm]" : "h-[15mm] w-[15mm]"} relative flex shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[#f5f5f7]`}>
           <Home size={15} className="text-[#aeaeb2]" />
+          {comp.photo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={comp.photo} alt="" loading="eager" onError={(ev) => (ev.currentTarget.style.display = "none")} className="absolute inset-0 h-full w-full object-cover" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold text-[#1d1d1f]">{comp.adresse}</p>
