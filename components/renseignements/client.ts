@@ -13,7 +13,8 @@ import { cautionInitiale, ecrireCaution, nomCaution, type Caution, type Situatio
 import { partieDepuisContact, type ContactEtatCivil, type Partie } from "@/components/offre/offre";
 import type { Acte, BienActes } from "@/components/documents/archive";
 import type { Bien, Contact } from "@/lib/types";
-import type { Dossier, LogementPublic, PersonneDossier, Reponses, RoleDossier } from "./dossier";
+import { decouperAdresse } from "@/components/fiches/fiche";
+import { salutation, type Dossier, type LogementPublic, type PersonneDossier, type PiecesDemandees, type Reponses, type RoleDossier } from "./dossier";
 
 async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?: unknown }): Promise<T> {
   const r = await fetch(`/api/renseignements${init.query ?? ""}`, {
@@ -28,11 +29,12 @@ async function appeler<T>(init: { method: "GET" | "POST"; query?: string; corps?
 }
 
 export const listerDossiers = (bienId: string) => appeler<{ dossiers: Dossier[] }>({ method: "GET", query: `?bien=${encodeURIComponent(bienId)}` }).then((r) => r.dossiers);
-export const creerDossier = (bienId: string, logement: LogementPublic, prenom: string) =>
-  appeler<{ id: string; personneId: string; jeton: string }>({ method: "POST", corps: { action: "creer", bienId, logement, prenom } });
+export const creerDossier = (bienId: string, logement: LogementPublic, prenom: string, reponses?: Reponses) =>
+  appeler<{ id: string; personneId: string; jeton: string }>({ method: "POST", corps: { action: "creer", bienId, logement, prenom, reponses } });
 export const nouveauLien = (personneId: string) => appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "lien", personneId } });
-export const ajouterPersonne = (dossierId: string, role: Exclude<RoleDossier, "locataire">, prenom: string, garantDe?: string) =>
-  appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "ajouter", dossierId, role, prenom, garantDe } });
+export const ajouterPersonne = (dossierId: string, role: Exclude<RoleDossier, "locataire">, prenom: string, garantDe?: string, reponses?: Reponses) =>
+  appeler<{ id: string; jeton: string }>({ method: "POST", corps: { action: "ajouter", dossierId, role, prenom, garantDe, reponses } });
+export const changerPieces = (dossierId: string, pieces: PiecesDemandees) => appeler<{ ok: true }>({ method: "POST", corps: { action: "pieces", dossierId, pieces } });
 export const retirerPersonne = (personneId: string) => appeler<{ ok: true }>({ method: "POST", corps: { action: "retirer", personneId } });
 export const fermerDossier = (dossierId: string, ferme: boolean) => appeler<{ ok: true }>({ method: "POST", corps: { action: "fermer", dossierId, ferme } });
 export const supprimerDossier = (dossierId: string) => appeler<{ ok: true }>({ method: "POST", corps: { action: "supprimer", dossierId } });
@@ -57,16 +59,38 @@ export function logementPublic(b: Bien): LogementPublic {
   };
 }
 
-/** Texte prêt à envoyer avec le lien (SMS, WhatsApp, mail). */
-export function messageLien(prenom: string, role: PersonneDossier["role"], logement: LogementPublic, url: string, deQui?: string) {
-  const pour = role === "garant" ? `en tant que garant${deQui ? ` de ${deQui}` : ""} pour` : "pour votre candidature sur";
+/** La personne à qui le lien est envoyé. */
+export type Destinataire = Pick<Reponses, "civilite" | "prenom" | "nom">;
+
+/** Texte court prêt à envoyer avec le lien (SMS, WhatsApp). */
+export function messageLien(d: Destinataire, role: PersonneDossier["role"], logement: LogementPublic, url: string, deQui?: string) {
+  const pour = role === "garant" ? `en tant que garant${deQui ? ` de ${deQui}` : ""} pour` : "pour votre dossier de location du";
   return [
-    `Bonjour${prenom ? ` ${prenom}` : ""},`,
-    `Voici le lien pour remplir votre fiche de renseignements ${pour} le logement « ${logement.titre} »${logement.ville ? ` à ${logement.ville}` : ""} :`,
+    salutation(d),
+    `Je vous invite à compléter votre fiche de renseignements ${pour} logement « ${logement.titre} »${logement.ville ? ` à ${logement.ville}` : ""} à l'aide de ce lien :`,
     url,
-    "Cela prend quelques minutes sur téléphone ou sur ordinateur. Ce lien est personnel : merci de ne pas le transférer.",
+    "Vous pouvez la remplir sur votre téléphone ou sur votre ordinateur. Ce lien vous est personnel, merci de ne pas le transférer.",
+    "Bien cordialement,",
     `${nomConseiller()} – PATRIM`,
   ].join("\n");
+}
+
+/** La fiche pré-remplie avec ce que le Hub sait déjà de la personne (elle vérifie et complète). */
+export function reponsesInitiales(d: Destinataire & { tel?: string; email?: string }, contactId?: string): Reponses {
+  const c = contactId ? (getAll("contacts") as ContactEtatCivil[]).find((x) => x.id === contactId) : undefined;
+  const nom = d.nom?.trim() || (c?.nom && !c.nom.includes("[À compléter]") ? c.nom : undefined);
+  const r: Reponses = {
+    civilite: d.civilite || c?.civilite || undefined,
+    prenom: d.prenom?.trim() || c?.prenom || undefined,
+    nom: nom?.toUpperCase(),
+    tel: d.tel?.trim() || c?.tel || undefined,
+    email: d.email?.trim() || c?.email || undefined,
+    dateNaissance: c?.dateNaissance,
+    lieuNaissance: c?.lieuNaissance,
+    profession: c?.profession,
+    ...(c?.adresse ? { adresse: c.adresse, ...decouperAdresse(c.adresse) } : {}),
+  };
+  return Object.fromEntries(Object.entries(r).filter(([, v]) => v)) as Reponses;
 }
 
 /* ---------- Des réponses vers le Hub ---------- */
