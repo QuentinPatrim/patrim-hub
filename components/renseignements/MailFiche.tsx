@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Mail } from "lucide-react";
 import { Field } from "@/components/ui";
 import { nomConseiller } from "@/lib/equipe";
-import type { LogementPublic, RoleDossier } from "./dossier";
+import type { LogementPublic, Reponses, RoleDossier } from "./dossier";
 import { copierMail, ecrireEntree, lireEntree, mailFiche, type InfosEntree } from "./mail";
 
 /* Mail d'envoi de la fiche (trame de l'agence) : état des lieux et PDL à
@@ -13,7 +13,9 @@ import { copierMail, ecrireEntree, lireEntree, mailFiche, type InfosEntree } fro
 
 export function MailFiche({
   bienId,
-  prenom,
+  dest,
+  pieces,
+  prerempli,
   role,
   logement,
   url,
@@ -22,7 +24,9 @@ export function MailFiche({
   email,
 }: {
   bienId: string;
-  prenom: string;
+  dest: Pick<Reponses, "civilite" | "prenom" | "nom">;
+  pieces?: string[];
+  prerempli?: boolean;
   role: RoleDossier;
   logement: LogementPublic;
   url: string;
@@ -43,7 +47,7 @@ export function MailFiche({
       return n;
     });
 
-  const m = useMemo(() => mailFiche({ prenom, role, logement, url, deQui, garants, infos, signature: nomConseiller() }), [prenom, role, logement, url, deQui, garants, infos]);
+  const m = useMemo(() => mailFiche({ dest, pieces, prerempli, role, logement, url, deQui, garants, infos, signature: nomConseiller() }), [dest, pieces, prerempli, role, logement, url, deQui, garants, infos]);
 
   const copier = async () => {
     try {

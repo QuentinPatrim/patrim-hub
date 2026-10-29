@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, Lock, Phone, Plus, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, FolderCheck, Lock, Phone, Plus, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { cx, Field } from "@/components/ui";
 import { PartageLien } from "./Partage";
 import {
@@ -11,6 +11,7 @@ import {
   SITUATIONS_PRO,
   libelle,
   manquantsReponses,
+  piecesDe,
   rolePersonne,
   groupesReponses,
   sansEmploiSalarie,
@@ -19,6 +20,8 @@ import {
   type VuePublique,
 } from "./dossier";
 import { useEtapesHistorique } from "@/lib/retour";
+import { ChampsAdresse } from "@/components/fiches/Adresse";
+import { composerAdresse, decouperAdresse } from "@/components/fiches/fiche";
 
 /* ============================================================
    Page publique de la fiche de renseignements, ouverte par le
@@ -84,7 +87,8 @@ export function Parcours({ jeton }: { jeton: string }) {
       .then((j) => {
         const v = j as unknown as VuePublique;
         setVue(v);
-        setR(v.moi.reponses ?? {});
+        const x = v.moi.reponses ?? {};
+        setR(x.adresse && !x.adresseRue && !x.adresseCp ? { ...x, ...decouperAdresse(x.adresse) } : x);
       })
       .catch((e: Error) => setErreur(e.message));
   }, [appeler]);
@@ -139,7 +143,7 @@ export function Parcours({ jeton }: { jeton: string }) {
   if (ecran === "fiche")
     return (
       <Cadre>
-        <div className="sticky top-0 z-10 -mx-4 bg-bg/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
+        <div className="sticky top-0 z-10 -mx-4 bg-white/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center gap-3">
             <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(etape ? etape - 1 : "accueil")}>
               <ArrowLeft size={18} />
@@ -222,6 +226,7 @@ export function Parcours({ jeton }: { jeton: string }) {
             </button>
           )}
         </div>
+        <Pieces vue={vue} />
       </Cadre>
     );
 
@@ -240,13 +245,21 @@ export function Parcours({ jeton }: { jeton: string }) {
 
   /* ---------- Accueil ---------- */
   const autres = foyer.filter((p) => p.id !== moi.id);
+  const v0 = moi.reponses ?? {};
+  const salut = v0.nom && v0.civilite ? `${v0.civilite === "M." ? "Monsieur" : "Madame"} ${v0.nom.toUpperCase()}` : v0.prenom || moi.prenom;
+  const dejaRempli = moi.statut === "a_remplir" && Object.keys(v0).length > 0;
   return (
     <Cadre>
       <Entete vue={vue} />
       <div className="mt-5 space-y-3 animate-fade-up">
         <p className="text-sm text-muted">
-          Bonjour{moi.prenom ? ` ${moi.prenom}` : ""}, {moi.role === "garant" ? `vous vous portez garant${foyer[0]?.prenom ? ` de ${foyer[0].prenom}` : ""} pour ce logement. Remplissez` : "remplissez"} votre fiche en quelques minutes : elle remplace la fiche papier.
+          Bonjour{salut ? ` ${salut}` : ""}, {moi.role === "garant" ? `vous vous portez garant${foyer[0]?.prenom ? ` de ${foyer[0].prenom}` : ""} pour ce logement. Remplissez` : "remplissez"} votre fiche de renseignements en quelques minutes, sur téléphone ou sur ordinateur : elle remplace la fiche papier.
         </p>
+        {dejaRempli && (
+          <p className="flex gap-2 rounded-2xl bg-brand/[0.06] px-4 py-3 text-sm text-fg/85">
+            <Check size={16} className="mt-0.5 shrink-0 text-brand" /> Votre conseiller a déjà indiqué les informations dont il dispose : il vous suffit de les vérifier et de compléter le reste.
+          </p>
+        )}
         <Tuile
           n={1}
           titre={moi.principal ? "Vos renseignements" : `Vos renseignements · ${role}`}
@@ -266,6 +279,7 @@ export function Parcours({ jeton }: { jeton: string }) {
           />
         )}
       </div>
+      <Pieces vue={vue} />
       <Confidentialite conseiller={vue.logement.conseiller} expire={vue.expire} />
     </Cadre>
   );
@@ -274,34 +288,31 @@ export function Parcours({ jeton }: { jeton: string }) {
 /* ---------- Mise en page ---------- */
 
 function Cadre({ children }: { children: ReactNode }) {
-  return <main className="mx-auto min-h-dvh w-full max-w-lg bg-bg px-4 pb-10">{children}</main>;
+  return <main className="mx-auto min-h-dvh w-full max-w-lg bg-white px-4 pb-10 text-fg">{children}</main>;
 }
 
 function Entete({ vue }: { vue: VuePublique }) {
   const l = vue.logement;
   const cc = l.loyer != null ? l.loyer + (l.charges ?? 0) : undefined;
   return (
-    <header className="-mx-4 overflow-hidden bg-ink text-white sm:mt-4 sm:rounded-3xl">
-      <div className="relative isolate px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))]">
-        {l.photo && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={l.photo} alt="" referrerPolicy="no-referrer" className="absolute inset-0 -z-20 size-full object-cover opacity-30" />
-        )}
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-ink via-ink/80 to-ink/40" />
-        <div className="flex items-center gap-2.5">
-          <Image src="/emblem.png" alt="" width={34} height={34} className="rounded-lg ring-1 ring-white/15" />
-          <div className="text-[13px] font-semibold tracking-[0.24em]">PATRIM</div>
-        </div>
-        <div className="mt-6 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
-          <span className="h-px w-5 bg-coral" /> Fiche de renseignements
-        </div>
-        <h1 className="mt-2 font-serif text-[26px] font-semibold leading-tight">{l.titre}</h1>
-        {l.ville && <div className="mt-1 text-sm text-white/70">{l.ville}{l.meuble != null ? ` · Location ${l.meuble ? "meublée" : "vide"}` : ""}</div>}
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {cc != null && <Chiffre label="Loyer + charges" value={eur(cc)} />}
-          {l.depot != null && <Chiffre label="Dépôt de garantie" value={eur(l.depot)} />}
-          {l.entree ? <Chiffre label="Entrée prévue" value={new Date(l.entree + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} /> : l.honoraires != null ? <Chiffre label="Honoraires" value={eur(l.honoraires)} /> : null}
-        </div>
+    <header className="pt-[max(20px,env(safe-area-inset-top))]">
+      <div className="flex items-center gap-2.5">
+        <Image src="/emblem.png" alt="" width={34} height={34} className="rounded-lg" />
+        <div className="text-[13px] font-semibold tracking-[0.24em] text-brand">PATRIM</div>
+      </div>
+      {l.photo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={l.photo} alt="" referrerPolicy="no-referrer" className="mt-5 aspect-[16/9] w-full rounded-3xl bg-surface-2 object-cover" />
+      )}
+      <div className="mt-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+        <span className="h-px w-5 bg-coral" /> Fiche de renseignements
+      </div>
+      <h1 className="mt-2 font-serif text-[26px] font-semibold leading-tight">{l.titre}</h1>
+      {l.ville && <div className="mt-1 text-sm text-muted">{l.ville}{l.meuble != null ? ` · Location ${l.meuble ? "meublée" : "vide"}` : ""}</div>}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {cc != null && <Chiffre label="Loyer + charges" value={eur(cc)} />}
+        {l.depot != null && <Chiffre label="Dépôt de garantie" value={eur(l.depot)} />}
+        {l.entree ? <Chiffre label="Entrée prévue" value={new Date(l.entree + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} /> : l.honoraires != null ? <Chiffre label="Honoraires" value={eur(l.honoraires)} /> : null}
       </div>
     </header>
   );
@@ -309,9 +320,30 @@ function Entete({ vue }: { vue: VuePublique }) {
 
 function Chiffre({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-white/[0.08] px-2.5 py-2 ring-1 ring-inset ring-white/10">
-      <div className="truncate text-[10px] text-white/60">{label}</div>
+    <div className="min-w-0 rounded-xl border border-line px-2.5 py-2">
+      <div className="truncate text-[10px] text-muted">{label}</div>
       <div className="mt-0.5 truncate font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+/** Documents demandés par le conseiller à cette personne (liste vide : rien n'est affiché). */
+function Pieces({ vue }: { vue: VuePublique }) {
+  const liste = piecesDe(vue.logement, vue.moi.role);
+  if (!liste.length) return null;
+  return (
+    <div className="card card-pad mt-4">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+        <FolderCheck size={14} className="text-accent" /> Documents à préparer
+      </div>
+      <ul className="mt-2 space-y-1.5 text-sm">
+        {liste.map((p) => (
+          <li key={p} className="flex gap-2">
+            <Check size={15} className="mt-0.5 shrink-0 text-accent" /> {p}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted">À envoyer à votre conseiller par mail, en réponse à son message. Ne les envoyez pas par un réseau social.</p>
     </div>
   );
 }
@@ -443,12 +475,16 @@ function EtapeCoordonnees({ r, setR }: PropsEtape) {
     <>
       <Texte r={r} setR={setR} k="tel" label="Portable" type="tel" inputMode="tel" autoComplete="tel" placeholder="06 12 34 56 78" hint="Il servira aussi pour la signature électronique du bail." />
       <Texte r={r} setR={setR} k="email" label="E-mail" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" />
-      <Field label="Adresse actuelle">
-        <textarea className="input min-h-[88px] !py-3 !text-base" autoComplete="street-address" value={r.adresse ?? ""} onChange={(e) => setR((x) => ({ ...x, adresse: e.target.value }))} placeholder="Numéro, rue, code postal, ville" />
-      </Field>
+      <ChampsAdresse
+        label="Adresse actuelle"
+        value={{ rue: r.adresseRue, cp: r.adresseCp, ville: r.adresseVille }}
+        onChange={(a) => setR((x) => ({ ...x, adresseRue: a.rue, adresseCp: a.cp, adresseVille: a.ville, adresse: composerAdresse(a.rue, a.cp, a.ville) }))}
+      />
     </>
   );
 }
+
+const LIENS = ["Parent", "Grand-parent", "Frère ou sœur", "Conjoint", "Ami(e)", "Autre"] as const;
 
 function EtapeSituation({ r, setR, moi, foyer }: PropsEtape & { moi: PersonneDossier; foyer: Omit<PersonneDossier, "reponses">[] }) {
   const de = foyer.find((p) => p.id === moi.garantDe)?.prenom;
@@ -475,7 +511,17 @@ function EtapeSituation({ r, setR, moi, foyer }: PropsEtape & { moi: PersonneDos
         <Choix items={LOGEMENTS_ACTUELS} value={r.logement} onChange={(v) => setR((x) => ({ ...x, logement: v }))} />
       </div>
       {r.logement === "locataire" && <Montant r={r} setR={setR} k="loyerActuel" label="Loyer actuel, charges comprises" />}
-      {moi.role === "garant" && <Texte r={r} setR={setR} k="lien" label={`Votre lien avec ${de ?? "le locataire"}`} placeholder="Parent, ami…" />}
+      {moi.role === "garant" && (
+        <div>
+          <span className="label">Votre lien avec {de ?? "le locataire"}</span>
+          <Choix items={LIENS.map((v) => ({ v, label: v }))} value={r.lien == null ? undefined : LIENS.includes(r.lien as (typeof LIENS)[number]) ? (r.lien as (typeof LIENS)[number]) : "Autre"} onChange={(v) => setR((x) => ({ ...x, lien: v === "Autre" ? "" : v }))} />
+          {r.lien != null && !LIENS.slice(0, -1).includes(r.lien as (typeof LIENS)[number]) && (
+            <div className="mt-3">
+              <Texte r={r} setR={setR} k="lien" label="Précisez" placeholder="Oncle, employeur…" />
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

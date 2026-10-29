@@ -9,6 +9,8 @@
    du 6 juillet 1989).
    ============================================================ */
 
+import { composerAdresse } from "@/components/fiches/fiche";
+
 export type RoleDossier = "locataire" | "colocataire" | "garant";
 export type StatutPersonne = "a_remplir" | "en_cours" | "termine";
 
@@ -25,7 +27,11 @@ export interface Reponses {
   lieuNaissance?: string;
   tel?: string;
   email?: string;
+  /** Adresse complète, recomposée à partir des trois champs ci-dessous (ou saisie d'un seul tenant sur les anciennes fiches). */
   adresse?: string;
+  adresseRue?: string;
+  adresseCp?: string;
+  adresseVille?: string;
   situation?: SituationFamiliale;
   aCharge?: number;
   logement?: LogementActuel;
@@ -55,7 +61,14 @@ export interface LogementPublic {
   honoraires?: number;
   entree?: string;
   photo?: string;
+  /** Documents demandés, cochés par le conseiller. Absent (fiches envoyées avant le 29/10) : aucune liste affichée. */
+  pieces?: PiecesDemandees;
   conseiller?: { nom: string; tel?: string; mail?: string };
+}
+
+export interface PiecesDemandees {
+  locataire?: string[];
+  garant?: string[];
 }
 
 export interface PersonneDossier {
@@ -119,6 +132,50 @@ export const SITUATIONS_PRO: { v: SituationPro; label: string }[] = [
   { v: "autre", label: "Autre" },
 ];
 
+/** Pièces autorisées par le décret n° 2015-1437 du 5 novembre 2015 (rien d'autre ne peut être demandé). */
+export const PIECES: Record<keyof PiecesDemandees, string[]> = {
+  locataire: [
+    "Pièce d'identité en cours de validité (recto verso)",
+    "Justificatif de domicile : 3 dernières quittances de loyer ou attestation d'hébergement",
+    "Contrat de travail ou attestation de l'employeur",
+    "3 derniers bulletins de salaire (ou justificatifs de revenus)",
+    "Dernier avis d'imposition",
+    "Carte d'étudiant ou certificat de scolarité",
+  ],
+  garant: [
+    "Pièce d'identité en cours de validité (recto verso)",
+    "Justificatif de domicile : dernière quittance de loyer ou avis de taxe foncière",
+    "Contrat de travail ou attestation de l'employeur",
+    "3 derniers bulletins de salaire (ou justificatifs de revenus)",
+    "Dernier avis d'imposition",
+  ],
+};
+/** Cochés d'office à la création du lien (la carte d'étudiant seulement si besoin). */
+export const PIECES_PAR_DEFAUT: PiecesDemandees = { locataire: PIECES.locataire.filter((x) => !x.startsWith("Carte d'étudiant")), garant: [...PIECES.garant] };
+
+/** Documents que doit envoyer cette personne (selon son rôle). */
+export const piecesDe = (l: Pick<LogementPublic, "pieces">, role: RoleDossier) => {
+  const cle = role === "garant" ? "garant" : "locataire";
+  const choisies = l.pieces?.[cle] ?? [];
+  return PIECES[cle].filter((x) => choisies.includes(x));
+};
+
+/** Ne garde que des pièces de la liste officielle. */
+export function nettoyerPieces(v: unknown): PiecesDemandees | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const s = v as Record<string, unknown>;
+  const liste = (k: keyof PiecesDemandees) => (Array.isArray(s[k]) ? [...new Set((s[k] as unknown[]).filter((x): x is string => typeof x === "string" && PIECES[k].includes(x)))] : []);
+  return { locataire: liste("locataire"), garant: liste("garant") };
+}
+
+/** « Bonjour Madame DUPONT, » (ou le prénom si le nom n'est pas connu). */
+export function salutation(d: { civilite?: Reponses["civilite"]; prenom?: string; nom?: string }) {
+  const nom = d.nom?.trim().toUpperCase();
+  if (nom && d.civilite) return `Bonjour ${d.civilite === "M." ? "Monsieur" : "Madame"} ${nom},`;
+  const qui = [d.prenom?.trim(), nom].filter(Boolean).join(" ");
+  return qui ? `Bonjour ${qui},` : "Bonjour,";
+}
+
 export const libelle = <T extends string>(liste: { v: T; label: string }[], v?: T) => liste.find((x) => x.v === v)?.label ?? "";
 
 /** « Garant de Marie », « Colocataire », « Locataire ». */
@@ -143,7 +200,8 @@ export function manquantsReponses(r: Reponses): string[] {
   if (!r.lieuNaissance?.trim()) out.push("Lieu de naissance");
   if (!r.tel?.trim()) out.push("Portable");
   if (!r.email?.trim()) out.push("E-mail");
-  if (!r.adresse?.trim()) out.push("Adresse actuelle");
+  const parties = r.adresseRue || r.adresseCp || r.adresseVille;
+  if (parties ? !(r.adresseRue?.trim() && r.adresseCp && r.adresseVille?.trim()) : !r.adresse?.trim()) out.push("Adresse actuelle");
   if (!r.situation) out.push("Situation familiale");
   if (!r.logement) out.push("Logement actuel");
   if (!r.pro) out.push("Situation professionnelle");
@@ -205,6 +263,8 @@ const TEXTES: Record<string, number> = {
   tel: 24,
   email: 120,
   adresse: 240,
+  adresseRue: 160,
+  adresseVille: 80,
   lien: 80,
   profession: 120,
   employeur: 240,
@@ -234,6 +294,9 @@ export function nettoyerReponses(entree: unknown): Reponses {
   }
   if (typeof out.tel === "string" && !/^[+\d][\d .()-]{5,22}$/.test(out.tel)) delete out.tel;
   if (typeof out.email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) delete out.email;
+  // Adresse en trois champs : l'adresse complète est recomposée (sinon l'ancienne saisie d'un seul tenant est gardée)
+  if (typeof src.adresseCp === "string" && /^\d{5}$/.test(src.adresseCp)) out.adresseCp = src.adresseCp;
+  if (out.adresseRue || out.adresseCp || out.adresseVille) out.adresse = composerAdresse(out.adresseRue as string, out.adresseCp as string, out.adresseVille as string);
   for (const k of DATES) {
     const v = src[k];
     if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))) out[k] = v;

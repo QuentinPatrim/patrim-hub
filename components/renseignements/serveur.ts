@@ -70,10 +70,10 @@ export interface Depot {
   personne(id: string): Promise<PersonneServeur | null>;
   dossiersDuBien(bienId: string): Promise<DossierServeur[]>;
   creerDossier(x: { userId: string; bienId: string; logement: LogementPublic; expire: string }): Promise<string>;
-  ajouterPersonne(x: { dossierId: string; role: RoleDossier; principal: boolean; garantDe?: string; prenom: string; empreinte: string }): Promise<string>;
+  ajouterPersonne(x: { dossierId: string; role: RoleDossier; principal: boolean; garantDe?: string; prenom: string; reponses?: Reponses; empreinte: string }): Promise<string>;
   majPersonne(id: string, patch: { reponses?: Reponses; statut?: StatutPersonne; prenom?: string; empreinte?: string }): Promise<void>;
   retirerPersonne(id: string): Promise<void>;
-  majDossier(id: string, patch: { ferme?: boolean; expire?: string }): Promise<void>;
+  majDossier(id: string, patch: { ferme?: boolean; expire?: string; logement?: LogementPublic }): Promise<void>;
   supprimerDossier(id: string): Promise<void>;
   purger(): Promise<void>;
 }
@@ -123,7 +123,7 @@ function depotSupabase(url: string, cle: string): Depot {
       const r = ok(
         await db
           .from(P)
-          .insert({ dossier_id: x.dossierId, role: x.role, principal: x.principal, garant_de: x.garantDe ?? null, prenom: x.prenom, token_hash: x.empreinte })
+          .insert({ dossier_id: x.dossierId, role: x.role, principal: x.principal, garant_de: x.garantDe ?? null, prenom: x.prenom, reponses: x.reponses ?? {}, token_hash: x.empreinte })
           .select("id")
           .single()
       ) as { id: string };
@@ -145,6 +145,7 @@ function depotSupabase(url: string, cle: string): Depot {
       const row: Record<string, unknown> = {};
       if (patch.ferme != null) row.ferme = patch.ferme;
       if (patch.expire) row.expires_at = patch.expire;
+      if (patch.logement) row.logement = patch.logement;
       ok(await db.from(D).update(row).eq("id", id));
     },
     async supprimerDossier(id) {
@@ -187,7 +188,7 @@ function depotMemoire(): Depot {
     },
     async ajouterPersonne(x) {
       const id = crypto.randomUUID();
-      m.p.set(id, { id, dossier_id: x.dossierId, role: x.role, principal: x.principal, garant_de: x.garantDe ?? null, prenom: x.prenom, reponses: {}, statut: "a_remplir", updated_at: now(), token_hash: x.empreinte });
+      m.p.set(id, { id, dossier_id: x.dossierId, role: x.role, principal: x.principal, garant_de: x.garantDe ?? null, prenom: x.prenom, reponses: x.reponses ?? {}, statut: "a_remplir", updated_at: now(), token_hash: x.empreinte });
       return id;
     },
     async majPersonne(id, patch) {
@@ -208,7 +209,7 @@ function depotMemoire(): Depot {
     },
     async majDossier(id, patch) {
       const d = m.d.get(id);
-      if (d) m.d.set(id, { ...d, ferme: patch.ferme ?? d.ferme, expires_at: patch.expire ?? d.expires_at });
+      if (d) m.d.set(id, { ...d, ferme: patch.ferme ?? d.ferme, expires_at: patch.expire ?? d.expires_at, logement: patch.logement ?? d.logement });
     },
     async supprimerDossier(id) {
       m.d.delete(id);

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { roleEquipe, utilisateur } from "@/lib/auth-server";
-import { DUREE_LIEN_JOURS, CONSERVATION_JOURS, MAX_PERSONNES, nettoyerPrenom, type LogementPublic } from "@/components/renseignements/dossier";
+import { DUREE_LIEN_JOURS, CONSERVATION_JOURS, MAX_PERSONNES, nettoyerPieces, nettoyerPrenom, nettoyerReponses, type LogementPublic, type Reponses } from "@/components/renseignements/dossier";
 import { depot, empreinte, ENTETES, nouveauJeton, type DossierServeur } from "@/components/renseignements/serveur";
 
 /* Dossiers de renseignements, côté conseiller (compte de l'équipe obligatoire).
    Un dossier est visible par le conseiller qui l'a créé, le titulaire et le
    responsable ; jamais par les autres collègues (ce sont des prospects).
    GET  ?bien=<id> : dossiers du bien, avec les réponses.
-   POST { action } : creer, lien, ajouter, retirer, fermer, supprimer. */
+   POST { action } : creer, lien, ajouter, retirer, fermer, pieces, supprimer.
+   À la création, le conseiller peut joindre ce que le Hub sait déjà de la
+   personne (identité, coordonnées) : elle n'a plus qu'à vérifier. */
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +47,16 @@ function logementDe(v: unknown): LogementPublic | null {
     honoraires: montant(s.honoraires),
     entree: entree && /^\d{4}-\d{2}-\d{2}$/.test(entree) ? entree : undefined,
     photo: photo && /^https:\/\//.test(photo) ? photo : undefined,
+    pieces: nettoyerPieces(s.pieces),
     conseiller: c && texte(c.nom, 80) ? { nom: texte(c.nom, 80)!, tel: texte(c.tel, 24), mail: texte(c.mail, 120) } : undefined,
   };
 }
+
+/** Réponses pré-remplies par le conseiller (jamais l'accord, que seule la personne donne). */
+const prerempli = (v: unknown): Reponses => {
+  const { accord: _a, ...r } = nettoyerReponses(v);
+  return r;
+};
 
 export async function GET(req: Request) {
   const d = depot();
@@ -82,7 +91,7 @@ export async function POST(req: Request) {
       if (!bienId || !logement) return refus("Bien incomplet", 400);
       const id = await d.creerDossier({ userId: moi.id, bienId, logement, expire: jours(DUREE_LIEN_JOURS) });
       const jeton = nouveauJeton();
-      const personneId = await d.ajouterPersonne({ dossierId: id, role: "locataire", principal: true, prenom, empreinte: empreinte(jeton) });
+      const personneId = await d.ajouterPersonne({ dossierId: id, role: "locataire", principal: true, prenom, reponses: prerempli(corps.reponses), empreinte: empreinte(jeton) });
       return NextResponse.json({ id, personneId, jeton }, { headers: ENTETES });
     }
 
@@ -113,13 +122,18 @@ export async function POST(req: Request) {
       const garantDe = role === "garant" ? dossier.personnes.find((p) => p.id === corps.garantDe && p.role !== "garant")?.id : undefined;
       if (role === "garant" && !garantDe) return refus("Indiquez pour qui la personne se porte garante.", 400);
       const jeton = nouveauJeton();
-      const id = await d.ajouterPersonne({ dossierId: dossier.id, role, principal: false, garantDe, prenom, empreinte: empreinte(jeton) });
+      const id = await d.ajouterPersonne({ dossierId: dossier.id, role, principal: false, garantDe, prenom, reponses: prerempli(corps.reponses), empreinte: empreinte(jeton) });
       return NextResponse.json({ id, jeton }, { headers: ENTETES });
     }
     if (action === "fermer") {
       const rouvrir = corps.ferme === false;
       const fin = Math.min(Date.parse(jours(DUREE_LIEN_JOURS)), Date.parse(dossier.creeLe) + CONSERVATION_JOURS * 86400_000);
       await d.majDossier(dossier.id, { ferme: !rouvrir, expire: rouvrir && fin > Date.parse(dossier.expire) ? new Date(fin).toISOString() : undefined });
+      return NextResponse.json({ ok: true }, { headers: ENTETES });
+    }
+    if (action === "pieces") {
+      // Documents demandés : modifiables après l'envoi, les liens déjà envoyés restent valables
+      await d.majDossier(dossier.id, { logement: { ...dossier.logement, pieces: nettoyerPieces(corps.pieces) } });
       return NextResponse.json({ ok: true }, { headers: ENTETES });
     }
     if (action === "supprimer") {

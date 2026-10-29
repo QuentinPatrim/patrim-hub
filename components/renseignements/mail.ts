@@ -8,7 +8,7 @@
    (lien « Mail » du téléphone). Rien n'est envoyé tout seul. */
 
 import { eurosCts } from "@/components/location/loi";
-import type { LogementPublic, RoleDossier } from "./dossier";
+import { salutation, type LogementPublic, type Reponses, type RoleDossier } from "./dossier";
 
 export interface InfosEntree {
   /** État des lieux d'entrée : date AAAA-MM-JJ et heure HH:MM. */
@@ -72,7 +72,8 @@ const enHtml = (b: Bout) =>
         : `<a href="${esc(b.lien)}" style="color:${BRAND};font-weight:bold">Remplir ma fiche de renseignements</a>`;
 
 export function mailFiche(o: {
-  prenom: string;
+  /** Destinataire : « Bonjour Madame NOM, ». */
+  dest: Pick<Reponses, "civilite" | "prenom" | "nom">;
   role: RoleDossier;
   logement: LogementPublic;
   url: string;
@@ -80,11 +81,19 @@ export function mailFiche(o: {
   deQui?: string;
   /** Garants déjà ajoutés au dossier (prénoms), pour le locataire principal. */
   garants?: string[];
+  /** Documents demandés à cette personne (cochés par le conseiller). */
+  pieces?: string[];
+  /** La fiche part avec ce que l'agence sait déjà. */
+  prerempli?: boolean;
   infos: InfosEntree;
   signature: string;
 }) {
   const { logement: l, infos } = o;
-  const bonjour: Ligne = [`Bonjour${o.prenom ? ` ${o.prenom}` : ""},`];
+  const bonjour: Ligne = [salutation(o.dest)];
+  const dejaRempli: Ligne[] = o.prerempli ? [["J'y ai déjà indiqué les informations dont je dispose : il vous suffira de les vérifier et de compléter le reste."]] : [];
+  const pieces: Ligne[] = o.pieces?.length
+    ? ["", ["Merci de me transmettre également par retour de mail les documents suivants :"], ...o.pieces.map((x): Ligne => ({ puce: [x], niveau: 1 }))]
+    : [];
   const fin: Ligne[] = ["", ["Je reste à votre disposition pour toute information complémentaire."], ["Belle journée."], ["Cordialement,"], [o.signature]];
   const lien: Ligne = [{ lien: o.url }];
 
@@ -99,7 +108,9 @@ export function mailFiche(o: {
         ". Vous trouverez ci-dessous le lien pour compléter votre fiche de renseignements en ligne, depuis votre téléphone ou votre ordinateur :",
       ],
       lien,
+      ...dejaRempli,
       ["Ce lien vous est personnel, merci de ne pas le transférer."],
+      ...pieces,
       "",
       ["Je vous invite à la compléter dans les plus brefs délais. À réception du dossier complet, je serai en mesure de vous adresser l'acte de cautionnement par voie électronique pour signature."],
       ...fin,
@@ -118,9 +129,11 @@ export function mailFiche(o: {
     lignes = [
       bonjour,
       "",
-      ["Vous trouverez ci-dessous le lien pour compléter votre fiche de renseignements en ligne, ainsi que le RIB ci-joint sur lequel effectuer les différents virements :"],
+      ["Vous trouverez ci-dessous le lien pour compléter votre fiche de renseignements en ligne, depuis votre téléphone ou votre ordinateur, ainsi que le RIB ci-joint sur lequel effectuer les différents virements :"],
       lien,
+      ...dejaRempli,
       ...garant,
+      ...pieces,
       "",
       ["Je vous invite à nous retourner ces éléments dans les plus brefs délais. À réception de votre dossier complet, je serai en mesure de vous adresser le bail de location par voie électronique pour signature."],
       "",

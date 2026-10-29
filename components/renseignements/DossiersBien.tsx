@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, ClipboardList, FileSignature, FileText, KeyRound, Link2, Lock, Plus, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { ChevronRight, ClipboardList, FileSignature, FileText, FolderCheck, KeyRound, Link2, Lock, Plus, RefreshCw, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { Badge, Card, cx, Empty, Field, Sheet, Spinner } from "@/components/ui";
 import { PickChip } from "@/components/contacts/bits";
+import { ContactPicker } from "@/components/biens/ContactPicker";
+import { useCollection } from "@/lib/store";
 import { dateCourte, eur, ilya } from "@/lib/format";
 import type { Bien } from "@/lib/types";
 import { PartageLien } from "./Partage";
 import { MailFiche } from "./MailFiche";
 import {
   ajouterPersonne,
+  changerPieces,
   contactDepuisReponses,
   creerDossier,
   fermerDossier,
@@ -22,10 +25,23 @@ import {
   nouveauLien,
   preparerBail,
   preparerCaution,
+  reponsesInitiales,
   retirerPersonne,
   supprimerDossier,
 } from "./client";
-import { groupesReponses, manquantsReponses, revenusMensuels, rolePersonne, type Dossier, type PersonneDossier } from "./dossier";
+import {
+  groupesReponses,
+  manquantsReponses,
+  PIECES,
+  PIECES_PAR_DEFAUT,
+  piecesDe,
+  revenusMensuels,
+  rolePersonne,
+  type Dossier,
+  type PersonneDossier,
+  type PiecesDemandees,
+} from "./dossier";
+import type { Destinataire } from "./client";
 
 /* ============================================================
    Côté conseiller : fiches de renseignements envoyées pour un bien
@@ -40,7 +56,20 @@ const STATUT: Record<PersonneDossier["statut"], { label: string; tone: "neutral"
 
 const nomPersonne = (p: PersonneDossier) => [p.reponses?.prenom || p.prenom, p.reponses?.nom?.toUpperCase()].filter(Boolean).join(" ") || "Sans nom";
 
-type Envoi = { personne: Pick<PersonneDossier, "prenom" | "role" | "garantDe">; jeton: string; tel?: string; email?: string; dossier?: Dossier };
+type Envoi = {
+  personne: Pick<PersonneDossier, "prenom" | "role" | "garantDe">;
+  /** Civilité et nom, pour « Bonjour Madame NOM, ». */
+  dest: Destinataire;
+  jeton: string;
+  tel?: string;
+  email?: string;
+  dossier?: Dossier;
+  pieces: PiecesDemandees;
+  /** La fiche part avec ce que le Hub savait déjà. */
+  prerempli?: boolean;
+};
+
+const destDe = (p: PersonneDossier): Destinataire => ({ civilite: p.reponses?.civilite, prenom: p.reponses?.prenom || p.prenom, nom: p.reponses?.nom });
 
 /** Carte de la fiche du bien : résumé et accès à la page. */
 export function RenseignementsCarte({ b }: { b: Bien }) {
@@ -78,6 +107,7 @@ export function DossiersBien({ b }: { b: Bien }) {
   const [envoi, setEnvoi] = useState<Envoi | null>(null);
   const [voir, setVoir] = useState<{ d: Dossier; p: PersonneDossier } | null>(null);
   const [ajout, setAjout] = useState<Dossier | null>(null);
+  const [pieces, setPieces] = useState<Dossier | null>(null);
   const [busy, setBusy] = useState(false);
 
   const charger = useCallback(async () => {
@@ -118,7 +148,7 @@ export function DossiersBien({ b }: { b: Bien }) {
     agir(async () => {
       const { jeton } = await nouveauLien(p.id);
       setVoir(null);
-      setEnvoi({ personne: p, jeton, tel: p.reponses?.tel, email: p.reponses?.email, dossier: d });
+      setEnvoi({ personne: p, dest: destDe(p), jeton, tel: p.reponses?.tel, email: p.reponses?.email, dossier: d, pieces: d.logement.pieces ?? {} });
     });
 
   return (
@@ -141,6 +171,7 @@ export function DossiersBien({ b }: { b: Bien }) {
             busy={busy}
             onVoir={(p) => setVoir({ d, p })}
             onAjouter={() => setAjout(d)}
+            onPieces={() => setPieces(d)}
             onBail={() => {
               preparerBail(b, d);
               router.push(`/biens/${b.id}/bail`);
@@ -170,10 +201,11 @@ export function DossiersBien({ b }: { b: Bien }) {
       <NouveauCandidat
         open={nouveau}
         onClose={() => setNouveau(false)}
-        onCree={async (prenom, tel, email) => {
-          const r = await creerDossier(b.id, logementPublic(b), prenom);
+        onCree={async ({ contactId, pieces, tel, email, ...dest }) => {
+          const reponses = reponsesInitiales({ ...dest, tel, email }, contactId);
+          const r = await creerDossier(b.id, { ...logementPublic(b), pieces }, dest.prenom ?? "", reponses);
           setNouveau(false);
-          setEnvoi({ personne: { prenom, role: "locataire" }, jeton: r.jeton, tel, email });
+          setEnvoi({ personne: { prenom: dest.prenom ?? "", role: "locataire" }, dest, jeton: r.jeton, tel: reponses.tel, email: reponses.email, pieces, prerempli: true });
           await charger();
         }}
       />
@@ -182,12 +214,26 @@ export function DossiersBien({ b }: { b: Bien }) {
         <AjoutPersonne
           d={ajout}
           onClose={() => setAjout(null)}
-          onAjoute={async (role, prenom, garantDe) => {
-            const r = await ajouterPersonne(ajout.id, role, prenom, garantDe);
+          onAjoute={async ({ role, garantDe, contactId, tel, email, ...dest }) => {
+            const reponses = reponsesInitiales({ ...dest, tel, email }, contactId);
+            const r = await ajouterPersonne(ajout.id, role, dest.prenom ?? "", garantDe, reponses);
             setAjout(null);
-            setEnvoi({ personne: { prenom, role, garantDe }, jeton: r.jeton, dossier: ajout });
+            setEnvoi({ personne: { prenom: dest.prenom ?? "", role, garantDe }, dest, jeton: r.jeton, tel: reponses.tel, email: reponses.email, dossier: ajout, pieces: ajout.logement.pieces ?? {}, prerempli: true });
             await charger();
           }}
+        />
+      )}
+
+      {pieces && (
+        <PiecesDossier
+          d={pieces}
+          onClose={() => setPieces(null)}
+          onSave={(x) =>
+            agir(async () => {
+              await changerPieces(pieces.id, x);
+              setPieces(null);
+            })
+          }
         />
       )}
 
@@ -214,31 +260,7 @@ export function DossiersBien({ b }: { b: Bien }) {
       )}
 
       {envoi && (
-        <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${envoi.personne.prenom || "le candidat"}`}>
-          <p className="mb-3 text-sm text-muted">Le mail est prêt, sur la trame de l&apos;agence : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
-          <MailFiche
-            bienId={b.id}
-            prenom={envoi.personne.prenom}
-            role={envoi.personne.role}
-            logement={logementPublic(b)}
-            url={lienPublic(envoi.jeton)}
-            deQui={envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom}
-            garants={envoi.dossier?.personnes.filter((p) => p.role === "garant").map((p) => p.reponses?.prenom || p.prenom)}
-            email={envoi.email}
-          />
-          <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">Ou un message court par SMS ou WhatsApp</p>
-          <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">
-            {messageLien(envoi.personne.prenom, envoi.personne.role, logementPublic(b), lienPublic(envoi.jeton), envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom)}
-          </pre>
-          <PartageLien
-            texte={messageLien(envoi.personne.prenom, envoi.personne.role, logementPublic(b), lienPublic(envoi.jeton), envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom)}
-            sujet={`Votre fiche de renseignements – ${logementPublic(b).titre}`}
-            tel={envoi.tel}
-            email={envoi.email}
-            url={lienPublic(envoi.jeton)}
-          />
-          <p className="mt-3 text-center text-xs text-muted">Ce lien ne sera plus affiché ensuite. S&apos;il est perdu, « Renvoyer un lien » en crée un nouveau.</p>
-        </Sheet>
+        <EnvoiLien b={b} envoi={envoi} onClose={() => setEnvoi(null)} />
       )}
     </div>
   );
@@ -249,6 +271,7 @@ function CarteDossier({
   busy,
   onVoir,
   onAjouter,
+  onPieces,
   onBail,
   onCaution,
   onContacts,
@@ -259,6 +282,7 @@ function CarteDossier({
   busy: boolean;
   onVoir: (p: PersonneDossier) => void;
   onAjouter: () => void;
+  onPieces: () => void;
   onBail: () => void;
   onCaution: (g: PersonneDossier) => void;
   onContacts: () => void;
@@ -328,6 +352,9 @@ function CarteDossier({
           <button type="button" className="btn-ghost btn-sm" disabled={busy || d.ferme} onClick={onAjouter}>
             <Plus size={14} /> Ajouter une personne
           </button>
+          <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={onPieces}>
+            <FolderCheck size={14} /> Documents demandés
+          </button>
           <button type="button" className="btn-ghost btn-sm" disabled={!avecNom && !garants.length} onClick={onContacts}>
             <Users size={14} /> Créer les fiches contact
           </button>
@@ -377,20 +404,98 @@ function Renseignements({ p, d }: { p: PersonneDossier; d: Dossier }) {
   );
 }
 
-function NouveauCandidat({ open, onClose, onCree }: { open: boolean; onClose: () => void; onCree: (prenom: string, tel?: string, email?: string) => Promise<void> }) {
-  const [prenom, setPrenom] = useState("");
-  const [tel, setTel] = useState("");
-  const [email, setEmail] = useState("");
+type Saisie = Destinataire & { tel?: string; email?: string; contactId?: string };
+
+/** Identité de la personne : un contact du Hub (tout se remplit) ou civilité, prénom, nom. */
+function ChampsPersonne({ s, set, avecCoordonnees = true }: { s: Saisie; set: (x: Partial<Saisie>) => void; avecCoordonnees?: boolean }) {
+  const { items: contacts } = useCollection("contacts");
+  const choisir = (id?: string) => {
+    const c = id ? contacts.find((x) => x.id === id) : undefined;
+    set({
+      contactId: c?.id,
+      civilite: c?.civilite || undefined,
+      prenom: c?.prenom ?? "",
+      nom: c?.nom && !c.nom.includes("[À compléter]") ? c.nom : "",
+      tel: c?.tel ?? "",
+      email: c?.email ?? "",
+    });
+  };
+  return (
+    <>
+      <Field label="Déjà dans le Hub ? (facultatif)" hint="Son identité, ses coordonnées et son adresse partent dans la fiche : il n'a plus qu'à vérifier et compléter.">
+        <ContactPicker value={s.contactId ? [s.contactId] : []} onChange={(ids) => choisir(ids[0])} role="locataire" max={1} />
+      </Field>
+      <Field label="Civilité">
+        <div className="flex gap-2">
+          {(["M.", "Mme"] as const).map((c) => (
+            <button key={c} type="button" onClick={() => set({ civilite: s.civilite === c ? undefined : c })} className={cx("chip !h-10 !px-4 !text-sm", s.civilite === c && "!border-accent/30 !bg-accent/10 !text-accent")}>
+              {c === "M." ? "Monsieur" : "Madame"}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Prénom">
+          <input className="input" value={s.prenom ?? ""} onChange={(e) => set({ prenom: e.target.value })} autoComplete="off" />
+        </Field>
+        <Field label="Nom">
+          <input className="input" value={s.nom ?? ""} onChange={(e) => set({ nom: e.target.value })} autoComplete="off" />
+        </Field>
+      </div>
+      {avecCoordonnees && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Portable (facultatif)">
+            <input className="input" type="tel" inputMode="tel" value={s.tel ?? ""} onChange={(e) => set({ tel: e.target.value })} />
+          </Field>
+          <Field label="E-mail (facultatif)">
+            <input className="input" type="email" inputMode="email" value={s.email ?? ""} onChange={(e) => set({ email: e.target.value })} />
+          </Field>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Cases des documents à demander : on décoche ce qu'on a déjà. */
+function ChoixPieces({ value, onChange, roles = ["locataire", "garant"] }: { value: PiecesDemandees; onChange: (v: PiecesDemandees) => void; roles?: (keyof PiecesDemandees)[] }) {
+  const basculer = (k: keyof PiecesDemandees, x: string) => {
+    const l = value[k] ?? [];
+    onChange({ ...value, [k]: l.includes(x) ? l.filter((y) => y !== x) : [...l, x] });
+  };
+  return (
+    <div className="space-y-3">
+      {roles.map((k) => (
+        <div key={k}>
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{k === "garant" ? "Pour chaque garant" : "Pour le locataire (et chaque colocataire)"}</div>
+          <div className="space-y-1.5">
+            {PIECES[k].map((x) => (
+              <label key={x} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line/70 px-3 py-2.5 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--accent))]" checked={(value[k] ?? []).includes(x)} onChange={() => basculer(k, x)} />
+                <span>{x}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NouveauCandidat({ open, onClose, onCree }: { open: boolean; onClose: () => void; onCree: (s: Saisie & { pieces: PiecesDemandees }) => Promise<void> }) {
+  const vide = () => ({ pieces: { ...PIECES_PAR_DEFAUT } });
+  const [s, setS] = useState<Saisie & { pieces: PiecesDemandees }>(vide);
+  const [docs, setDocs] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const set = (x: Partial<Saisie & { pieces: PiecesDemandees }>) => setS((y) => ({ ...y, ...x }));
+  const nb = (s.pieces.locataire?.length ?? 0) + (s.pieces.garant?.length ?? 0);
   const creer = async () => {
     setBusy(true);
     setErr(null);
     try {
-      await onCree(prenom.trim(), tel.trim() || undefined, email.trim() || undefined);
-      setPrenom("");
-      setTel("");
-      setEmail("");
+      await onCree({ ...s, prenom: s.prenom?.trim(), nom: s.nom?.trim(), tel: s.tel?.trim() || undefined, email: s.email?.trim() || undefined });
+      setS(vide());
+      setDocs(false);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -403,32 +508,32 @@ function NouveauCandidat({ open, onClose, onCree }: { open: boolean; onClose: ()
       onClose={onClose}
       title="Nouveau candidat"
       footer={
-        <button type="button" className="btn-primary w-full !h-12" disabled={busy || !prenom.trim()} onClick={creer}>
+        <button type="button" className="btn-primary w-full !h-12" disabled={busy || !s.prenom?.trim() || !s.nom?.trim()} onClick={creer}>
           {busy ? <Spinner /> : <Link2 size={16} />} Créer son lien
         </button>
       }
     >
       <div className="space-y-3">
-        <Field label="Prénom du candidat">
-          <input className="input" value={prenom} onChange={(e) => setPrenom(e.target.value)} autoFocus />
-        </Field>
-        <Field label="Portable (facultatif)" hint="Pour ouvrir le SMS ou WhatsApp directement vers lui.">
-          <input className="input" type="tel" inputMode="tel" value={tel} onChange={(e) => setTel(e.target.value)} />
-        </Field>
-        <Field label="E-mail (facultatif)">
-          <input className="input" type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <p className="text-xs text-muted">Ces coordonnées servent seulement à préparer le message ; le candidat saisit lui-même les siennes dans la fiche.</p>
+        <ChampsPersonne s={s} set={set} />
+        <button type="button" onClick={() => setDocs((x) => !x)} className="flex min-h-12 w-full items-center gap-3 rounded-xl bg-surface-2 px-4 text-left text-sm">
+          <FolderCheck size={17} className="shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">Documents à lui demander</span>
+            <span className="block text-xs text-muted">{nb ? `${nb} document${nb > 1 ? "s" : ""} coché${nb > 1 ? "s" : ""} · décochez ceux que vous avez déjà` : "Aucun : rien ne lui sera demandé"}</span>
+          </span>
+          <ChevronRight size={16} className={cx("shrink-0 text-muted transition", docs && "rotate-90")} />
+        </button>
+        {docs && <ChoixPieces value={s.pieces} onChange={(pieces) => set({ pieces })} />}
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
     </Sheet>
   );
 }
 
-function AjoutPersonne({ d, onClose, onAjoute }: { d: Dossier; onClose: () => void; onAjoute: (role: "colocataire" | "garant", prenom: string, garantDe?: string) => Promise<void> }) {
+function AjoutPersonne({ d, onClose, onAjoute }: { d: Dossier; onClose: () => void; onAjoute: (x: Saisie & { role: "colocataire" | "garant"; garantDe?: string }) => Promise<void> }) {
   const locataires = useMemo(() => d.personnes.filter((p) => p.role !== "garant"), [d]);
   const [role, setRole] = useState<"colocataire" | "garant">("garant");
-  const [prenom, setPrenom] = useState("");
+  const [s, setS] = useState<Saisie>({});
   const [pour, setPour] = useState<string | undefined>(locataires.length === 1 ? locataires[0].id : undefined);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -441,12 +546,12 @@ function AjoutPersonne({ d, onClose, onAjoute }: { d: Dossier; onClose: () => vo
         <button
           type="button"
           className="btn-primary w-full !h-12"
-          disabled={busy || !prenom.trim() || (role === "garant" && !pour)}
+          disabled={busy || !s.prenom?.trim() || !s.nom?.trim() || (role === "garant" && !pour)}
           onClick={async () => {
             setBusy(true);
             setErr(null);
             try {
-              await onAjoute(role, prenom.trim(), role === "garant" ? pour : undefined);
+              await onAjoute({ ...s, prenom: s.prenom?.trim(), nom: s.nom?.trim(), role, garantDe: role === "garant" ? pour : undefined });
             } catch (e) {
               setErr((e as Error).message);
             } finally {
@@ -467,9 +572,6 @@ function AjoutPersonne({ d, onClose, onAjoute }: { d: Dossier; onClose: () => vo
             Conjoint ou colocataire
           </PickChip>
         </div>
-        <Field label="Prénom">
-          <input className="input" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
-        </Field>
         {role === "garant" && (
           <div>
             <span className="label">Garant de</span>
@@ -482,8 +584,59 @@ function AjoutPersonne({ d, onClose, onAjoute }: { d: Dossier; onClose: () => vo
             </div>
           </div>
         )}
+        <ChampsPersonne s={s} set={(x) => setS((y) => ({ ...y, ...x }))} />
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
+    </Sheet>
+  );
+}
+
+/** Documents demandés pour un dossier déjà envoyé : les liens restent valables. */
+function PiecesDossier({ d, onClose, onSave }: { d: Dossier; onClose: () => void; onSave: (x: PiecesDemandees) => void }) {
+  const [v, setV] = useState<PiecesDemandees>(d.logement.pieces ?? {});
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Documents demandés"
+      footer={
+        <button type="button" className="btn-primary w-full !h-12" onClick={() => onSave(v)}>
+          Enregistrer
+        </button>
+      }
+    >
+      <p className="mb-3 text-sm text-muted">Cochez ce que vous attendez encore. La liste s&apos;affiche dans leur fiche en ligne ; les liens déjà envoyés restent valables.</p>
+      <ChoixPieces value={v} onChange={setV} />
+    </Sheet>
+  );
+}
+
+/** Le lien vient d'être créé : mail formel sur la trame de l'agence, ou message court. */
+function EnvoiLien({ b, envoi, onClose }: { b: Bien; envoi: Envoi; onClose: () => void }) {
+  const logement = envoi.dossier?.logement ?? logementPublic(b);
+  const url = lienPublic(envoi.jeton);
+  const deQui = envoi.dossier?.personnes.find((p) => p.id === envoi.personne.garantDe)?.prenom;
+  const message = messageLien(envoi.dest, envoi.personne.role, logement, url, deQui);
+  const nom = [envoi.dest.civilite === "M." ? "M." : envoi.dest.civilite === "Mme" ? "Mme" : "", envoi.dest.prenom, envoi.dest.nom?.toUpperCase()].filter(Boolean).join(" ");
+  return (
+    <Sheet open onClose={onClose} title={`Lien pour ${nom || "le candidat"}`}>
+      <p className="mb-3 text-sm text-muted">Le mail est prêt, sur la trame de l&apos;agence : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
+      <MailFiche
+        bienId={b.id}
+        dest={envoi.dest}
+        pieces={piecesDe({ pieces: envoi.pieces }, envoi.personne.role)}
+        prerempli={envoi.prerempli}
+        role={envoi.personne.role}
+        logement={logement}
+        url={url}
+        deQui={deQui}
+        garants={envoi.dossier?.personnes.filter((p) => p.role === "garant").map((p) => p.reponses?.prenom || p.prenom)}
+        email={envoi.email}
+      />
+      <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted">Ou un message court par SMS ou WhatsApp</p>
+      <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{message}</pre>
+      <PartageLien texte={message} sujet={`Votre fiche de renseignements – ${logement.titre}`} tel={envoi.tel} email={envoi.email} url={url} />
+      <p className="mt-3 text-center text-xs text-muted">Ce lien ne sera plus affiché ensuite. S&apos;il est perdu, « Renvoyer un lien » en crée un nouveau.</p>
     </Sheet>
   );
 }
