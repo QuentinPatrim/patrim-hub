@@ -109,13 +109,13 @@ export default function EstimationsPage() {
             <Empty icon={<Search size={20} />} title="Aucune estimation ici" text="Changez de filtre ou de recherche." />
           </div>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {list.map((e, i) => {
               const c = e.proprietaireId ? byId.get(e.proprietaireId) : undefined;
               const p = asPlus(e);
               const prix = e.prixConseille ?? e.resultat?.median;
               return (
-                <li key={e.id} className="animate-fade-up" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
+                <li key={e.id} className="min-w-0 animate-fade-up" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
                   <Link href={`/estimations/${e.id}`} className="card card-pad card-hover group flex gap-4 min-w-0">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
