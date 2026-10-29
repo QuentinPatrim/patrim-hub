@@ -13,7 +13,6 @@ import {
   KeyRound,
   FileSignature,
   Gauge,
-  LayoutGrid,
   ListChecks,
   Moon,
   Search,
@@ -33,6 +32,7 @@ import { getAll, rechargerAffiche } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { themeSuivant, useTheme } from "@/lib/theme";
 import { Fond } from "@/components/Fond";
+import { TabBar } from "@/components/TabBar";
 import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
 import { locationSeule } from "@/components/location/bienLocation";
 import { useSuiviRetour } from "@/lib/retour";
@@ -203,30 +203,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-14 min-w-0">{children}</main>
+      <main className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-[calc(96px+env(safe-area-inset-bottom))] lg:pb-14 min-w-0">{children}</main>
 
       {/* Barre d'onglets mobile */}
-      <nav className="app-tabbar lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
-        <div className="grid grid-cols-5 h-[62px] px-1">
-          {nav.filter((n) => MOBILE.includes(n.href)).map(({ href, label, icon: Icon }) => {
-            const on = active(href);
-            return (
-              <Link key={href} href={href} aria-current={on ? "page" : undefined} className={clsx("group flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors", on ? "text-accent" : "text-muted")}>
-                <span className={clsx("grid place-items-center h-7 w-12 rounded-full transition-all duration-300", on ? "bg-accent/10" : "group-active:bg-fg/[0.05]")}>
-                  <Icon size={21} strokeWidth={on ? 2.2 : 1.8} />
-                </span>
-                {label}
-              </Link>
-            );
-          })}
-          <button onClick={() => setMore(true)} className={clsx("group flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors", more || moreActive ? "text-accent" : "text-muted")}>
-            <span className={clsx("grid place-items-center h-7 w-12 rounded-full transition-all duration-300", more || moreActive ? "bg-accent/10" : "group-active:bg-fg/[0.05]")}>
-              <LayoutGrid size={21} strokeWidth={more || moreActive ? 2.2 : 1.8} />
-            </span>
-            Plus
-          </button>
-        </div>
-      </nav>
+      <TabBar onglets={nav.filter((n) => MOBILE.includes(n.href))} actif={active} plusActif={more || moreActive} onPlus={() => setMore(true)} />
 
       {more && (
         <div className="lg:hidden fixed inset-0 z-50" onClick={() => setMore(false)}>
