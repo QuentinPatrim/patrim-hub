@@ -25,7 +25,7 @@ type Lead = {
 };
 type Reponse = { email?: string; nom?: string; resume?: string; date?: string; telephone?: string; rdv?: { debut: string; type?: string; lieu?: string; bien?: string } | null };
 type EvtAgenda = { id: string; titre: string; debut: string; fin?: string; lieu?: string; description?: string };
-type Payload = { compte?: string; leads?: Lead[]; reponses?: Reponse[]; agenda?: { de: string; a: string; evenements: EvtAgenda[] } };
+type Payload = { compte?: string; brouillonsCrees?: string[]; leads?: Lead[]; reponses?: Reponse[]; agenda?: { de: string; a: string; evenements: EvtAgenda[] } };
 
 type Row = { id: string; kind: string; data: Record<string, unknown> };
 
@@ -80,7 +80,23 @@ export async function POST(req: Request) {
       tag: "lead",
     }).catch(() => 0);
 
-  return NextResponse.json({ ok: true, bilan, ...(p.agenda ? { aCreer: aCreerDansGoogle(s) } : {}) });
+  // Brouillons Gmail demandés depuis le Hub (avis de valeur en PDF) : le script les crée, puis confirme
+  if (p.brouillonsCrees?.length) {
+    const { data: faits } = await db.from("hub_docs").select("id,data").eq("user_id", user).eq("kind", "brouillon_mail").in("id", p.brouillonsCrees.slice(0, 20));
+    for (const f of (faits ?? []) as { id: string; data: Record<string, unknown> }[]) {
+      const { pdf: _pdf, ...reste } = f.data;
+      await db.from("hub_docs").update({ data: { ...reste, statut: "cree", creeDansGmail: new Date().toISOString() }, updated_at: new Date().toISOString() }).eq("id", f.id);
+    }
+  }
+  let brouillons: unknown[] | undefined;
+  if (p.agenda) {
+    const { data: aFaire } = await db.from("hub_docs").select("id,data").eq("user_id", user).eq("kind", "brouillon_mail").eq("data->>statut", "a_creer").order("updated_at").limit(2);
+    brouillons = ((aFaire ?? []) as { id: string; data: Record<string, unknown> }[])
+      .filter((b) => (p.brouillonsCrees ?? []).indexOf(b.id) === -1)
+      .map((b) => ({ id: b.id, a: b.data.a, sujet: b.data.sujet, texte: b.data.texte, pdfNom: b.data.pdfNom, pdf: b.data.pdf }));
+  }
+
+  return NextResponse.json({ ok: true, bilan, ...(p.agenda ? { aCreer: aCreerDansGoogle(s), brouillons } : {}) });
 }
 
 /** Rendez-vous du Hub (saisis dans l'appli ou réservés en ligne) pas encore dans Google Agenda : le script
