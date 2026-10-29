@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { manquantsReponses, nettoyerReponses, type VuePublique } from "@/components/fiches/fiche";
+import { notifierCompte } from "@/lib/push-server";
+import { manquantsReponses, nettoyerReponses, TITRE_FICHE, type VuePublique } from "@/components/fiches/fiche";
 import { depotFiches, empreinte, ENTETES, jetonValide, type FicheServeur } from "@/components/fiches/serveur";
 
 /* Adresse publique d'une fiche vendeur ou acquéreur : ouverte sans compte,
@@ -52,6 +53,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ jeton: 
     if (corps.terminer === true && !complet) return refus("Il manque encore des informations : " + [...manque, ...(reponses.accord ? [] : ["accord"])].join(", ") + ".", 422);
     const statut = corps.terminer === true || (f.statut === "termine" && complet) ? "termine" : "en_cours";
     await d.maj(f.id, { reponses, statut, prenom: reponses.prenom || f.prenom });
+    // Prévient le conseiller sur son téléphone quand la fiche arrive (pas à chaque correction)
+    if (statut === "termine" && f.statut !== "termine") {
+      const qui = [reponses.civilite === "M." ? "M." : reponses.civilite === "Mme" ? "Mme" : "", reponses.prenom, reponses.nom?.toUpperCase()].filter(Boolean).join(" ");
+      await notifierCompte(f.userId, {
+        titre: `${TITRE_FICHE[f.kind]} reçue`,
+        texte: [qui, f.contexte.titre].filter(Boolean).join(" · "),
+        url: `/biens/${f.bienId}/fiche-${f.kind}`,
+        tag: `fiche-${f.id}`,
+      });
+    }
     return NextResponse.json(vue({ ...f, reponses, statut, prenom: reponses.prenom || f.prenom }), { headers: ENTETES });
   } catch {
     return refus("Enregistrement impossible pour l'instant. Réessayez dans un instant.", 500);

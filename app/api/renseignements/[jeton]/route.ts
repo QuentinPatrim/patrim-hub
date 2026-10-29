@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifierCompte } from "@/lib/push-server";
 import { MAX_PERSONNES, manquantsReponses, nettoyerPrenom, nettoyerReponses, type VuePublique } from "@/components/renseignements/dossier";
 import { depot, empreinte, ENTETES, jetonValide, nouveauJeton, type DossierServeur, type PersonneServeur } from "@/components/renseignements/serveur";
 
@@ -65,6 +66,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ jeton: 
       const statut = corps.terminer === true || (moi.statut === "termine" && complet) ? "termine" : "en_cours";
       await d.majPersonne(moi.id, { reponses, statut, prenom: reponses.prenom || moi.prenom });
       const maj = await d.parEmpreinte(empreinte(jeton));
+      // Prévient le conseiller sur son téléphone quand une fiche arrive (pas à chaque correction)
+      if (statut === "termine" && moi.statut !== "termine") {
+        const complet = !!maj && maj.dossier.personnes.every((p) => p.statut === "termine");
+        await notifierCompte(dossier.userId, {
+          titre: complet ? "Dossier de location complet" : "Fiche de renseignements reçue",
+          texte: [[reponses.prenom, reponses.nom?.toUpperCase()].filter(Boolean).join(" "), dossier.logement.titre].filter(Boolean).join(" · "),
+          url: `/biens/${dossier.bienId}/renseignements`,
+          tag: `renseignements-${moi.id}`,
+        });
+      }
       return NextResponse.json(maj ? vue(maj.dossier, maj.personne) : { ok: true }, { headers: ENTETES });
     }
 

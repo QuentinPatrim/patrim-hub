@@ -1,5 +1,6 @@
 import { createCipheriv, createECDH, createHmac, createPrivateKey, randomBytes, sign } from "crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { cleServiceSupabase } from "@/lib/env";
 
 /* ============================================================
    Notifications sur le téléphone (Web Push), sans dépendance :
@@ -100,4 +101,12 @@ export async function notifier(db: SupabaseClient, userId: string, n: Notif): Pr
     }
   }
   return ok;
+}
+
+/** Même chose, depuis une route publique (lien client) : ouvre sa propre connexion serveur. Ne bloque jamais l'appel. */
+export async function notifierCompte(userId: string | undefined, n: Notif): Promise<number> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const cle = cleServiceSupabase();
+  if (!userId || !url || !cle || !clePubliqueVapid()) return 0;
+  return notifier(createClient(url, cle, { auth: { persistSession: false } }), userId, n).catch(() => 0);
 }
