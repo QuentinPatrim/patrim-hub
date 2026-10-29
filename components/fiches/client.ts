@@ -36,6 +36,7 @@ export const nouveauLienFiche = (id: string) => appeler<{ id: string; jeton: str
 export const fermerFiche = (id: string, ferme: boolean) => appeler<{ ok: true }>({ method: "POST", corps: { action: "fermer", id, ferme } });
 export const controlerFiche = (id: string, controle: Controle) => appeler<{ controle: Controle }>({ method: "POST", corps: { action: "controler", id, controle } });
 export const piecesFiche = (id: string, pieces: string[], recues: string[]) => appeler<{ contexte: ContextePublic }>({ method: "POST", corps: { action: "pieces", id, pieces, recues } });
+export const completerFiche = (id: string) => appeler<{ contexte: ContextePublic }>({ method: "POST", corps: { action: "completer", id } });
 export const supprimerFiche = (id: string) => appeler<{ ok: true }>({ method: "POST", corps: { action: "supprimer", id } });
 
 export const lienFiche = (jeton: string) => `${window.location.origin}/informations/${jeton}`;
@@ -68,13 +69,15 @@ export function salutation(d: Destinataire) {
 }
 
 export const objetFiche = (kind: KindFiche, contexte: ContextePublic) =>
-  kind === "vendeur" ? "Votre fiche vendeur – PATRIM" : `Votre offre d'achat – ${contexte.titre}${contexte.ville ? `, ${contexte.ville}` : ""}`;
+  kind === "vendeur" ? (contexte.mode === "estimation" ? "Votre rendez-vous d'estimation – PATRIM" : "Votre fiche vendeur – PATRIM") : `Votre offre d'achat – ${contexte.titre}${contexte.ville ? `, ${contexte.ville}` : ""}`;
 
 /** Texte prêt à envoyer avec le lien (mail, SMS, WhatsApp). */
 export function messageFiche(kind: KindFiche, d: Destinataire, contexte: ContextePublic, url: string, dejaRempli = false) {
   const c = contexte.conseiller;
   const pour =
-    kind === "vendeur"
+    kind === "vendeur" && contexte.mode === "estimation"
+      ? "Afin de préparer au mieux notre rendez-vous d'estimation, je vous invite à répondre à quelques questions sur votre bien à l'aide du lien ci-dessous. Cela ne vous prendra que quelques minutes."
+      : kind === "vendeur"
       ? "Afin de préparer votre mandat de vente, je vous invite à compléter votre fiche vendeur à l'aide du lien ci-dessous. Elle réunit en une seule fois les informations nécessaires au mandat et les vérifications que la réglementation impose aux agences immobilières."
       : `Afin de rédiger votre offre d'achat pour le bien « ${contexte.titre} »${contexte.ville ? ` à ${contexte.ville}` : ""}, je vous invite à compléter votre fiche acquéreur à l'aide du lien ci-dessous.`;
   return [
@@ -85,7 +88,9 @@ export function messageFiche(kind: KindFiche, d: Destinataire, contexte: Context
     "",
     url,
     "",
-    "Vous pouvez la remplir sur votre téléphone ou sur votre ordinateur ; comptez une dizaine de minutes. Ce lien vous est personnel, merci de ne pas le transférer.",
+    contexte.mode === "estimation"
+      ? "Vous pouvez répondre sur votre téléphone ou sur votre ordinateur. Ce lien vous est personnel, merci de ne pas le transférer."
+      : "Vous pouvez la remplir sur votre téléphone ou sur votre ordinateur ; comptez une dizaine de minutes. Ce lien vous est personnel, merci de ne pas le transférer.",
     "",
     "Je reste à votre disposition pour toute question.",
     "",
@@ -143,6 +148,12 @@ export function reponsesInitiales(b: Bien, kind: KindFiche, d: Destinataire & { 
     chargesAnnuelles: b.chargesAnnuelles,
     taxeFonciere: b.taxeFonciere,
     anneeConstruction: b.anneeConstruction,
+    surface: b.surface,
+    pieces: b.pieces,
+    etage: b.etage != null ? [b.etage === 0 ? "Rez-de-chaussée" : `${b.etage}e`, b.nbEtages && `sur ${b.nbEtages}`, b.ascenseur != null && (b.ascenseur ? "avec ascenseur" : "sans ascenseur")].filter(Boolean).join(" ") : undefined,
+    exterieur: b.exterieur || undefined,
+    stationnement: [b.parking, b.cave && "cave"].filter(Boolean).join(", ") || undefined,
+    chauffage: b.chauffage || undefined,
     notaireVente: dossier.notaire,
     occupation: dossier.occupation ? (/lou/i.test(dossier.occupation) ? "loue" : /libre|vide/i.test(dossier.occupation) ? "libre" : undefined) : undefined,
     diagnostics: diagnosticsConnus(b),
@@ -255,6 +266,12 @@ function completerBien(b: Bien, r: Reponses, vendeurs: ContactEtatCivil[]) {
   if (b.chargesAnnuelles == null && r.chargesAnnuelles != null) patch.chargesAnnuelles = r.chargesAnnuelles;
   if (b.taxeFonciere == null && r.taxeFonciere != null) patch.taxeFonciere = r.taxeFonciere;
   if (b.anneeConstruction == null && r.anneeConstruction) patch.anneeConstruction = r.anneeConstruction;
+  if (b.surface == null && r.surface != null) patch.surface = r.surface;
+  if (b.pieces == null && r.pieces != null) patch.pieces = r.pieces;
+  if (b.etage == null && r.etage && /^\s*(\d+)/.test(r.etage)) patch.etage = parseInt(r.etage, 10);
+  if (!b.exterieur && r.exterieur) patch.exterieur = r.exterieur;
+  if (!b.parking && r.stationnement) patch.parking = r.stationnement;
+  if (!b.chauffage && r.chauffage) patch.chauffage = r.chauffage;
   const dossier = { ...d };
   if (!d.syndic && r.syndic) dossier.syndic = r.syndic;
   if (!d.lots && r.lots) dossier.lots = r.lots;
@@ -262,6 +279,29 @@ function completerBien(b: Bien, r: Reponses, vendeurs: ContactEtatCivil[]) {
   if (!d.occupation && r.occupation) dossier.occupation = [libelle(OCCUPATIONS, r.occupation), r.occupation === "loue" && r.loyer != null && `loyer ${r.loyer} € CC`, r.occupation === "loue" && r.finBail && `bail jusqu'au ${r.finBail}`].filter(Boolean).join(", ");
   if (JSON.stringify(dossier) !== JSON.stringify(d)) patch.dossier = dossier;
   if (Object.keys(patch).length) update("biens", b.id, patch as Partial<Bien>);
+}
+
+/** Fiche avant estimation : complète le bien, son dossier et les fiches contact, sans toucher au mandat. */
+export function reprendreDansLeBien(b: Bien, f: Fiche) {
+  const contacts = contactsDepuisFiche(b, f);
+  completerBien(b, f.reponses ?? {}, contacts);
+}
+
+/** Message pour ouvrir la suite de la fiche (après l'estimation), sur le lien déjà reçu. */
+export function messageSuite(d: Destinataire, envoyeLe: string) {
+  const le = new Date(envoyeLe).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+  return [
+    salutation(d),
+    "",
+    "Je vous remercie pour notre rendez-vous. Afin de préparer votre mandat de vente, je vous invite à compléter votre fiche vendeur : il vous suffit de rouvrir le lien que je vous ai adressé le " +
+      le +
+      ". Vos premières réponses sont gardées ; il ne reste que l'état civil et les vérifications que la réglementation impose aux agences immobilières.",
+    "",
+    "Si vous ne retrouvez plus le lien, dites-le-moi et je vous en envoie un nouveau.",
+    "",
+    "Bien cordialement,",
+    [nomConseiller(), "PATRIM"].join(" – "),
+  ].join("\n");
 }
 
 /** Met la fiche vendeur dans le brouillon de mandat du bien (créé s'il n'existe pas), et complète le bien. */

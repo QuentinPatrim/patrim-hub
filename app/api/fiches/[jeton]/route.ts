@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ jeton: 
   if (corps?.action !== "enregistrer") return refus("Action inconnue.", 400);
   try {
     const reponses = nettoyerReponses(f.kind, corps.reponses);
-    const manque = manquantsReponses(f.kind, reponses);
+    const manque = manquantsReponses(f.kind, reponses, f.contexte);
     const complet = !manque.length && !!reponses.accord;
     if (corps.terminer === true && !complet) return refus("Il manque encore des informations : " + [...manque, ...(reponses.accord ? [] : ["accord"])].join(", ") + ".", 422);
     const statut = corps.terminer === true || (f.statut === "termine" && complet) ? "termine" : "en_cours";

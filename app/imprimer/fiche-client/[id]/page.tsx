@@ -170,6 +170,12 @@ export default function FicheClientPdf() {
                     {ctl.justificatifs ? "☒" : "☐"} Justificatifs {f.kind === "vendeur" ? "de propriété" : "de l'origine des fonds"} reçus
                   </span>
                 </div>
+                {!!ctl.comportements?.length && (
+                  <p className="mt-[2mm] text-[8.4pt]">
+                    <span style={{ color: C.slate }}>Appréciation du conseiller : </span>
+                    {ctl.comportements.join(" ; ")}.
+                  </p>
+                )}
                 {ctl.commentaire && (
                   <p className="mt-[2mm] text-[8.4pt]">
                     <span style={{ color: C.slate }}>Mesures et remarques : </span>
