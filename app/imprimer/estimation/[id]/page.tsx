@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Banknote, BarChart3, CheckCircle, Home, Leaf, Pencil, Printer, Star, ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
+import { ArrowLeft, Banknote, Mail, BarChart3, CheckCircle, Home, Leaf, Pencil, Printer, Star, ThumbsDown, ThumbsUp, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -14,6 +14,7 @@ import { useSignature } from "@/lib/profil";
 import { nomConseiller } from "@/lib/equipe";
 import { photoAuto } from "@/lib/photoAuto";
 import { useRetour } from "@/lib/retour";
+import { EnvoyerAvis } from "@/components/estimations/EnvoyerAvis";
 
 /* ============================================================
    Avis de valeur imprimable (A4), mise en page reprise à
@@ -49,6 +50,7 @@ export default function AvisDeValeur() {
   const { items: contacts } = useCollection("contacts");
   const { items: biens } = useCollection("biens");
   const [zoom, setZoom] = useState(1);
+  const [envoi, setEnvoi] = useState(false);
   const [afficherNom, setAfficherNom] = useState(true);
   const [attente, setAttente] = useState(true);
   const signature = useSignature();
@@ -317,10 +319,10 @@ export default function AvisDeValeur() {
       <div className="no-print sticky top-0 z-10 border-b border-black/5 bg-white/85 backdrop-blur">
         <div className="safe-top mx-auto flex max-w-[860px] items-center gap-1.5 px-3 py-2.5 text-[#1d1d1f]">
           <button type="button" onClick={retour} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
-            <ArrowLeft size={16} /> Retour
+            <ArrowLeft size={16} /> <span className="hidden min-[420px]:inline">Retour</span>
           </button>
           <Link href={`/estimations/${e.id}#avis`} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium hover:bg-black/5">
-            <Pencil size={15} /> Compléter
+            <Pencil size={15} /> <span className="hidden min-[420px]:inline">Compléter</span>
           </Link>
           {proprio && (
             <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-[#6e6e73]">
@@ -331,8 +333,15 @@ export default function AvisDeValeur() {
           )}
           <button
             type="button"
+            onClick={() => setEnvoi(true)}
+            className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3.5 text-sm font-semibold text-[#1d1d1f] active:scale-[.98]`}
+          >
+            <Mail size={16} /> Envoyer
+          </button>
+          <button
+            type="button"
             onClick={() => window.print()}
-            className={`${proprio ? "" : "ml-auto "}inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
+            className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white active:scale-[.98]`}
             style={{ background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`, boxShadow: "0 8px 24px -8px rgba(138,14,1,0.6)" }}
           >
             <Printer size={16} /> PDF
@@ -340,7 +349,8 @@ export default function AvisDeValeur() {
         </div>
       </div>
 
-      <div className="pdf-stage pdf-font min-h-screen py-6 sm:py-10" style={{ backgroundColor: "#e5e5ea", zoom }}>
+      <EnvoyerAvis open={envoi} onClose={() => setEnvoi(false)} estimation={e} proprio={proprio} scene={() => document.getElementById("avis-scene")} />
+      <div id="avis-scene" className="pdf-stage pdf-font min-h-screen py-6 sm:py-10" style={{ backgroundColor: "#e5e5ea", zoom }}>
         {/* ============ PAGE 1 : COUVERTURE ============ */}
         <div className={PAGE}>
           <div className="relative h-[168mm] shrink-0 bg-[#1c1c1e]">
