@@ -7,6 +7,8 @@ import { AGENCE } from "@/components/documents/charte";
 import { authHeaders } from "@/lib/ai";
 import { cloudEnabled, supabase } from "@/lib/supabase";
 import { uid, update } from "@/lib/store";
+import { googleConnecte } from "@/lib/googleClient";
+import { conseiller, nomConseiller } from "@/lib/equipe";
 import type { Contact, Estimation } from "@/lib/types";
 
 /* « Envoyer » sur l'avis de valeur : le PDF est fabriqué sur le téléphone, puis
@@ -130,7 +132,7 @@ export function EnvoyerAvis({ open, onClose, estimation: e, proprio, scene }: { 
   const [pdf, setPdf] = useState<Blob>();
   const [etat, setEtat] = useState("");
   const [erreur, setErreur] = useState("");
-  const [fait, setFait] = useState<"" | "brouillon" | "partage">("");
+  const [fait, setFait] = useState<"" | "brouillon" | "gmail" | "partage">("");
   const [copie, setCopie] = useState(false);
 
   useEffect(() => {
@@ -172,14 +174,31 @@ export function EnvoyerAvis({ open, onClose, estimation: e, proprio, scene }: { 
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("Connecte-toi d'abord.");
+      const direct = googleConnecte();
+      const cle = uid();
+      // « direct » : créé tout de suite dans le Gmail de la personne connectée ; sinon le script Google le reprend
       const { error } = await supabase.from("hub_docs").insert({
-        id: uid(),
+        id: cle,
         kind: "brouillon_mail",
         user_id: u.user.id,
         updated_at: new Date().toISOString(),
-        data: { statut: "a_creer", a: a.trim(), sujet, texte, pdfNom: modele.fichier, pdf: await enBase64(pdf), estimationId: e.id, creeLe: new Date().toISOString() },
+        data: { statut: direct ? "direct" : "a_creer", a: a.trim(), sujet, texte, pdfNom: modele.fichier, pdf: await enBase64(pdf), estimationId: e.id, creeLe: new Date().toISOString() },
       });
       if (error) throw new Error(error.message);
+      if (direct) {
+        const s = conseiller();
+        const r = await fetch("/api/google/brouillon", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ id: cle, signature: { nom: nomConseiller(), titre: s.titre, tel: s.tel, mail: s.mail } }) });
+        if (!r.ok) {
+          // Connexion Google perdue : le brouillon repasse par le script Google
+          await supabase.from("hub_docs").update({ data: { statut: "a_creer", a: a.trim(), sujet, texte, pdfNom: modele.fichier, pdf: await enBase64(pdf), estimationId: e.id, creeLe: new Date().toISOString() } }).eq("id", cle);
+          setFait("brouillon");
+          noter("préparé en brouillon Gmail");
+          return;
+        }
+        setFait("gmail");
+        noter("mis en brouillon dans Gmail");
+        return;
+      }
       setFait("brouillon");
       noter("préparé en brouillon Gmail");
     } catch (x) {
@@ -266,7 +285,15 @@ export function EnvoyerAvis({ open, onClose, estimation: e, proprio, scene }: { 
         </div>
         {erreur && <p className="text-sm text-danger">{erreur}</p>}
 
-        {fait === "brouillon" ? (
+        {fait === "gmail" ? (
+          <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
+            Le brouillon est dans <b>Gmail &gt; Brouillons</b>, avec le PDF et ta signature.{" "}
+            <a className="font-semibold underline" href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noreferrer">
+              Ouvrir Gmail
+            </a>
+            , relis-le et appuie sur Envoyer.
+          </p>
+        ) : fait === "brouillon" ? (
           <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
             C&apos;est parti : le brouillon apparaît dans <b>Gmail &gt; Brouillons</b> d&apos;ici 5 minutes, avec le PDF et ta signature. Relis-le et appuie sur Envoyer.
           </p>

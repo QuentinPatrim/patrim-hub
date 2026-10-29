@@ -8,6 +8,7 @@ import { importerMandats as importerMandatsComplets } from "@/lib/mandats";
 import { SignatureCard } from "@/components/reglages/SignatureCard";
 import { AvisCard } from "@/components/reglages/AvisCard";
 import { NotificationsCard } from "@/components/reglages/NotificationsCard";
+import { GoogleCard } from "@/components/reglages/GoogleCard";
 import { DisponibilitesCard } from "@/components/visites/DisponibilitesCard";
 import { EquipeCard } from "@/components/reglages/EquipeCard";
 import { useMoi } from "@/lib/equipe";
@@ -80,6 +81,7 @@ export default function Reglages() {
     <div className="space-y-4 max-w-2xl">
       <PageHeader title="Réglages" subtitle="Compte, données et sauvegardes" />
 
+      <GoogleCard />
       <NotificationsCard />
       <DisponibilitesCard />
 

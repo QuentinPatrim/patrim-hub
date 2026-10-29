@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { googleConfigure, synchroGoogle } from "@/lib/google-server";
 import { cleClaude, cleServiceSupabase } from "@/lib/env";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
@@ -20,6 +21,12 @@ export async function GET(req: Request) {
   const service = cleServiceSupabase();
   if (!url || !service) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 });
   const db = createClient(url, service, { auth: { persistSession: false } });
+
+  // Comptes Google connectés : leads et agenda de la veille relevés avant de préparer la journée
+  if (googleConfigure()) {
+    const { data: connectes } = await db.from("hub_google").select("user_id");
+    for (const c of (connectes ?? []) as { user_id: string }[]) await synchroGoogle(db, c.user_id).catch(() => 0);
+  }
 
   const { data: rows, error } = await db.from("hub_docs").select("id,user_id,kind,data").limit(20000);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

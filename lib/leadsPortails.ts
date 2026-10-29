@@ -97,3 +97,74 @@ export function lireMailPortail(brut: string, sujet = ""): LeadLu | null {
   const t = String(brut || "").replace(/\r/g, "").replace(/\[https?:[^\]]*\]/g, " ");
   return estimationBienici(t, sujet) ?? acquereurBienici(t, sujet) ?? contactGenerique(t, sujet);
 }
+
+/* ---------- SeLoger (même lecture que le script Google, analyserLead de Code.gs) ---------- */
+export type LeadSeLoger = {
+  type: "bien" | "projet" | null;
+  nom?: string;
+  email?: string;
+  telephone?: string;
+  prix?: number;
+  ville?: string;
+  cp?: string;
+  typeBien?: string;
+  pieces?: number;
+  surface?: string;
+  reference?: string;
+  message?: string;
+  criteres?: Record<string, string>;
+};
+
+function nettoyerNom(s: string) {
+  const n = String(s).replace(/\s+/g, " ").trim();
+  const parts = n.split(" ");
+  if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) return titre(parts[0]);
+  return parts.map(titre).join(" ");
+}
+
+export function lireSeLoger(body: string, subject = ""): LeadSeLoger {
+  const t = String(body || "").replace(/\r/g, "").replace(/\u00a0/g, " ");
+  const flat = t.replace(/\s+/g, " ");
+  const lead: LeadSeLoger = { type: null };
+  let m = flat.match(/Cliquez ici\.\s*(.+?)\s+s'intéresse à ce bien/i);
+  if (m) {
+    lead.type = "bien";
+    lead.nom = nettoyerNom(m[1]);
+  } else {
+    m = flat.match(/Cliquez ici\.\s*(.+?)\s+souhaite vous confier son projet/i);
+    if (m) {
+      lead.type = "projet";
+      lead.nom = nettoyerNom(m[1]);
+    }
+  }
+  if (!lead.type && /s'intéresse|souhaite vous confier/i.test(subject)) lead.type = "bien";
+  m = t.match(/mailto:([^\s"'<>]+@[^\s"'<>]+)/i);
+  if (m) lead.email = m[1].trim();
+  m = t.match(/tel:(\+?\d[\d ]{8,})/i);
+  if (m && !/^\+?331\s?53\s?38/.test(m[1].replace(/\s/g, ""))) lead.telephone = m[1].replace(/\s/g, "");
+  if (lead.type === "bien") {
+    m = flat.match(/s'intéresse à ce bien\s+([\d\u00a0\u202f ]+)\s*€\s+(.+?)\s*,\s*(\d{5})\s+(\S+)/i);
+    if (m) {
+      lead.prix = parseInt(m[1].replace(/\D/g, ""), 10);
+      lead.ville = titre(m[2]);
+      lead.cp = m[3];
+      lead.typeBien = m[4];
+    }
+    m = flat.match(/(\d+)\s+pièces?/i);
+    if (m) lead.pieces = parseInt(m[1], 10);
+    m = flat.match(/([\d.,]+)\s*m²/i);
+    if (m) lead.surface = m[1].replace(",", ".");
+    m = flat.match(/Ref\.\s*de\s*l'annonce\s*:\s*(\S+)/i);
+    if (m) lead.reference = m[1];
+    m = t.match(/Découvrir\s+son\s+projet\s+([\s\S]*?)\s+mailto:/i);
+    if (m) lead.message = m[1].replace(/\n{3,}/g, "\n\n").trim();
+  } else if (lead.type === "projet") {
+    lead.criteres = {};
+    for (const c of ["Type de transaction", "Type de bien", "Code postal", "Budget", "Nombre de pièces", "Date de la demande"]) {
+      const mm = t.match(new RegExp("^\\s*" + c + "\\s*:\\s*(.+)$", "im"));
+      if (mm) lead.criteres[c] = mm[1].replace(/\*NC\*/g, "non précisé").trim();
+    }
+    if (/^(projet|recherche)/i.test(lead.nom || "")) lead.nom = "";
+  }
+  return lead;
+}
