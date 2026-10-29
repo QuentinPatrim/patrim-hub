@@ -10,6 +10,7 @@ import { copier } from "@/components/assistant/outils";
 import { qrSvg } from "@/components/qr/qr";
 import { C } from "@/components/documents/charte";
 import type { Bien, Contact } from "@/lib/types";
+import { chargerDispo } from "@/components/visites/DisponibilitesCard";
 import { changerCreneaux, creneauxAVenir, empreinteFiche, fichePageWeb, lienPageWeb, pageWebDe, publierPageWeb, retirerPageWeb } from "./pageweb";
 
 /** Carte « Page web & QR vitrine » de la fiche du bien. */
@@ -110,6 +111,34 @@ const samediProchain = () => {
 const jourCourt = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
 const heure = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
 
+/** Dit si les créneaux de la semaine (Réglages) sont activés, sinon renvoie vers Réglages. */
+function EtatDispo() {
+  const [actif, setActif] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    chargerDispo()
+      .then((r) => setActif(!!r.id && r.d.actif))
+      .catch(() => setActif(null));
+  }, []);
+  if (actif === null) return null;
+  return actif ? (
+    <div className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+      Tes créneaux de la semaine sont activés : ils sont proposés automatiquement, moins ce qui est déjà pris dans ton agenda.{" "}
+      <Link href="/reglages" className="underline">
+        Les modifier
+      </Link>
+    </div>
+  ) : (
+    <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      Tes créneaux de la semaine ne sont pas encore activés, donc rien n&apos;est proposé automatiquement.{" "}
+      <Link href="/reglages" className="font-semibold underline">
+        Les activer dans Réglages
+      </Link>{" "}
+      (une seule fois pour tous les biens).
+    </div>
+  );
+}
+
 /** Créneaux de visite en libre-service : le visiteur réserve sur la page web ceux qui restent libres dans l'agenda. */
 function Creneaux({ b }: { b: Bien }) {
   const p = pageWebDe(b);
@@ -118,6 +147,7 @@ function Creneaux({ b }: { b: Bien }) {
   const [de, setDe] = useState("10:00");
   const [a, setA] = useState("12:00");
   const [duree, setDuree] = useState(p?.dureeVisite ?? 45);
+  const [enPlus, setEnPlus] = useState(false);
   const parJour = liste.reduce<Record<string, string[]>>((m, c) => ((m[jourCourt(c)] ??= []).push(c), m), {});
 
   function ajouter() {
@@ -132,17 +162,20 @@ function Creneaux({ b }: { b: Bien }) {
     <div className="mt-4 border-t border-line pt-3">
       <div className="text-sm font-semibold">Visites en libre-service</div>
       <p className="mt-0.5 text-xs text-muted">
-        Le visiteur réserve lui-même un créneau encore libre dans ton agenda. Tes créneaux de chaque semaine se règlent une fois pour tous les biens dans{" "}
-        <Link href="/reglages" className="underline">
-          Réglages
-        </Link>
-        . La visite s&apos;ajoute à ton agenda et la confirmation t&apos;attend dans « À envoyer ».
+        Le visiteur réserve lui-même un créneau encore libre dans ton agenda (Hub et Google Agenda). La visite s&apos;ajoute aux deux agendas et la confirmation t&apos;attend dans « À envoyer ».
       </p>
+      <EtatDispo />
       <label className="mt-2 flex items-center gap-2 text-sm">
         <input type="checkbox" className="size-4" checked={!p?.sansDispo} onChange={(e) => p && update("biens", b.id, { pageWeb: { ...p, sansDispo: e.target.checked ? undefined : true } } as Partial<Bien>)} />
         Proposer mes créneaux de la semaine sur cette page
       </label>
-      <div className="mt-2 text-xs font-medium text-muted">Créneaux en plus, pour ce bien seulement</div>
+      {!enPlus && liste.length === 0 ? (
+        <button className="mt-2 text-xs font-medium text-muted underline" onClick={() => setEnPlus(true)}>
+          + Ajouter un créneau exceptionnel (facultatif)
+        </button>
+      ) : (
+        <div className="mt-2 text-xs font-medium text-muted">Créneaux exceptionnels, pour ce bien seulement (facultatif)</div>
+      )}
       {liste.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {Object.entries(parJour).map(([j, cs]) => (
@@ -160,6 +193,7 @@ function Creneaux({ b }: { b: Bien }) {
           ))}
         </div>
       )}
+      {(enPlus || liste.length > 0) && (
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="text-xs text-muted">
           Jour
@@ -187,6 +221,7 @@ function Creneaux({ b }: { b: Bien }) {
           <CalendarPlus size={14} /> Ajouter
         </button>
       </div>
+      )}
     </div>
   );
 }

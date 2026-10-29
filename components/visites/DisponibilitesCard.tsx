@@ -12,7 +12,7 @@ import { DISPO_DEFAUT, NOMS_JOURS, type Dispo } from "./disponibilites";
 
 const ORDRE = [1, 2, 3, 4, 5, 6, 0];
 
-async function charger(): Promise<{ id?: string; d: Dispo }> {
+export async function chargerDispo(): Promise<{ id?: string; d: Dispo }> {
   if (!supabase) return { d: DISPO_DEFAUT };
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return { d: DISPO_DEFAUT };
@@ -28,7 +28,7 @@ export function DisponibilitesCard() {
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    charger()
+    chargerDispo()
       .then((r) => {
         setId(r.id);
         setD(r.d);
