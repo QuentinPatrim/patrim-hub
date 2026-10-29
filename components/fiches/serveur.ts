@@ -56,7 +56,7 @@ export interface DepotFiches {
   fiche(id: string): Promise<FicheServeur | null>;
   duBien(bienId: string, kind?: KindFiche): Promise<FicheServeur[]>;
   creer(x: { userId: string; bienId: string; kind: KindFiche; contexte: ContextePublic; prenom: string; reponses?: Reponses; empreinte: string; expire: string }): Promise<string>;
-  maj(id: string, patch: { reponses?: Reponses; controle?: Controle; statut?: StatutFiche; prenom?: string; empreinte?: string; ferme?: boolean; expire?: string }): Promise<void>;
+  maj(id: string, patch: { reponses?: Reponses; contexte?: ContextePublic; controle?: Controle; statut?: StatutFiche; prenom?: string; empreinte?: string; ferme?: boolean; expire?: string }): Promise<void>;
   supprimer(id: string): Promise<void>;
   purger(): Promise<void>;
 }
@@ -70,6 +70,7 @@ function ligneMaj(patch: Parameters<DepotFiches["maj"]>[1]) {
   if (patch.reponses || patch.statut || patch.prenom != null) row.updated_at = new Date().toISOString();
   if (patch.reponses) row.reponses = patch.reponses;
   if (patch.controle) row.controle = patch.controle;
+  if (patch.contexte) row.contexte = patch.contexte;
   if (patch.statut) row.statut = patch.statut;
   if (patch.prenom != null) row.prenom = patch.prenom;
   if (patch.empreinte) row.token_hash = patch.empreinte;

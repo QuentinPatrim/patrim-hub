@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Lock, Phone, Plus, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Check, Lock, Mail, Pencil, Phone, Plus, ShieldCheck, Sparkles, Trash2, UserRound } from "lucide-react";
 import { cx, Field } from "@/components/ui";
 import {
   DESTINATIONS,
@@ -23,9 +23,12 @@ import {
   avecAutres,
   composerAdresse,
   decouperAdresse,
+  etapeDuChamp,
   groupesReponses,
-  piecesDemandees,
+  mailValide,
+  piecesAttendues,
   manquantsReponses,
+  telValide,
   type KindFiche,
   type Personne,
   type Reponses,
@@ -79,7 +82,34 @@ function useClair() {
   }, []);
 }
 type SetR = (f: (r: Reponses) => Reponses) => void;
-type P = { r: Reponses; setR: SetR; kind: KindFiche };
+/** connus : champs déjà remplis à l'ouverture (par le conseiller ou lors d'une visite précédente). */
+type P = { r: Reponses; setR: SetR; kind: KindFiche; connus?: Set<string> };
+
+/** Un mot d'accompagnement en haut de chaque étape. */
+const AIDE: Record<KindFiche, string[]> = {
+  vendeur: [
+    "Commençons par vous : recopiez simplement votre pièce d'identité.",
+    "Où vous joindre ? C'est sur ce portable et cet e-mail que vous recevrez le mandat à signer.",
+    "Votre situation familiale permet de savoir qui doit signer le mandat.",
+    "Êtes-vous seul(e) propriétaire, ou à plusieurs ?",
+    "Quelques mots sur votre bien. Ce que votre conseiller connaît déjà est indiqué : vérifiez-le d'un coup d'œil.",
+    "Comment le bien vous appartient : votre notaire en aura besoin pour la vente.",
+    "Trois questions rapides, posées à tous nos clients.",
+    "Presque fini ! Relisez vos réponses, puis envoyez votre fiche.",
+  ],
+  acquereur: [
+    "Commençons par vous : recopiez simplement votre pièce d'identité.",
+    "Où vous joindre ? C'est sur ce portable et cet e-mail que vous recevrez l'offre à signer.",
+    "Votre situation familiale permet de rédiger l'offre au bon nom.",
+    "Achetez-vous seul(e), ou à plusieurs ?",
+    "Votre proposition pour ce bien.",
+    "Comment vous financez l'achat : cela rassure le vendeur sur le sérieux de votre offre.",
+    "Trois questions rapides, posées à tous nos clients.",
+    "Presque fini ! Relisez vos réponses, puis envoyez votre fiche.",
+  ],
+};
+const NATIONALITES = ["Française", "Belge", "Suisse", "Espagnole", "Italienne", "Portugaise", "Allemande", "Britannique", "Marocaine", "Algérienne", "Tunisienne"];
+const remplis = (r: Reponses) => new Set(Object.entries(r).filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && !v.length)).map(([k]) => k));
 
 export function ParcoursFiche({ jeton }: { jeton: string }) {
   useClair();
@@ -95,7 +125,10 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
     } else setEcran(p);
   });
   const [r, setR] = useState<Reponses>({});
+  const [connus, setConnus] = useState<Set<string>>(new Set());
   const [envoi, setEnvoi] = useState(false);
+  // Dernières réponses enregistrées : sert à la sauvegarde quand on quitte la page
+  const enregistre = useRef("");
   const [msg, setMsg] = useState<string | null>(null);
 
   const appeler = useCallback(
@@ -118,7 +151,10 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
     appeler()
       .then((v) => {
         setVue(v);
-        setR(preparer({ residenceFiscale: "France", nationalite: "Française", ...v.reponses }));
+        const depart = preparer({ residenceFiscale: "France", nationalite: "Française", ...v.reponses });
+        setR(depart);
+        setConnus(remplis(preparer({ ...v.reponses })));
+        enregistre.current = JSON.stringify(depart);
       })
       .catch((e: Error) => setErreur(e.message));
   }, [appeler]);
@@ -129,10 +165,31 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
     window.scrollTo({ top: 0 });
   }, [ecran, etape]);
 
+  // Téléphone verrouillé, onglet fermé, appel reçu : les réponses de l'étape en cours ne sont pas perdues
+  useEffect(() => {
+    if (ecran !== "fiche") return;
+    const quitter = () => {
+      if (document.visibilityState !== "hidden") return;
+      const corps = JSON.stringify(r);
+      if (corps === enregistre.current) return;
+      enregistre.current = corps;
+      fetch(`/api/fiches/${jeton}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "enregistrer", reponses: r }),
+        keepalive: true,
+        referrerPolicy: "no-referrer",
+      }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", quitter);
+    return () => document.removeEventListener("visibilitychange", quitter);
+  }, [ecran, r, jeton]);
+
   const enregistrer = async (terminer = false) => {
     setEnvoi(true);
     setMsg(null);
     try {
+      enregistre.current = JSON.stringify(r);
       setVue(await appeler({ action: "enregistrer", reponses: r, terminer }));
       return true;
     } catch (e) {
@@ -167,6 +224,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
   const etapes = ETAPES[kind];
   const manque = manquantsReponses(kind, r);
   const derniere = etapes.length - 1;
+  const manqueIci = manque.filter((m) => etapeDuChamp(m) === etape);
 
   if (ecran === "fiche")
     return (
@@ -191,11 +249,14 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
         </div>
 
         <div key={etape} className="mt-2 space-y-4 animate-fade-up">
+          <p className="flex gap-2.5 rounded-2xl bg-brand/[0.05] px-4 py-3 text-sm text-fg/85">
+            <Sparkles size={16} className="mt-0.5 shrink-0 text-brand" /> {AIDE[kind][etape]}
+          </p>
           {etape === 0 && <EtapeIdentite r={r} setR={setR} kind={kind} />}
           {etape === 1 && <EtapeCoordonnees r={r} setR={setR} kind={kind} />}
           {etape === 2 && <EtapeFamille r={r} setR={setR} kind={kind} />}
           {etape === 3 && <EtapeParties r={r} setR={setR} kind={kind} />}
-          {etape === 4 && (kind === "vendeur" ? <EtapeBien r={r} setR={setR} kind={kind} /> : <EtapeOffre r={r} setR={setR} kind={kind} prix={vue.contexte.prix} />)}
+          {etape === 4 && (kind === "vendeur" ? <EtapeBien r={r} setR={setR} kind={kind} connus={connus} /> : <EtapeOffre r={r} setR={setR} kind={kind} prix={vue.contexte.prix} />)}
           {etape === 5 && (kind === "vendeur" ? <EtapeOrigine r={r} setR={setR} kind={kind} /> : <EtapeFinancement r={r} setR={setR} kind={kind} />)}
           {etape === 6 && <EtapeLegales r={r} setR={setR} kind={kind} />}
           {etape === derniere && <EtapeVerification r={r} setR={setR} kind={kind} manque={manque} allerA={aller} />}
@@ -203,6 +264,9 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
 
         {msg && <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{msg}</p>}
         <div className="mt-6 pb-[max(16px,env(safe-area-inset-bottom))]">
+          {etape < derniere && manqueIci.length > 0 && (
+            <p className="mb-2 text-center text-xs text-muted">Encore à remplir sur cette page : {manqueIci.join(", ").toLowerCase()}. Vous pouvez aussi continuer et y revenir.</p>
+          )}
           {etape < derniere ? (
             <button
               type="button"
@@ -240,7 +304,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-ok/15 text-ok">
             <Check size={28} />
           </span>
-          <h1 className="mt-4 font-serif text-2xl font-semibold">Merci {r.prenom || vue.prenom} !</h1>
+          <h1 className="mt-4 font-serif text-2xl font-semibold">Merci{r.nom && r.civilite ? ` ${r.civilite === "M." ? "Monsieur" : "Madame"} ${r.nom.toUpperCase()}` : r.prenom || vue.prenom ? ` ${r.prenom || vue.prenom}` : ""} !</h1>
           <p className="mt-2 text-sm text-muted">
             Votre fiche est bien arrivée chez votre conseiller PATRIM, qui prépare {kind === "vendeur" ? "votre mandat de vente" : "votre offre d'achat"}. Vous la recevrez pour signature électronique (ICSIGN) sur le mail
             et le portable indiqués. Vous pourrez encore corriger votre fiche avec ce même lien.
@@ -265,6 +329,13 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           Bonjour{salut ? ` ${salut}` : ""}, cette fiche réunit en une fois tout ce qu&apos;il faut pour {kind === "vendeur" ? "rédiger votre mandat de vente" : "rédiger votre offre d'achat"}, ainsi que les
           vérifications que la loi impose aux agences immobilières. Comptez une dizaine de minutes, sur téléphone ou sur ordinateur.
         </p>
+        <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-2xl border border-line/70 px-4 py-3 text-xs text-fg/80">
+          {etapes.slice(0, -1).map((e, i) => (
+            <li key={e} className="flex items-center gap-2">
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand/10 text-[10px] font-semibold text-brand">{i + 1}</span> {e}
+            </li>
+          ))}
+        </ul>
         {dejaRempli && (
           <p className="flex gap-2 rounded-2xl bg-brand/[0.06] px-4 py-3 text-sm text-fg/85">
             <Check size={16} className="mt-0.5 shrink-0 text-brand" /> Votre conseiller a déjà indiqué les informations dont il dispose : il vous suffit de les vérifier et de compléter le reste.
@@ -282,7 +353,9 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">{vue.statut === "termine" ? "Fiche envoyée" : vue.statut === "en_cours" ? "Reprendre ma fiche" : "Remplir ma fiche"}</span>
-            <span className="block text-xs text-muted">{vue.statut === "termine" ? "Touchez pour la relire ou la corriger." : etapes.slice(0, -1).join(" · ")}</span>
+            <span className="block text-xs text-muted">
+              {vue.statut === "termine" ? "Touchez pour la relire ou la corriger." : vue.statut === "en_cours" ? "Vos réponses ont été gardées : reprenez où vous en étiez." : "Vous pouvez vous arrêter à tout moment et reprendre plus tard."}
+            </span>
           </span>
           <ArrowRight size={18} className="shrink-0 text-muted" />
         </button>
@@ -327,7 +400,9 @@ function Entete({ vue }: { vue: VuePublique }) {
 }
 
 function Pieces({ vue }: { vue: VuePublique }) {
-  const liste = piecesDemandees(vue.kind, vue.contexte);
+  const liste = piecesAttendues(vue.kind, vue.contexte);
+  const recues = vue.contexte.recues?.length ?? 0;
+  const mail = vue.contexte.conseiller?.mail;
   if (!liste.length) return null;
   return (
     <div className="card card-pad mt-4">
@@ -339,7 +414,18 @@ function Pieces({ vue }: { vue: VuePublique }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted">Votre conseiller vous dira comment les lui transmettre. Ne les envoyez pas par un réseau social.</p>
+      {recues > 0 && <p className="mt-2 text-xs text-muted">Votre conseiller a déjà {recues > 1 ? `${recues} autres documents` : "un autre document"} : inutile de le{recues > 1 ? "s" : ""} renvoyer.</p>}
+      {mail ? (
+        <a
+          className="btn-secondary mt-3 w-full !h-11"
+          href={`mailto:${mail}?subject=${encodeURIComponent(`Mes documents – ${TITRE_FICHE[vue.kind].toLowerCase()} – ${vue.contexte.titre}`)}&body=${encodeURIComponent("Bonjour,\n\nVeuillez trouver ci-joint mes documents.\n\nBien cordialement,")}`}
+        >
+          <Mail size={15} /> Envoyer mes documents par e-mail
+        </a>
+      ) : (
+        <p className="mt-2 text-xs text-muted">Votre conseiller vous dira comment les lui transmettre.</p>
+      )}
+      <p className="mt-2 text-xs text-muted">Ne les envoyez pas par un réseau social.</p>
     </div>
   );
 }
@@ -405,13 +491,21 @@ function OuiNon({ label, value, onChange, hint }: { label: string; value?: boole
   );
 }
 
-function Saisie({ label, value, onChange, hint, multi, ...rest }: { label: string; value?: string; onChange: (v: string) => void; hint?: string; multi?: boolean } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+function Saisie({
+  label,
+  value,
+  onChange,
+  hint,
+  multi,
+  erreur,
+  ...rest
+}: { label: string; value?: string; onChange: (v: string) => void; hint?: string; multi?: boolean; erreur?: boolean } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint && <span className={erreur ? "text-danger" : undefined}>{hint}</span>}>
       {multi ? (
         <textarea className="input min-h-[88px] !py-3 !text-base" value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={rest.placeholder} />
       ) : (
-        <input className="input !h-12 !text-base" value={value ?? ""} onChange={(e) => onChange(e.target.value)} {...rest} />
+        <input className={cx("input !h-12 !text-base", erreur && "!border-danger")} aria-invalid={erreur || undefined} value={value ?? ""} onChange={(e) => onChange(e.target.value)} {...rest} />
       )}
     </Field>
   );
@@ -452,7 +546,12 @@ function Identite({ p, set }: { p: Personne; set: (x: Partial<Personne>) => void
       <Saisie label="Nom de naissance (si différent)" value={p.nomNaissance} onChange={(v) => set({ nomNaissance: v })} />
       <Saisie label="Date de naissance" type="date" value={p.dateNaissance} onChange={(v) => set({ dateNaissance: v })} autoComplete="bday" />
       <Saisie label="Lieu de naissance" value={p.lieuNaissance} onChange={(v) => set({ lieuNaissance: v })} placeholder="Ville (département ou pays)" />
-      <Saisie label="Nationalité" value={p.nationalite} onChange={(v) => set({ nationalite: v })} />
+      <Saisie label="Nationalité" value={p.nationalite} onChange={(v) => set({ nationalite: v })} list="nationalites" />
+      <datalist id="nationalites">
+        {NATIONALITES.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
       <Saisie label="Profession" value={p.profession} onChange={(v) => set({ profession: v })} />
     </>
   );
@@ -466,8 +565,28 @@ function Coordonnees({ p, set }: { p: Personne; set: (x: Partial<Personne>) => v
         value={{ rue: p.adresseRue, cp: p.adresseCp, ville: p.adresseVille }}
         onChange={(a) => set({ adresseRue: a.rue, adresseCp: a.cp, adresseVille: a.ville, adresse: composerAdresse(a.rue?.trim(), a.cp, a.ville?.trim()) })}
       />
-      <Saisie label="Portable" type="tel" inputMode="tel" autoComplete="tel" value={p.tel} onChange={(v) => set({ tel: v })} placeholder="06 12 34 56 78" hint="Personnel : il reçoit le code de la signature électronique." />
-      <Saisie label="E-mail" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={p.email} onChange={(v) => set({ email: v })} hint="Personnel : il reçoit le document à signer." />
+      <Saisie
+        label="Portable"
+        type="tel"
+        inputMode="tel"
+        autoComplete="tel"
+        value={p.tel}
+        onChange={(v) => set({ tel: v })}
+        placeholder="06 12 34 56 78"
+        hint={telValide(p.tel) ? "Personnel : il reçoit le code de la signature électronique." : "Ce numéro semble incomplet : vérifiez-le (chiffres, espaces ou + uniquement)."}
+        erreur={!telValide(p.tel)}
+      />
+      <Saisie
+        label="E-mail"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        autoCapitalize="none"
+        value={p.email}
+        onChange={(v) => set({ email: v.trim() })}
+        hint={mailValide(p.email) ? "Personnel : il reçoit le document à signer." : "Cette adresse semble incomplète : elle doit ressembler à prenom.nom@exemple.fr."}
+        erreur={!mailValide(p.email)}
+      />
     </>
   );
 }
@@ -593,27 +712,68 @@ function EtapeParties({ r, setR, kind }: P) {
   );
 }
 
-function EtapeBien({ r, setR }: P) {
+/** Champs du bien que le conseiller a souvent déjà : repliés dans un résumé à vérifier. */
+const CONNU_BIEN: { cle: keyof Reponses; label: string; texte: (r: Reponses) => string | undefined }[] = [
+  { cle: "bienAdresse", label: "Adresse", texte: (r) => r.bienAdresse },
+  { cle: "bienNature", label: "Nature", texte: (r) => r.bienNature },
+  { cle: "lots", label: "Lots", texte: (r) => r.lots },
+  { cle: "carrez", label: "Surface Carrez", texte: (r) => r.carrez },
+  { cle: "syndic", label: "Syndic", texte: (r) => r.syndic },
+  { cle: "chargesAnnuelles", label: "Charges par an", texte: (r) => (r.chargesAnnuelles != null ? eur(r.chargesAnnuelles) : undefined) },
+  { cle: "taxeFonciere", label: "Taxe foncière", texte: (r) => (r.taxeFonciere != null ? eur(r.taxeFonciere) : undefined) },
+  { cle: "anneeConstruction", label: "Construit vers", texte: (r) => (r.anneeConstruction ? String(r.anneeConstruction) : undefined) },
+];
+
+function EtapeBien({ r, setR, connus }: P) {
   const set = (x: Partial<Reponses>) => setR((y) => ({ ...y, ...x }));
   const copro = r.bienNature === "Appartement" || r.bienNature === "Garage" || r.bienNature === "Local" || !!r.lots;
+  // Repliés : les champs déjà connus à l'ouverture, tant que le client ne demande pas à les corriger
+  const [corriger, setCorriger] = useState(false);
+  const replies = new Set(corriger ? [] : CONNU_BIEN.filter((c) => connus?.has(c.cle) && c.texte(r)).map((c) => c.cle));
+  if (replies.has("bienAdresse") && !(r.bienRue && r.bienVille)) replies.delete("bienAdresse");
+  const voir = (cle: keyof Reponses) => !replies.has(cle);
+  const resume = CONNU_BIEN.filter((c) => replies.has(c.cle));
   return (
     <>
-      <ChampsAdresse
+      {resume.length > 0 && (
+        <div className="card card-pad">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Check size={16} className="text-ok" /> Déjà renseigné
+            </div>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setCorriger(true)}>
+              <Pencil size={13} /> Corriger
+            </button>
+          </div>
+          <dl className="mt-2 divide-y divide-line/70 text-sm">
+            {resume.map((c) => (
+              <div key={c.cle} className="flex justify-between gap-4 py-2">
+                <dt className="shrink-0 text-muted">{c.label}</dt>
+                <dd className="min-w-0 break-words text-right">{c.texte(r)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-1 text-xs text-muted">Si tout est juste, il ne vous reste que les questions ci-dessous.</p>
+        </div>
+      )}
+      {voir("bienAdresse") && <ChampsAdresse
         label="Adresse du bien"
         value={{ rue: r.bienRue, cp: r.bienCp, ville: r.bienVille }}
         onChange={(a) => set({ bienRue: a.rue, bienCp: a.cp, bienVille: a.ville, bienAdresse: composerAdresse(a.rue?.trim(), a.cp, a.ville?.trim()) })}
         hint="Ajoutez si besoin le bâtiment, l'étage et la porte après la rue."
-      />
-      <div>
-        <span className="label">Nature du bien</span>
-        <Choix items={NATURES.map((n) => ({ v: n, label: n }))} value={r.bienNature} onChange={(v) => set({ bienNature: v })} />
-      </div>
+      />}
+      {voir("bienNature") && (
+        <div>
+          <span className="label">Nature du bien</span>
+          <Choix items={NATURES.map((n) => ({ v: n, label: n }))} value={r.bienNature} onChange={(v) => set({ bienNature: v })} />
+        </div>
+      )}
       {copro && (
         <>
-          <Saisie label="N° de lot(s) de copropriété" value={r.lots} onChange={(v) => set({ lots: v })} placeholder="Ex. lot 147 (appartement), lot 283 (parking)" hint="Ils figurent sur votre titre de propriété." />
-          <Saisie label="Surface loi Carrez (si connue)" value={r.carrez} onChange={(v) => set({ carrez: v })} placeholder="Ex. 45,20 m²" />
-          <Saisie label="Syndic de copropriété" value={r.syndic} onChange={(v) => set({ syndic: v })} placeholder="Nom du cabinet, gestionnaire, téléphone" />
-          <Nombre label="Charges de copropriété par an" value={r.chargesAnnuelles} onChange={(v) => set({ chargesAnnuelles: v })} />
+          {voir("lots") && <Saisie label="N° de lot(s) de copropriété" value={r.lots} onChange={(v) => set({ lots: v })} placeholder="Ex. lot 147 (appartement), lot 283 (parking)" hint="Ils figurent sur votre titre de propriété." />}
+          {voir("carrez") && <Saisie label="Surface loi Carrez (si connue)" value={r.carrez} onChange={(v) => set({ carrez: v })} placeholder="Ex. 45,20 m²" />}
+          {voir("syndic") && <Saisie label="Syndic de copropriété" value={r.syndic} onChange={(v) => set({ syndic: v })} placeholder="Nom du cabinet, gestionnaire, téléphone" />}
+          {voir("chargesAnnuelles") && <Nombre label="Charges de copropriété par an" value={r.chargesAnnuelles} onChange={(v) => set({ chargesAnnuelles: v })} />}
         </>
       )}
       <div>
@@ -626,8 +786,8 @@ function EtapeBien({ r, setR }: P) {
           <Saisie label="Fin du bail en cours" type="date" value={r.finBail} onChange={(v) => set({ finBail: v })} />
         </>
       )}
-      <Nombre label="Taxe foncière (dernier avis)" value={r.taxeFonciere} onChange={(v) => set({ taxeFonciere: v })} />
-      <Nombre label="Année de construction (environ)" value={r.anneeConstruction} onChange={(v) => set({ anneeConstruction: v })} suffixe="" decimal={false} hint="Elle décide des diagnostics à faire (amiante avant 1997, plomb avant 1949)." />
+      {voir("taxeFonciere") && <Nombre label="Taxe foncière (dernier avis)" value={r.taxeFonciere} onChange={(v) => set({ taxeFonciere: v })} />}
+      {voir("anneeConstruction") && <Nombre label="Année de construction (environ)" value={r.anneeConstruction} onChange={(v) => set({ anneeConstruction: v })} suffixe="" decimal={false} hint="Elle décide des diagnostics à faire (amiante avant 1997, plomb avant 1949)." />}
       <div>
         <span className="label">Diagnostics déjà réalisés</span>
         <div className="grid gap-1.5">
@@ -769,7 +929,13 @@ function EtapeVerification({ r, setR, kind, manque, allerA }: P & { manque: stri
       {manque.length > 0 && (
         <div className="rounded-2xl bg-warn/10 px-4 py-3 text-sm">
           <div className="font-semibold text-warn">Il manque encore :</div>
-          <div className="mt-1 text-fg/80">{manque.join(", ")}.</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {manque.map((m) => (
+              <button key={m} type="button" className="rounded-full border border-warn/40 bg-white px-3 py-1.5 text-xs font-medium text-fg/85 active:scale-[.97]" onClick={() => allerA(etapeDuChamp(m))}>
+                {m} <ArrowRight size={11} className="inline" />
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {groupes.map((g) => (

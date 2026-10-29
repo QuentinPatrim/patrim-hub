@@ -7,7 +7,7 @@ import { depotFiches, empreinte, ENTETES, nouveauJeton, type FicheServeur } from
    Une fiche est visible par le conseiller qui l'a créée, le titulaire et le
    responsable ; jamais par les autres collègues.
    GET  ?bien=<id>&kind=vendeur|acquereur : fiches du bien, avec les réponses.
-   POST { action } : creer, lien, fermer, controler (évaluation du risque par l'agence), supprimer. */
+   POST { action } : creer, lien, fermer, controler (évaluation du risque par l'agence), pieces (documents demandés et reçus), supprimer. */
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,8 @@ async function qui(req: Request) {
 
 const texte = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f<>]/g, " ").trim().slice(0, max) || undefined : undefined);
 
+const piecesDe = (v: unknown, kind: KindFiche) => (Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && PIECES[kind].includes(x)))] : undefined);
+
 function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
   if (!v || typeof v !== "object") return null;
   const s = v as Record<string, unknown>;
@@ -35,7 +37,8 @@ function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
   const photo = texte(s.photo, 500);
   const prix = typeof s.prix === "number" && Number.isFinite(s.prix) && s.prix > 0 && s.prix < 100_000_000 ? s.prix : undefined;
   // Documents demandés par le conseiller (il a peut-être déjà les autres)
-  const pieces = Array.isArray(s.pieces) ? [...new Set(s.pieces.filter((x): x is string => typeof x === "string" && PIECES[kind].includes(x)))] : undefined;
+  const pieces = piecesDe(s.pieces, kind);
+  const recues = piecesDe(s.recues, kind);
   return {
     titre,
     ville: texte(s.ville, 80),
@@ -43,6 +46,7 @@ function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
     prix: kind === "acquereur" ? prix : undefined,
     photo: photo && /^https:\/\//.test(photo) ? photo : undefined,
     pieces,
+    recues: recues?.length ? recues : undefined,
     conseiller: c && texte(c.nom, 80) ? { nom: texte(c.nom, 80)!, tel: texte(c.tel, 24), mail: texte(c.mail, 120) } : undefined,
   };
 }
@@ -107,6 +111,14 @@ export async function POST(req: Request) {
       const controle = nettoyerControle(corps.controle);
       await d.maj(f.id, { controle });
       return NextResponse.json({ controle }, { headers: ENTETES });
+    }
+    if (corps.action === "pieces") {
+      // Documents demandés et déjà reçus : le client ne voit que ceux qui manquent encore
+      const pieces = piecesDe(corps.pieces, f.kind) ?? f.contexte.pieces;
+      const recues = piecesDe(corps.recues, f.kind) ?? f.contexte.recues;
+      const contexte = { ...f.contexte, pieces, recues: recues?.length ? recues : undefined };
+      await d.maj(f.id, { contexte });
+      return NextResponse.json({ contexte }, { headers: ENTETES });
     }
     if (corps.action === "supprimer") {
       await d.supprimer(f.id);
