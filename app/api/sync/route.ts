@@ -8,7 +8,9 @@ import type { Bien, BienType, Contact, Rdv, RdvType, Source, Tache } from "@/lib
 /* POST /api/sync : reçoit ce que le script Google (Gmail + Agenda) envoie.
    - lead    : nouveau lead d'un portail → fiche contact + tâche « Rappeler »
    - reponse : réponse d'un client à un mail → historique du contact (+ RDV)
-   - agenda  : événements Google Agenda des prochaines semaines → Agenda de l'appli
+   - agenda  : événements Google Agenda des prochaines semaines → Agenda de l'appli ;
+               en retour, les visites réservées en ligne à créer dans Google Agenda (aCreer),
+               reconnues ensuite grâce à la marque [hub:id] de leur description
    Protégé par un secret partagé (en-tête x-hub-secret). N'envoie jamais rien à un client. */
 
 export const maxDuration = 60;
@@ -75,7 +77,38 @@ export async function POST(req: Request) {
       tag: "lead",
     }).catch(() => 0);
 
-  return NextResponse.json({ ok: true, bilan });
+  return NextResponse.json({ ok: true, bilan, ...(p.agenda ? { aCreer: aCreerDansGoogle(s) } : {}) });
+}
+
+/** Visites réservées en ligne pas encore dans Google Agenda (le script les crée avec la marque [hub:id]). */
+function aCreerDansGoogle(s: Etat) {
+  const contacts = s.liste<Contact>("contacts");
+  const biens = s.liste<Bien>("biens");
+  return s
+    .liste<Rdv & { reserveEnLigne?: string }>("rdvs")
+    .filter((r) => r.reserveEnLigne && !r.externalId && r.statut === "prevu" && new Date(r.debut).getTime() > Date.now())
+    .slice(0, 20)
+    .map((r) => {
+      const c = contacts.find((x) => r.contactIds?.includes(x.id));
+      const b = biens.find((x) => x.id === r.bienId);
+      return {
+        hubId: r.id,
+        titre: c ? `Visite ${b?.titre ?? ""} · ${[c.prenom, c.nom].filter(Boolean).join(" ")}`.replace(/\s+/g, " ") : r.titre ?? "Visite",
+        debut: r.debut,
+        fin: r.fin ?? new Date(new Date(r.debut).getTime() + 45 * 60000).toISOString(),
+        lieu: [b?.adresse, b?.ville].filter(Boolean).join(", "),
+        description: [
+          "Visite réservée en ligne depuis la page du bien (QR code).",
+          c && [c.prenom, c.nom].filter(Boolean).join(" "),
+          c?.tel && `Tél. ${c.tel}`,
+          c?.email,
+          "La confirmation au visiteur t'attend dans « À envoyer » du Hub.",
+          `[hub:${r.id}]`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      };
+    });
 }
 
 async function trouverUtilisateur(db: SupabaseClient, compte?: string) {
@@ -258,6 +291,7 @@ function traiterAgenda(s: Etat, a: NonNullable<Payload["agenda"]>, bilan: Record
   const biens = s.liste<Bien>("biens");
   const rdvs = s.liste<Rdv>("rdvs");
   const vus = new Set<string>();
+  const apparies = new Set<string>();
 
   for (const e of a.evenements ?? []) {
     if (!e.id || !e.debut || /^\[TEST\]/i.test(e.titre || "")) continue;
@@ -279,9 +313,12 @@ function traiterAgenda(s: Etat, a: NonNullable<Payload["agenda"]>, bilan: Record
       contactIds: lies.length ? lies : undefined,
       bienId: bien?.id,
     };
-    const existant = rdvs.find((r) => r.externalId === e.id);
+    // Visite créée par le Hub dans Google Agenda : retrouvée par sa marque [hub:id]
+    const marque = /\[hub:([0-9a-f-]{36})\]/i.exec(e.description ?? "")?.[1];
+    const existant = rdvs.find((r) => r.externalId === e.id) ?? (marque ? rdvs.find((r) => r.id === marque) : undefined);
     if (existant) {
-      const change = existant.debut !== data.debut || existant.titre !== data.titre || existant.lieu !== data.lieu || existant.fin !== data.fin;
+      apparies.add(existant.id);
+      const change = existant.externalId !== data.externalId || existant.debut !== data.debut || existant.titre !== data.titre || existant.lieu !== data.lieu || existant.fin !== data.fin;
       if (change || existant.statut === "annule") {
         s.maj(existant.id, { ...data, contactIds: existant.contactIds ?? data.contactIds, bienId: existant.bienId ?? data.bienId, statut: existant.statut === "annule" ? "prevu" : existant.statut });
         bilan.rdvs++;
@@ -296,7 +333,7 @@ function traiterAgenda(s: Etat, a: NonNullable<Payload["agenda"]>, bilan: Record
   const de = new Date(a.de).getTime();
   const fin = new Date(a.a).getTime();
   for (const r of rdvs) {
-    if (!r.externalId || vus.has(r.externalId) || r.statut !== "prevu") continue;
+    if (!r.externalId || vus.has(r.externalId) || apparies.has(r.id) || r.statut !== "prevu") continue;
     const t = new Date(r.debut).getTime();
     if (t >= de && t <= fin) {
       s.maj(r.id, { statut: "annule" });

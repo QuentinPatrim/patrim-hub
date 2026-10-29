@@ -10,9 +10,9 @@ import { uid, update } from "@/lib/store";
 import { ficheDepuisBien, type FichePublique } from "@/components/fiche/fiche";
 import type { Bien, Contact } from "@/lib/types";
 
-export type BienPageWeb = Bien & { pageWeb?: { id: string; empreinte?: string; creneaux?: string[]; dureeVisite?: number } };
+export type BienPageWeb = Bien & { pageWeb?: { id: string; empreinte?: string; creneaux?: string[]; dureeVisite?: number; sansDispo?: boolean } };
 /** Page publiée : la fiche, plus les créneaux de visite proposés en libre-service. */
-export type DonneesPageWeb = FichePublique & { creneaux?: string[]; dureeVisite?: number };
+export type DonneesPageWeb = FichePublique & { creneaux?: string[]; dureeVisite?: number; sansDispo?: boolean };
 export const pageWebDe = (b: Bien) => (b as BienPageWeb).pageWeb;
 export const lienPageWeb = (id: string) => `${window.location.origin}/b/${id}`;
 
@@ -22,7 +22,9 @@ export const creneauxAVenir = (b: Bien) => (pageWebDe(b)?.creneaux ?? []).filter
 export function fichePageWeb(b: Bien, vendeurs: Contact[]): DonneesPageWeb {
   const f = ficheDepuisBien(b, vendeurs, { adresse: false });
   const creneaux = f.disponible ? creneauxAVenir(b) : [];
-  return creneaux.length ? { ...f, creneaux, dureeVisite: pageWebDe(b)?.dureeVisite ?? 45 } : f;
+  const avec: DonneesPageWeb = creneaux.length ? { ...f, creneaux, dureeVisite: pageWebDe(b)?.dureeVisite ?? 45 } : f;
+  // Disponibilités générales du conseiller proposées sur toutes les pages, sauf celles où il les a retirées
+  return pageWebDe(b)?.sansDispo ? { ...avec, sansDispo: true } : avec;
 }
 
 export function empreinteFiche(f: DonneesPageWeb) {

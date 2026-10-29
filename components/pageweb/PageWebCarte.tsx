@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarPlus, Copy, Download, ExternalLink, Globe, Printer, Unlink, X } from "lucide-react";
 import { Card, Spinner } from "@/components/ui";
 import { cloudEnabled } from "@/lib/supabase";
+import { update } from "@/lib/store";
 import { copier } from "@/components/assistant/outils";
 import { qrSvg } from "@/components/qr/qr";
 import { C } from "@/components/documents/charte";
@@ -130,7 +131,18 @@ function Creneaux({ b }: { b: Bien }) {
   return (
     <div className="mt-4 border-t border-line pt-3">
       <div className="text-sm font-semibold">Visites en libre-service</div>
-      <p className="mt-0.5 text-xs text-muted">Propose des créneaux : sur la page, le visiteur réserve lui-même ceux qui sont encore libres dans ton agenda. La visite s&apos;ajoute à l&apos;agenda et la confirmation t&apos;attend dans « À envoyer ».</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Le visiteur réserve lui-même un créneau encore libre dans ton agenda. Tes créneaux de chaque semaine se règlent une fois pour tous les biens dans{" "}
+        <Link href="/reglages" className="underline">
+          Réglages
+        </Link>
+        . La visite s&apos;ajoute à ton agenda et la confirmation t&apos;attend dans « À envoyer ».
+      </p>
+      <label className="mt-2 flex items-center gap-2 text-sm">
+        <input type="checkbox" className="size-4" checked={!p?.sansDispo} onChange={(e) => p && update("biens", b.id, { pageWeb: { ...p, sansDispo: e.target.checked ? undefined : true } } as Partial<Bien>)} />
+        Proposer mes créneaux de la semaine sur cette page
+      </label>
+      <div className="mt-2 text-xs font-medium text-muted">Créneaux en plus, pour ce bien seulement</div>
       {liste.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {Object.entries(parJour).map(([j, cs]) => (
