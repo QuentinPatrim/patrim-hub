@@ -100,7 +100,7 @@ export function AdresseInput({ value, onText, onPick, autoFocus }: { value: stri
       </div>
       {err && <p className="mt-1.5 text-[11px] text-danger">{err}</p>}
       {open && list.length > 0 && (
-        <div className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-card animate-fade-up">
+        <div className="liste-suggestions absolute z-20 mt-1.5 w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-card animate-fade-up">
           {list.map((s, i) => (
             <button
               type="button"
