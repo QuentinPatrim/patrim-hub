@@ -24,6 +24,7 @@ import {
   composerAdresse,
   decouperAdresse,
   etapeDuChamp,
+  etapesVisibles,
   groupesReponses,
   mailValide,
   piecesAttendues,
@@ -222,44 +223,53 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
 
   const kind = vue.kind;
   const etapes = ETAPES[kind];
-  const manque = manquantsReponses(kind, r);
-  const derniere = etapes.length - 1;
-  const manqueIci = manque.filter((m) => etapeDuChamp(m) === etape);
+  const court = kind === "vendeur" && vue.contexte.mode === "estimation";
+  // Fiche courte avant l'estimation : seulement certaines étapes, sur le même lien
+  const visibles = etapesVisibles(kind, vue.contexte);
+  const pos = Math.max(0, visibles.indexOf(etape));
+  const derniere = visibles[visibles.length - 1];
+  const manque = manquantsReponses(kind, r, vue.contexte);
+  const etapeDe = (champ: string) => {
+    const e = etapeDuChamp(champ);
+    return visibles.includes(e) ? e : visibles[0];
+  };
+  const manqueIci = manque.filter((m) => etapeDe(m) === etape);
+  const aide = court && etape === 1 ? "Pour commencer, comment vous joindre ?" : court && etape === 4 ? "Quelques mots sur votre bien, pour que notre rendez-vous d'estimation soit le plus utile possible. Tout est facultatif sauf l'adresse et l'occupation." : AIDE[kind][etape];
 
   if (ecran === "fiche")
     return (
       <Cadre>
         <div className="sticky top-0 z-10 -mx-4 bg-white/95 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center gap-3">
-            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(etape ? etape - 1 : "accueil")}>
+            <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(pos ? visibles[pos - 1] : "accueil")}>
               <ArrowLeft size={18} />
             </button>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-                Étape {etape + 1} sur {etapes.length}
+                Étape {pos + 1} sur {visibles.length}
               </div>
               <div className="font-serif text-lg font-semibold leading-tight">{etapes[etape]}</div>
             </div>
           </div>
           <div className="mt-3 flex gap-1">
-            {etapes.map((e, i) => (
-              <span key={e} className={cx("h-1 flex-1 rounded-full transition", i <= etape ? "bg-brand" : "bg-line")} />
+            {visibles.map((e, i) => (
+              <span key={e} className={cx("h-1 flex-1 rounded-full transition", i <= pos ? "bg-brand" : "bg-line")} />
             ))}
           </div>
         </div>
 
         <div key={etape} className="mt-2 space-y-4 animate-fade-up">
           <p className="flex gap-2.5 rounded-2xl bg-brand/[0.05] px-4 py-3 text-sm text-fg/85">
-            <Sparkles size={16} className="mt-0.5 shrink-0 text-brand" /> {AIDE[kind][etape]}
+            <Sparkles size={16} className="mt-0.5 shrink-0 text-brand" /> {aide}
           </p>
           {etape === 0 && <EtapeIdentite r={r} setR={setR} kind={kind} />}
-          {etape === 1 && <EtapeCoordonnees r={r} setR={setR} kind={kind} />}
+          {etape === 1 && <EtapeCoordonnees r={r} setR={setR} kind={kind} court={court} />}
           {etape === 2 && <EtapeFamille r={r} setR={setR} kind={kind} />}
           {etape === 3 && <EtapeParties r={r} setR={setR} kind={kind} />}
-          {etape === 4 && (kind === "vendeur" ? <EtapeBien r={r} setR={setR} kind={kind} connus={connus} /> : <EtapeOffre r={r} setR={setR} kind={kind} prix={vue.contexte.prix} />)}
+          {etape === 4 && (kind === "vendeur" ? <EtapeBien r={r} setR={setR} kind={kind} connus={connus} court={court} /> : <EtapeOffre r={r} setR={setR} kind={kind} prix={vue.contexte.prix} />)}
           {etape === 5 && (kind === "vendeur" ? <EtapeOrigine r={r} setR={setR} kind={kind} /> : <EtapeFinancement r={r} setR={setR} kind={kind} />)}
           {etape === 6 && <EtapeLegales r={r} setR={setR} kind={kind} />}
-          {etape === derniere && <EtapeVerification r={r} setR={setR} kind={kind} manque={manque} allerA={aller} />}
+          {etape === derniere && <EtapeVerification r={r} setR={setR} kind={kind} manque={manque} allerA={aller} etapeDe={etapeDe} visibles={visibles} court={court} />}
         </div>
 
         {msg && <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{msg}</p>}
@@ -273,7 +283,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
               className="btn-primary w-full !h-12"
               disabled={envoi}
               onClick={async () => {
-                if (await enregistrer()) aller(etape + 1);
+                if (await enregistrer()) aller(visibles[pos + 1] ?? derniere);
               }}
             >
               Continuer <ArrowRight size={17} />
@@ -306,8 +316,14 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           </span>
           <h1 className="mt-4 font-serif text-2xl font-semibold">Merci{r.nom && r.civilite ? ` ${r.civilite === "M." ? "Monsieur" : "Madame"} ${r.nom.toUpperCase()}` : r.prenom || vue.prenom ? ` ${r.prenom || vue.prenom}` : ""} !</h1>
           <p className="mt-2 text-sm text-muted">
-            Votre fiche est bien arrivée chez votre conseiller PATRIM, qui prépare {kind === "vendeur" ? "votre mandat de vente" : "votre offre d'achat"}. Vous la recevrez pour signature électronique (ICSIGN) sur le mail
-            et le portable indiqués. Vous pourrez encore corriger votre fiche avec ce même lien.
+            {court ? (
+              "Vos réponses sont bien arrivées chez votre conseiller PATRIM, qui s'en servira pour préparer votre rendez-vous d'estimation. Vous pourrez encore les corriger avec ce même lien."
+            ) : (
+              <>
+                Votre fiche est bien arrivée chez votre conseiller PATRIM, qui prépare {kind === "vendeur" ? "votre mandat de vente" : "votre offre d'achat"}. Vous la recevrez pour signature électronique (ICSIGN) sur le
+                mail et le portable indiqués. Vous pourrez encore corriger votre fiche avec ce même lien.
+              </>
+            )}
           </p>
           <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => aller("accueil")}>
             Revenir à ma fiche
@@ -326,13 +342,21 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
       <Entete vue={vue} />
       <div className="mt-5 space-y-3 animate-fade-up">
         <p className="text-sm text-muted">
-          Bonjour{salut ? ` ${salut}` : ""}, cette fiche réunit en une fois tout ce qu&apos;il faut pour {kind === "vendeur" ? "rédiger votre mandat de vente" : "rédiger votre offre d'achat"}, ainsi que les
-          vérifications que la loi impose aux agences immobilières. Comptez une dizaine de minutes, sur téléphone ou sur ordinateur.
+          {court ? (
+            <>
+              Bonjour{salut ? ` ${salut}` : ""}, pour préparer au mieux notre rendez-vous d&apos;estimation, voici quelques questions rapides sur votre bien. Comptez cinq minutes, sur téléphone ou sur ordinateur.
+            </>
+          ) : (
+            <>
+              Bonjour{salut ? ` ${salut}` : ""}, cette fiche réunit en une fois tout ce qu&apos;il faut pour {kind === "vendeur" ? "rédiger votre mandat de vente" : "rédiger votre offre d'achat"}, ainsi que les vérifications
+              que la loi impose aux agences immobilières. Comptez une dizaine de minutes, sur téléphone ou sur ordinateur.
+            </>
+          )}
         </p>
         <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-2xl border border-line/70 px-4 py-3 text-xs text-fg/80">
-          {etapes.slice(0, -1).map((e, i) => (
+          {visibles.slice(0, -1).map((e, i) => (
             <li key={e} className="flex items-center gap-2">
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand/10 text-[10px] font-semibold text-brand">{i + 1}</span> {e}
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand/10 text-[10px] font-semibold text-brand">{i + 1}</span> {etapes[e]}
             </li>
           ))}
         </ul>
@@ -344,7 +368,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
         <button
           type="button"
           onClick={() => {
-            aller(vue.statut === "termine" ? derniere : 0);
+            aller(vue.statut === "termine" ? derniere : visibles[0]);
           }}
           className="card card-pad card-hover flex w-full items-center gap-3 text-left"
         >
@@ -595,8 +619,25 @@ function EtapeIdentite({ r, setR }: P) {
   return <Identite p={r} set={(x) => setR((y) => ({ ...y, ...x }))} />;
 }
 
-function EtapeCoordonnees({ r, setR }: P) {
-  return <Coordonnees p={r} set={(x) => setR((y) => ({ ...y, ...x }))} />;
+function EtapeCoordonnees({ r, setR, court }: P & { court?: boolean }) {
+  const set = (x: Partial<Personne>) => setR((y) => ({ ...y, ...x }));
+  return (
+    <>
+      {court && (
+        <>
+          <div>
+            <span className="label">Civilité</span>
+            <Choix items={[{ v: "Mme" as const, label: "Madame" }, { v: "M." as const, label: "Monsieur" }]} value={r.civilite} onChange={(v) => set({ civilite: v })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Saisie label="Prénom" value={r.prenom} onChange={(v) => set({ prenom: v })} autoComplete="given-name" />
+            <Saisie label="Nom" value={r.nom} onChange={(v) => set({ nom: v })} autoComplete="family-name" />
+          </div>
+        </>
+      )}
+      <Coordonnees p={r} set={set} />
+    </>
+  );
 }
 
 function EtapeFamille({ r, setR, kind }: P) {
@@ -722,9 +763,15 @@ const CONNU_BIEN: { cle: keyof Reponses; label: string; texte: (r: Reponses) => 
   { cle: "chargesAnnuelles", label: "Charges par an", texte: (r) => (r.chargesAnnuelles != null ? eur(r.chargesAnnuelles) : undefined) },
   { cle: "taxeFonciere", label: "Taxe foncière", texte: (r) => (r.taxeFonciere != null ? eur(r.taxeFonciere) : undefined) },
   { cle: "anneeConstruction", label: "Construit vers", texte: (r) => (r.anneeConstruction ? String(r.anneeConstruction) : undefined) },
+  { cle: "surface", label: "Surface habitable", texte: (r) => (r.surface != null ? `${r.surface.toLocaleString("fr-FR")} m²` : undefined) },
+  { cle: "pieces", label: "Pièces", texte: (r) => (r.pieces != null ? String(r.pieces) : undefined) },
+  { cle: "etage", label: "Étage", texte: (r) => r.etage },
+  { cle: "exterieur", label: "Extérieur", texte: (r) => r.exterieur },
+  { cle: "stationnement", label: "Stationnement", texte: (r) => r.stationnement },
+  { cle: "chauffage", label: "Chauffage", texte: (r) => r.chauffage },
 ];
 
-function EtapeBien({ r, setR, connus }: P) {
+function EtapeBien({ r, setR, connus, court }: P & { court?: boolean }) {
   const set = (x: Partial<Reponses>) => setR((y) => ({ ...y, ...x }));
   const copro = r.bienNature === "Appartement" || r.bienNature === "Garage" || r.bienNature === "Local" || !!r.lots;
   // Repliés : les champs déjà connus à l'ouverture, tant que le client ne demande pas à les corriger
@@ -768,12 +815,30 @@ function EtapeBien({ r, setR, connus }: P) {
           <Choix items={NATURES.map((n) => ({ v: n, label: n }))} value={r.bienNature} onChange={(v) => set({ bienNature: v })} />
         </div>
       )}
+      {court && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            {voir("surface") && <Nombre label="Surface habitable" value={r.surface} onChange={(v) => set({ surface: v })} suffixe="m²" />}
+            {voir("pieces") && <Nombre label="Nombre de pièces" value={r.pieces} onChange={(v) => set({ pieces: v })} suffixe="" decimal={false} />}
+          </div>
+          {voir("etage") && <Saisie label="Étage (facultatif)" value={r.etage} onChange={(v) => set({ etage: v })} placeholder="Ex. 3e sur 5, avec ascenseur" />}
+          {voir("exterieur") && <Saisie label="Extérieur (facultatif)" value={r.exterieur} onChange={(v) => set({ exterieur: v })} placeholder="Balcon, terrasse, jardin… et sa surface" />}
+          {voir("stationnement") && <Saisie label="Stationnement, cave (facultatif)" value={r.stationnement} onChange={(v) => set({ stationnement: v })} placeholder="Parking en sous-sol, garage, cave…" />}
+          {voir("chauffage") && <Saisie label="Chauffage (facultatif)" value={r.chauffage} onChange={(v) => set({ chauffage: v })} placeholder="Électrique, gaz individuel, collectif…" />}
+        </>
+      )}
       {copro && (
         <>
           {voir("lots") && <Saisie label="N° de lot(s) de copropriété" value={r.lots} onChange={(v) => set({ lots: v })} placeholder="Ex. lot 147 (appartement), lot 283 (parking)" hint="Ils figurent sur votre titre de propriété." />}
           {voir("carrez") && <Saisie label="Surface loi Carrez (si connue)" value={r.carrez} onChange={(v) => set({ carrez: v })} placeholder="Ex. 45,20 m²" />}
           {voir("syndic") && <Saisie label="Syndic de copropriété" value={r.syndic} onChange={(v) => set({ syndic: v })} placeholder="Nom du cabinet, gestionnaire, téléphone" />}
           {voir("chargesAnnuelles") && <Nombre label="Charges de copropriété par an" value={r.chargesAnnuelles} onChange={(v) => set({ chargesAnnuelles: v })} />}
+          <OuiNon
+            label="Avez-vous accès à l'espace en ligne de votre syndic ?"
+            value={r.extranetSyndic}
+            onChange={(v) => set({ extranetSyndic: v })}
+            hint="Vous y trouvez les procès-verbaux d'assemblée et les appels de charges : c'est le plus rapide pour les obtenir."
+          />
         </>
       )}
       <div>
@@ -920,9 +985,19 @@ function EtapeLegales({ r, setR, kind }: P) {
   );
 }
 
-function EtapeVerification({ r, setR, kind, manque, allerA }: P & { manque: string[]; allerA: (n: number) => void }) {
+function EtapeVerification({
+  r,
+  setR,
+  kind,
+  manque,
+  allerA,
+  etapeDe,
+  visibles,
+  court,
+}: P & { manque: string[]; allerA: (n: number) => void; etapeDe: (champ: string) => number; visibles: number[]; court?: boolean }) {
   const groupes = groupesReponses(kind, r)
-    .map((g) => ({ ...g, lignes: g.lignes.filter(([, v]) => v) }))
+    .filter((g) => g.etape === 0 || visibles.includes(g.etape))
+    .map((g) => ({ ...g, etape: visibles.includes(g.etape) ? g.etape : visibles[0], lignes: g.lignes.filter(([, v]) => v) }))
     .filter((g) => g.lignes.length);
   return (
     <>
@@ -931,7 +1006,7 @@ function EtapeVerification({ r, setR, kind, manque, allerA }: P & { manque: stri
           <div className="font-semibold text-warn">Il manque encore :</div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {manque.map((m) => (
-              <button key={m} type="button" className="rounded-full border border-warn/40 bg-white px-3 py-1.5 text-xs font-medium text-fg/85 active:scale-[.97]" onClick={() => allerA(etapeDuChamp(m))}>
+              <button key={m} type="button" className="rounded-full border border-warn/40 bg-white px-3 py-1.5 text-xs font-medium text-fg/85 active:scale-[.97]" onClick={() => allerA(etapeDe(m))}>
                 {m} <ArrowRight size={11} className="inline" />
               </button>
             ))}
@@ -959,8 +1034,14 @@ function EtapeVerification({ r, setR, kind, manque, allerA }: P & { manque: stri
       <label className="card card-pad flex cursor-pointer items-start gap-3">
         <input type="checkbox" className="mt-1 size-5 shrink-0 accent-[#6c191e]" checked={!!r.accord} onChange={(e) => setR((x) => ({ ...x, accord: e.target.checked }))} />
         <span className="text-sm">
-          Je certifie que ces informations sont exactes et complètes. J&apos;accepte que l&apos;agence PATRIM les utilise pour {kind === "vendeur" ? "rédiger le mandat de vente" : "rédiger l'offre d'achat"} et les conserve
-          au titre de ses obligations de lutte contre le blanchiment de capitaux et le financement du terrorisme.
+          {court ? (
+            "J'accepte que l'agence PATRIM utilise ces informations pour préparer l'estimation de mon bien."
+          ) : (
+            <>
+              Je certifie que ces informations sont exactes et complètes. J&apos;accepte que l&apos;agence PATRIM les utilise pour {kind === "vendeur" ? "rédiger le mandat de vente" : "rédiger l'offre d'achat"} et les
+              conserve au titre de ses obligations de lutte contre le blanchiment de capitaux et le financement du terrorisme.
+            </>
+          )}
         </span>
       </label>
     </>

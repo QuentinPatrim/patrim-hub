@@ -14,6 +14,7 @@ import type { Bien } from "@/lib/types";
 import {
   acquereursProbables,
   autreOffreEnCours,
+  completerFiche,
   conjointAConsentir,
   contactsDepuisFiche,
   controlerFiche,
@@ -24,17 +25,20 @@ import {
   listerFiches,
   messageFiche,
   messageRelance,
+  messageSuite,
   nouveauLienFiche,
   objetFiche,
   piecesFiche,
   piecesProposees,
   reponsesInitiales,
+  reprendreDansLeBien,
   type Destinataire,
   preparerMandat,
   preparerOffre,
   supprimerFiche,
 } from "./client";
-import { controleFait, groupesReponses, manquantsReponses, piecesDemandees, PIECES, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
+import { MailsDossier } from "./MailsDossier";
+import { COMPORTEMENTS, controleFait, type ContextePublic, groupesReponses, manquantsReponses, piecesDemandees, PIECES, RISQUES, TITRE_FICHE, type Controle, type Fiche, type KindFiche, type Reponses, type Risque } from "./fiche";
 
 /* ============================================================
    Côté conseiller : fiches vendeur ou acquéreur envoyées pour un
@@ -53,29 +57,51 @@ const nomFiche = (f: Fiche) => {
   return r.parties === "societe" && r.societe?.denomination ? `${[r.societe.forme, r.societe.denomination].filter(Boolean).join(" ")} (${noms[0] || "?"})` : noms.join(" et ") || "Sans nom";
 };
 
+/** Pays sous surveillance du GAFI (listes noire et grise). Ces listes changent plusieurs fois par an : à vérifier sur fatf-gafi.org. */
+const PAYS_GAFI =
+  /\b(iran|cor[ée]e du nord|myanmar|birmanie|alg[ée]rie|angola|bolivie|bulgarie|cameroun|c[ôo]te d.ivoire|congo|ha[iï]ti|kenya|laos|liban|monaco|mozambique|namibie|n[ée]pal|soudan|syrie|venezuela|vi[eê]t ?nam|[îi]les vierges|y[ée]men)\b/i;
+
+export type Alerte = { texte: string; grave?: boolean; /** Simple rappel : ne relève pas le niveau de risque. */ info?: boolean };
+
 /** Points à regarder avant de signer : vigilance renforcée, mandataire, conjoint… */
-export function alertesFiche(kind: KindFiche, r: Reponses, prixAffiche?: number): { texte: string; grave?: boolean }[] {
-  const out: { texte: string; grave?: boolean }[] = [];
+export function alertesFiche(kind: KindFiche, r: Reponses, prixAffiche?: number): Alerte[] {
+  const out: Alerte[] = [];
+  const annee = new Date().getFullYear();
   if ((r.ppe && r.ppe !== "non") || (r.autres ?? []).some((p) => p.ppe && p.ppe !== "non"))
     out.push({ texte: `Personne politiquement exposée${r.ppeDetail ? ` (${r.ppeDetail})` : ""} : vigilance renforcée, accord du responsable de l'agence avant de poursuivre.`, grave: true });
   if (r.propreCompte === false) out.push({ texte: `N'agit pas pour son propre compte${r.pourCompteDe ? ` (pour ${r.pourCompteDe})` : ""} : identifier aussi la personne pour qui il agit.`, grave: true });
-  if (r.residenceFiscale && !/^france$/i.test(r.residenceFiscale.trim())) out.push({ texte: `Résidence fiscale hors de France (${r.residenceFiscale}).` });
+  const paysRisque = [r.residenceFiscale, r.etablissementFonds, r.societe?.siege, r.adresse].find((x) => x && PAYS_GAFI.test(x));
+  if (paysRisque) out.push({ texte: `Lien avec un pays sous surveillance du GAFI (${paysRisque}) : vigilance renforcée, liste à vérifier sur fatf-gafi.org.`, grave: true });
+  else if (r.residenceFiscale && !/^france$/i.test(r.residenceFiscale.trim())) out.push({ texte: `Résidence fiscale hors de France (${r.residenceFiscale}).` });
   if (r.parties === "societe") out.push({ texte: "Société : demander l'extrait Kbis de moins de 3 mois, les statuts et l'identité des bénéficiaires effectifs." });
+  if (r.parties === "societe" && !r.societe?.beneficiaires?.trim()) out.push({ texte: "Société : bénéficiaires effectifs (plus de 25 %) non indiqués." });
   if (kind === "vendeur") {
     if (conjointAConsentir(r)) out.push({ texte: "Logement de la famille : le conjoint doit consentir au mandat (article 215 du code civil), même s'il n'est pas propriétaire." });
-    if (r.regime === "inconnu") out.push({ texte: "Régime matrimonial inconnu : à vérifier sur le titre de propriété." });
-    if (r.credit) out.push({ texte: `Crédit en cours${r.creditBanque ? ` (${r.creditBanque})` : ""} : à signaler au notaire pour la mainlevée.` });
+    if (r.regime === "inconnu") out.push({ texte: "Régime matrimonial inconnu : à vérifier sur le titre de propriété.", info: true });
+    if (r.credit) out.push({ texte: `Crédit en cours${r.creditBanque ? ` (${r.creditBanque})` : ""} : à signaler au notaire pour la mainlevée.`, info: true });
+    if (r.origine === "achat" && r.origineAnnee && annee - r.origineAnnee < 2) {
+      const plusValue = r.prixAcquisition && r.prixSouhaite && r.prixSouhaite > r.prixAcquisition * 1.3;
+      out.push({ texte: `Bien acheté en ${r.origineAnnee} : revente rapide${plusValue ? ` avec une forte hausse (${eur(r.prixAcquisition)} → ${eur(r.prixSouhaite)} net vendeur)` : ""}, à comprendre (travaux, mutation…).` });
+    }
   } else {
     if (r.origineFonds?.some((o) => o === "Prêt familial" || o === "Autre")) out.push({ texte: "Origine des fonds à justifier (prêt familial ou autre) : demander un justificatif." });
-    if (prixAffiche && r.prixPropose != null && r.prixPropose < prixAffiche) out.push({ texte: `Prix proposé ${eur(r.prixPropose)}, soit ${eur(prixAffiche - r.prixPropose)} sous le prix affiché.` });
+    const actes = r.origineFonds?.filter((o) => o === "Donation" || o === "Succession" || o === "Vente d'un bien immobilier");
+    if (actes?.length) out.push({ texte: `Fonds issus de : ${actes.join(", ").toLowerCase()}. Demander l'acte ou l'attestation du notaire.`, info: true });
+    const comptant = r.financement === "comptant" ? r.prixPropose ?? r.apport : undefined;
+    if (comptant != null && comptant >= 150_000) out.push({ texte: `Achat comptant de ${eur(comptant)} : relevé bancaire ou attestation de la banque à obtenir avant l'offre.` });
+    if (r.financement === "pret" && r.prixPropose && r.apport != null && r.montantPret != null && r.apport + r.montantPret < r.prixPropose * 0.95)
+      out.push({ texte: `Financement incomplet : apport et prêt (${eur(r.apport + r.montantPret)}) ne couvrent pas le prix proposé (${eur(r.prixPropose)}) et les frais.` });
+    if (prixAffiche && r.prixPropose != null && r.prixPropose > prixAffiche) out.push({ texte: `Prix proposé au-dessus du prix affiché (${eur(r.prixPropose)} pour ${eur(prixAffiche)}) : à comprendre.` });
+    if (prixAffiche && r.prixPropose != null && r.prixPropose < prixAffiche) out.push({ texte: `Prix proposé ${eur(r.prixPropose)}, soit ${eur(prixAffiche - r.prixPropose)} sous le prix affiché.`, info: true });
   }
   return out;
 }
 
 /** Risque proposé d'après les réponses : à confirmer par le conseiller. */
-export const risqueSuggere = (kind: KindFiche, r: Reponses, prix?: number): Risque => {
+export const risqueSuggere = (kind: KindFiche, r: Reponses, prix?: number, comportements: string[] = []): Risque => {
   const a = alertesFiche(kind, r, prix);
-  return a.some((x) => x.grave) ? "eleve" : a.some((x) => !/sous le prix affiché|Crédit en cours/.test(x.texte)) ? "moyen" : "faible";
+  if (a.some((x) => x.grave) || comportements.length >= 2) return "eleve";
+  return a.some((x) => !x.info) || comportements.length ? "moyen" : "faible";
 };
 
 /** Carte de la fiche du bien (vente) : résumé et accès aux deux fiches. */
@@ -107,13 +133,16 @@ export function FichesCarte({ b }: { b: Bien }) {
   );
 }
 
-type Envoi = { dest: Destinataire; jeton: string; tel?: string; email?: string; rempli?: boolean };
+type Envoi = { dest: Destinataire; jeton: string; tel?: string; email?: string; rempli?: boolean; ctx?: ContextePublic };
 
 export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
   const router = useRouter();
   const [fiches, setFiches] = useState<Fiche[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [nouveau, setNouveau] = useState(false);
+  // Contact proposé d'office (lien « Envoyer la fiche acquéreur » du compte rendu de visite)
+  const [contactInitial, setContactInitial] = useState<string | undefined>();
+  const [suite, setSuite] = useState<Fiche | null>(null);
   const [envoi, setEnvoi] = useState<Envoi | null>(null);
   const [voir, setVoir] = useState<Fiche | null>(null);
   const [evaluer, setEvaluer] = useState<Fiche | null>(null);
@@ -134,7 +163,9 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
 
   useEffect(() => {
     void charger();
-    if (new URLSearchParams(window.location.search).get("nouveau")) {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("nouveau")) {
+      setContactInitial(q.get("contact") || undefined);
       setNouveau(true);
       window.history.replaceState(null, "", window.location.pathname);
     }
@@ -193,6 +224,16 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
             onDocuments={() => setDocuments(f)}
             onRelancer={() => setRelance(f)}
             onPreparer={() => preparer(f)}
+            onCompleter={() =>
+              agir(async () => {
+                await completerFiche(f.id);
+                setSuite(f);
+              })
+            }
+            onReprendre={() => {
+              reprendreDansLeBien(b, f);
+              alert("Le bien et les fiches contact sont complétés avec ses réponses (sans rien effacer).");
+            }}
             onContacts={() => {
               contactsDepuisFiche(b, f);
               alert("Fiches contact créées ou complétées.");
@@ -201,7 +242,7 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
               agir(async () => {
                 const { jeton } = await nouveauLienFiche(f.id);
                 const r = f.reponses ?? {};
-                setEnvoi({ dest: { civilite: r.civilite, prenom: r.prenom || f.prenom, nom: r.nom }, jeton, tel: r.tel, email: r.email, rempli: f.statut === "a_remplir" && !!r.nom });
+                setEnvoi({ dest: { civilite: r.civilite, prenom: r.prenom || f.prenom, nom: r.nom }, jeton, tel: r.tel, email: r.email, rempli: f.statut === "a_remplir" && !!r.nom, ctx: f.contexte });
               })
             }
             onFermer={() => agir(() => fermerFiche(f.id, !f.ferme))}
@@ -221,6 +262,7 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         <Lock size={13} className="mt-0.5 shrink-0" /> Le lien marche 30 jours et ne montre que la fiche du client. Les réponses ne sont lisibles que par vous (et le responsable de l&apos;agence). La fiche est effacée du Hub
         après un an : enregistrez son PDF dans le dossier anti-blanchiment du client (à garder 5 ans).
       </p>
+      {vendeur && <MailsDossier b={b} fiches={fiches ?? []} />}
 
       <NouvelleFiche
         open={nouveau}
@@ -228,10 +270,12 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         onClose={() => setNouveau(false)}
         b={b}
         fiches={fiches ?? []}
-        onCree={async ({ contactId, pieces, ...d }) => {
-          const r = await creerFiche(kind, b.id, { ...ctx, pieces }, d.prenom ?? "", reponsesInitiales(b, kind, d, contactId));
+        contactInitial={contactInitial}
+        onCree={async ({ contactId, pieces, mode, ...d }) => {
+          const c = { ...ctx, pieces, mode };
+          const r = await creerFiche(kind, b.id, c, d.prenom ?? "", reponsesInitiales(b, kind, d, contactId));
           setNouveau(false);
-          setEnvoi({ dest: d, jeton: r.jeton, tel: d.tel, email: d.email, rempli: true });
+          setEnvoi({ dest: d, jeton: r.jeton, tel: d.tel, email: d.email, rempli: true, ctx: c });
           await charger();
         }}
       />
@@ -304,13 +348,30 @@ export function FichesBien({ b, kind }: { b: Bien; kind: KindFiche }) {
         </Sheet>
       )}
 
+      {suite && (
+        <Sheet open onClose={() => setSuite(null)} title="Suite de la fiche vendeur">
+          {(() => {
+            const r = suite.reponses ?? {};
+            const dest = { civilite: r.civilite, prenom: r.prenom || suite.prenom, nom: r.nom };
+            const texte = messageSuite(dest, suite.creeLe);
+            return (
+              <>
+                <p className="mb-3 text-sm text-muted">C&apos;est fait : son lien ouvre maintenant toute la fiche. Ses premières réponses sont gardées. Prévenez-le :</p>
+                <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{texte}</pre>
+                <PartageLien texte={texte} sujet="Votre fiche vendeur – PATRIM" tel={r.tel} email={r.email} url={texte} />
+              </>
+            );
+          })()}
+        </Sheet>
+      )}
+
       {envoi && (
         <Sheet open onClose={() => setEnvoi(null)} title={`Lien pour ${[envoi.dest.prenom, envoi.dest.nom?.toUpperCase()].filter(Boolean).join(" ") || (vendeur ? "le vendeur" : "l'acquéreur")}`}>
           <p className="mb-3 text-sm text-muted">Le message est prêt : vérifiez-le puis envoyez-le. Rien ne part sans vous.</p>
-          <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{messageFiche(kind, envoi.dest, ctx, lienFiche(envoi.jeton), envoi.rempli)}</pre>
+          <pre className="mb-3 whitespace-pre-wrap break-words rounded-xl bg-surface-2 px-4 py-3 font-sans text-[13px]">{messageFiche(kind, envoi.dest, envoi.ctx ?? ctx, lienFiche(envoi.jeton), envoi.rempli)}</pre>
           <PartageLien
-            texte={messageFiche(kind, envoi.dest, ctx, lienFiche(envoi.jeton), envoi.rempli)}
-            sujet={objetFiche(kind, ctx)}
+            texte={messageFiche(kind, envoi.dest, envoi.ctx ?? ctx, lienFiche(envoi.jeton), envoi.rempli)}
+            sujet={objetFiche(kind, envoi.ctx ?? ctx)}
             tel={envoi.tel}
             email={envoi.email}
             url={lienFiche(envoi.jeton)}
@@ -331,6 +392,8 @@ function CarteFiche({
   onDocuments,
   onRelancer,
   onPreparer,
+  onCompleter,
+  onReprendre,
   onContacts,
   onLien,
   onFermer,
@@ -344,6 +407,8 @@ function CarteFiche({
   onDocuments: () => void;
   onRelancer: () => void;
   onPreparer: () => void;
+  onCompleter: () => void;
+  onReprendre: () => void;
   onContacts: () => void;
   onLien: () => void;
   onFermer: () => void;
@@ -352,7 +417,7 @@ function CarteFiche({
   const r = f.reponses ?? {};
   const avecNom = !!r.nom?.trim();
   const alertes = f.statut === "a_remplir" ? [] : alertesFiche(f.kind, r, b.prix);
-  const manque = manquantsReponses(f.kind, r);
+  const manque = manquantsReponses(f.kind, r, f.contexte);
   const demandes = piecesDemandees(f.kind, f.contexte);
   const recues = demandes.filter((x) => f.contexte.recues?.includes(x)).length;
   const jours = Math.ceil((Date.parse(f.expire) - Date.now()) / 86400_000);
@@ -371,6 +436,11 @@ function CarteFiche({
           </div>
           {f.ferme ? <Badge>Close</Badge> : <Badge tone={STATUT[f.statut].tone}>{STATUT[f.statut].label}</Badge>}
         </div>
+        {f.contexte.mode === "estimation" && (
+          <div className="mt-2">
+            <Badge tone="neutral">Avant l&apos;estimation</Badge>
+          </div>
+        )}
         {f.kind === "acquereur" && r.prixPropose != null && (
           <div className="mt-2 text-sm">
             Prix proposé : <b>{eur(r.prixPropose)}</b>
@@ -393,7 +463,7 @@ function CarteFiche({
           ))}
         </div>
       )}
-      {avecNom && (
+      {avecNom && f.contexte.mode !== "estimation" && (
         <button type="button" onClick={onEvaluer} className="flex min-h-[52px] w-full items-center gap-3 border-t border-line/70 px-5 py-2.5 text-left hover:bg-surface-2">
           <ShieldCheck size={18} className={cx("shrink-0", controleFait(f.controle) ? "text-ok" : "text-warn")} />
           <span className="min-w-0 flex-1 text-sm">
@@ -432,9 +502,20 @@ function CarteFiche({
       )}
       <div className="card-pad !pt-3 space-y-2 border-t border-line/70">
         <div className="grid gap-2 sm:grid-cols-2">
-          <button type="button" className="btn-primary !h-11" disabled={!avecNom} onClick={onPreparer}>
-            {f.kind === "vendeur" ? <FileSignature size={16} /> : <Handshake size={16} />} {f.kind === "vendeur" ? "Préparer le mandat" : "Préparer l'offre"}
-          </button>
+          {f.contexte.mode === "estimation" ? (
+            <>
+              <button type="button" className="btn-primary !h-11" disabled={busy} onClick={onCompleter}>
+                <FileSignature size={16} /> Ouvrir la fiche complète
+              </button>
+              <button type="button" className="btn-secondary !h-11" disabled={f.statut === "a_remplir"} onClick={onReprendre}>
+                <Check size={16} /> Reprendre dans le bien
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn-primary !h-11" disabled={!avecNom} onClick={onPreparer}>
+              {f.kind === "vendeur" ? <FileSignature size={16} /> : <Handshake size={16} />} {f.kind === "vendeur" ? "Préparer le mandat" : "Préparer l'offre"}
+            </button>
+          )}
           <Link href={`/imprimer/fiche-client/${f.bienId}?fiche=${f.id}`} className={cx("btn-secondary !h-11", !avecNom && "pointer-events-none opacity-50")} aria-disabled={!avecNom}>
             <FileText size={16} /> Fiche remplie (PDF)
           </Link>
@@ -513,13 +594,32 @@ function Reponses({ f, prix }: { f: Fiche; prix?: number }) {
   );
 }
 
-export type Saisie = Destinataire & { tel?: string; email?: string; contactId?: string; pieces: string[] };
+export type Saisie = Destinataire & { tel?: string; email?: string; contactId?: string; pieces: string[]; mode?: ContextePublic["mode"] };
 
-function NouvelleFiche({ open, b, kind, fiches, onClose, onCree }: { open: boolean; b: Bien; kind: KindFiche; fiches: Fiche[]; onClose: () => void; onCree: (s: Saisie) => Promise<void> }) {
+function NouvelleFiche({
+  open,
+  b,
+  kind,
+  fiches,
+  contactInitial,
+  onClose,
+  onCree,
+}: {
+  open: boolean;
+  b: Bien;
+  kind: KindFiche;
+  fiches: Fiche[];
+  contactInitial?: string;
+  onClose: () => void;
+  onCree: (s: Saisie) => Promise<void>;
+}) {
   const vendeur = kind === "vendeur";
   const { items: contacts } = useCollection("contacts");
+  // Avant l'estimation : fiche courte (bien et documents), le reste s'ouvre ensuite sur le même lien
+  const modeDefaut = vendeur && b.statut === "estimation" ? "estimation" : undefined;
   // Documents cochés d'office selon le bien et ce qui a déjà été reçu
-  const vide = (): Saisie => ({ pieces: piecesProposees(b, kind, fiches) });
+  const proposer = (mode?: Saisie["mode"]) => piecesProposees(b, kind, fiches).filter((x) => !(mode === "estimation" && x.startsWith("Pièce d'identité")));
+  const vide = (): Saisie => ({ pieces: proposer(modeDefaut), mode: modeDefaut });
   const [s, setS] = useState<Saisie>(vide);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -543,10 +643,11 @@ function NouvelleFiche({ open, b, kind, fiches, onClose, onCree }: { open: boole
   // Fiche vendeur : le premier propriétaire connu du bien est proposé d'office
   useEffect(() => {
     if (!open) return;
-    setS((y) => ({ ...y, pieces: y.contactId || y.nom ? y.pieces : piecesProposees(b, kind, fiches) }));
-    if (vendeur && !s.contactId && !s.nom && b.vendeurIds?.[0] && contacts.some((c) => c.id === b.vendeurIds![0])) choisir(b.vendeurIds[0]);
+    setS((y) => ({ ...y, pieces: y.contactId || y.nom ? y.pieces : proposer(y.mode) }));
+    if (contactInitial && !s.contactId && contacts.some((c) => c.id === contactInitial)) choisir(contactInitial);
+    else if (vendeur && !s.contactId && !s.nom && b.vendeurIds?.[0] && contacts.some((c) => c.id === b.vendeurIds![0])) choisir(b.vendeurIds[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, contacts.length, fiches.length]);
+  }, [open, contacts.length, fiches.length, contactInitial]);
   // En un geste : les autres propriétaires du bien, ou les acquéreurs qui ont visité / veulent faire une offre
   const suggestions = open
     ? vendeur
@@ -581,6 +682,30 @@ function NouvelleFiche({ open, b, kind, fiches, onClose, onCree }: { open: boole
       }
     >
       <div className="space-y-3">
+        {vendeur && (
+          <div>
+            <div className="mb-1.5 text-sm font-medium">Quand l&apos;envoyez-vous ?</div>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["estimation", "Avant l'estimation", "Le bien et les documents, 5 min"],
+                  [undefined, "Pour le mandat", "Fiche complète, TRACFIN compris"],
+                ] as const
+              ).map(([m, titre, detail]) => (
+                <button
+                  key={titre}
+                  type="button"
+                  onClick={() => set({ mode: m, pieces: proposer(m) })}
+                  className={cx("rounded-2xl border px-3 py-2.5 text-left transition active:scale-[.98]", s.mode === m ? "border-accent/40 bg-accent/10" : "border-line")}
+                >
+                  <span className="block text-sm font-medium">{titre}</span>
+                  <span className="block text-[11px] text-muted">{detail}</span>
+                </button>
+              ))}
+            </div>
+            {s.mode === "estimation" && <p className="mt-1.5 text-xs text-muted">Après le rendez-vous, « Ouvrir la fiche complète » lui ouvre le reste sur le même lien.</p>}
+          </div>
+        )}
         {suggestions.length > 0 && (
           <div>
             <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
@@ -652,8 +777,8 @@ function NouvelleFiche({ open, b, kind, fiches, onClose, onCree }: { open: boole
 /** Évaluation du risque par l'agence : remplace les cases à cocher du PDF imprimé. */
 function Evaluation({ f, prix, onClose, onSave }: { f: Fiche; prix?: number; onClose: () => void; onSave: (c: Controle) => Promise<void> }) {
   const r = f.reponses ?? {};
-  const suggere = risqueSuggere(f.kind, r, prix);
-  const [c, setC] = useState<Controle>(() => ({ par: nomConseiller() || undefined, le: today(), ...f.controle, risque: f.controle?.risque ?? suggere }));
+  const [c, setC] = useState<Controle>(() => ({ par: nomConseiller() || undefined, le: today(), ...f.controle, risque: f.controle?.risque ?? risqueSuggere(f.kind, r, prix) }));
+  const suggere = risqueSuggere(f.kind, r, prix, c.comportements);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const alertes = alertesFiche(f.kind, r, prix);
@@ -716,6 +841,28 @@ function Evaluation({ f, prix, onClose, onSave }: { f: Fiche; prix?: number; onC
           </div>
           <p className="mt-1.5 text-xs text-muted">Proposé d&apos;après les réponses : {RISQUES.find((x) => x.v === suggere)?.label.toLowerCase()}. À vous de trancher.</p>
         </div>
+        <div>
+          <span className="label">Votre appréciation du client (facultatif)</span>
+          <div className="space-y-1">
+            {COMPORTEMENTS.map((x) => {
+              const on = !!c.comportements?.includes(x);
+              return (
+                <label key={x} className="flex min-h-10 cursor-pointer items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="size-5 shrink-0 accent-[#6c191e]"
+                    checked={on}
+                    onChange={() => {
+                      const liste = on ? (c.comportements ?? []).filter((y) => y !== x) : [...(c.comportements ?? []), x];
+                      set({ comportements: liste, risque: risqueSuggere(f.kind, r, prix, liste) });
+                    }}
+                  />
+                  {x}
+                </label>
+              );
+            })}
+          </div>
+        </div>
         <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
           <input type="checkbox" className="size-5 shrink-0 accent-[#6c191e]" checked={!!c.identiteVerifiee} onChange={(e) => set({ identiteVerifiee: e.target.checked })} />
           Pièce d&apos;identité vérifiée (en cours de validité, conforme à la fiche)
@@ -735,6 +882,29 @@ function Evaluation({ f, prix, onClose, onSave }: { f: Fiche; prix?: number; onC
             <input type="date" className="input" value={c.le ?? ""} onChange={(e) => set({ le: e.target.value })} />
           </Field>
         </div>
+        {(c.risque === "eleve" || c.risque === "moyen") && (
+          <a
+            className="btn-secondary w-full !h-11"
+            href={`mailto:?subject=${encodeURIComponent(`Vigilance anti-blanchiment – ${TITRE_FICHE[f.kind]} – ${f.contexte.titre}`)}&body=${encodeURIComponent(
+              [
+                "Bonjour,",
+                "",
+                `Je te transmets pour avis la ${TITRE_FICHE[f.kind].toLowerCase()} de ${nomFiche(f)} (${f.contexte.titre}${f.contexte.ville ? `, ${f.contexte.ville}` : ""}).`,
+                `Niveau de risque proposé : ${RISQUES.find((x) => x.v === c.risque)?.label.toLowerCase()}.`,
+                "",
+                ...alertes.map((a) => `- ${a.texte}`),
+                ...(c.comportements ?? []).map((x) => `- ${x}`),
+                ...(c.commentaire ? ["", c.commentaire] : []),
+                "",
+                `La fiche est dans le Hub : ${window.location.origin}/biens/${f.bienId}/fiche-${f.kind}`,
+                "",
+                nomConseiller(),
+              ].join("\n")
+            )}`}
+          >
+            <ShieldAlert size={15} /> Transmettre à mon responsable
+          </a>
+        )}
         {err && <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{err}</p>}
       </div>
     </Sheet>

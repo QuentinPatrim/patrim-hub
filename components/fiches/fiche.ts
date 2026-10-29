@@ -91,6 +91,15 @@ export interface Reponses extends Personne {
   diagnostics?: string[];
   travaux?: string;
   prixSouhaite?: number;
+  /* ---- Vendeur : pour préparer l'estimation (facultatif) ---- */
+  surface?: number;
+  pieces?: number;
+  etage?: string;
+  exterieur?: string;
+  stationnement?: string;
+  chauffage?: string;
+  /** Le vendeur a un accès à l'espace en ligne de son syndic (PV d'AG, appels de charges). */
+  extranetSyndic?: boolean;
   /* ---- Vendeur : origine de propriété et projet ---- */
   origine?: Origine;
   origineAnnee?: number;
@@ -139,6 +148,8 @@ export interface ContextePublic {
   pieces?: string[];
   /** Documents déjà reçus par le conseiller : le client ne les envoie pas en double. */
   recues?: string[];
+  /** Fiche vendeur courte, envoyée avant l'estimation : coordonnées et bien seulement. Le conseiller ouvre le reste ensuite, sur le même lien. */
+  mode?: "estimation";
   conseiller?: { nom: string; tel?: string; mail?: string };
 }
 
@@ -150,6 +161,8 @@ export interface Controle {
   justificatifs?: boolean;
   /** Mesures prises ou remarques (vigilance renforcée, pièces demandées…). */
   commentaire?: string;
+  /** Comportements relevés par le conseiller (appréciation personnelle). */
+  comportements?: string[];
   par?: string;
   le?: string; // AAAA-MM-JJ
 }
@@ -158,6 +171,15 @@ export const RISQUES: { v: Risque; label: string }[] = [
   { v: "moyen", label: "Risque moyen" },
   { v: "eleve", label: "Risque élevé" },
 ];
+/** Signaux de comportement que seul le conseiller peut apprécier (lignes directrices TRACFIN). */
+export const COMPORTEMENTS = [
+  "Réticent à donner ses pièces ou ses justificatifs",
+  "Pressé de conclure sans raison apparente",
+  "Propose de payer en espèces ou par un tiers",
+  "Intermédiaire ou montage difficile à comprendre",
+  "Montants sans rapport avec sa situation",
+  "Change souvent d'interlocuteur, de banque ou de version",
+] as const;
 export const controleFait = (c?: Controle) => !!c?.risque && !!c.le;
 
 export interface Fiche {
@@ -310,6 +332,10 @@ export const ETAPES: Record<KindFiche, readonly string[]> = {
   vendeur: ["Identité", "Coordonnées", "Situation familiale", "Les propriétaires", "Le bien", "Origine et projet", "Vérifications légales", "Vérification"],
   acquereur: ["Identité", "Coordonnées", "Situation familiale", "Les acquéreurs", "Votre offre", "Financement", "Vérifications légales", "Vérification"],
 };
+/** Fiche courte avant l'estimation : seulement ces étapes (numéros des étapes complètes). */
+export const ETAPES_ESTIMATION = [1, 4, 7] as const;
+export const etapesVisibles = (kind: KindFiche, c?: Pick<ContextePublic, "mode">): number[] =>
+  kind === "vendeur" && c?.mode === "estimation" ? [...ETAPES_ESTIMATION] : ETAPES[kind].map((_, i) => i);
 
 /** Étape où se remplit chaque champ manquant (pour y retourner d'un geste). */
 const ETAPE_DU_CHAMP: Record<string, number> = {
@@ -346,9 +372,19 @@ export const telValide = (v?: string) => !v?.trim() || /^[+\d][\d .()-]{5,22}$/.
 export const mailValide = (v?: string) => !v?.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 /** Champs à remplir avant de pouvoir envoyer. */
-export function manquantsReponses(kind: KindFiche, r: Reponses): string[] {
+export function manquantsReponses(kind: KindFiche, r: Reponses, c?: Pick<ContextePublic, "mode">): string[] {
   const out: string[] = [];
   const t = (v?: string) => !v?.trim();
+  if (kind === "vendeur" && c?.mode === "estimation") {
+    // Avant l'estimation : de quoi le joindre et préparer la visite, rien de plus
+    if (!r.civilite) out.push("Civilité");
+    if (t(r.nom)) out.push("Nom");
+    if (t(r.tel) || !telValide(r.tel)) out.push("Portable");
+    if (!mailValide(r.email)) out.push("E-mail");
+    if (t(r.bienAdresse)) out.push("Adresse du bien");
+    if (!r.occupation) out.push("Occupation du bien");
+    return out;
+  }
   if (!r.civilite) out.push("Civilité");
   if (t(r.prenom)) out.push("Prénom");
   if (t(r.nom)) out.push("Nom");
@@ -449,8 +485,15 @@ export function groupesReponses(kind: KindFiche, r: Reponses): Groupe[] {
           ["Occupation", [libelle(OCCUPATIONS, r.occupation), r.occupation === "loue" && r.loyer != null && `${eur(r.loyer)} par mois`, r.occupation === "loue" && r.finBail && `bail jusqu'au ${dateFr(r.finBail)}`].filter(Boolean).join(", ")],
           ["Logement de la famille", ouiNon(r.residenceFamille)],
           ["Syndic", r.syndic],
+          ["Espace en ligne du syndic", ouiNon(r.extranetSyndic)],
           ["Charges par an", r.chargesAnnuelles != null ? eur(r.chargesAnnuelles) : undefined],
           ["Taxe foncière", r.taxeFonciere != null ? eur(r.taxeFonciere) : undefined],
+          ["Surface habitable", r.surface != null ? `${r.surface.toLocaleString("fr-FR")} m²` : undefined],
+          ["Pièces", r.pieces != null ? String(r.pieces) : undefined],
+          ["Étage", r.etage],
+          ["Extérieur", r.exterieur],
+          ["Stationnement", r.stationnement],
+          ["Chauffage", r.chauffage],
           ["Construit en", r.anneeConstruction ? String(r.anneeConstruction) : undefined],
           ["Diagnostics faits", r.diagnostics?.length ? r.diagnostics.join(", ") : undefined],
           ["Travaux récents", r.travaux],
@@ -616,6 +659,13 @@ export function nettoyerReponses(kind: KindFiche, entree: unknown): Reponses {
           diagnostics: liste(s.diagnostics, DIAGNOSTICS),
           travaux: propre(s.travaux, 500),
           prixSouhaite: montant(s.prixSouhaite),
+          surface: montant(s.surface, 100_000),
+          pieces: entier(s.pieces, 1, 50),
+          etage: propre(s.etage, 60),
+          exterieur: propre(s.exterieur, 160),
+          stationnement: propre(s.stationnement, 160),
+          chauffage: propre(s.chauffage, 120),
+          extranetSyndic: bool(s.extranetSyndic),
           origine: choix(s.origine, ORIGINES.map((x) => x.v)),
           origineAnnee: entier(s.origineAnnee, 1900, 2100),
           origineNotaire: propre(s.origineNotaire, 200),
@@ -655,6 +705,7 @@ export function nettoyerControle(entree: unknown): Controle {
     identiteVerifiee: bool(s.identiteVerifiee),
     justificatifs: bool(s.justificatifs),
     commentaire: propre(s.commentaire, 600),
+    comportements: Array.isArray(s.comportements) ? [...new Set(s.comportements.filter((x): x is string => typeof x === "string" && (COMPORTEMENTS as readonly string[]).includes(x)))] : undefined,
     par: propre(s.par, 80),
     le: date(s.le),
   });

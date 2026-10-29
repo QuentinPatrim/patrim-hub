@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Mic, Sparkles, Square, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Mic, Send, Sparkles, Square, Star } from "lucide-react";
 import { Field, Sheet, Spinner, cx } from "@/components/ui";
 import { ask } from "@/lib/ai";
 import { getAll, update } from "@/lib/store";
@@ -31,6 +32,7 @@ type SpeechRec = { lang: string; continuous: boolean; interimResults: boolean; s
 export function CompteRenduSheet({ rdv, onClose }: { rdv?: RdvExt; onClose: () => void }) {
   const open = !!rdv;
   const [note, setNote] = useState<number | undefined>();
+  const router = useRouter();
   const [d, setD] = useState<CrDetail>({});
   const [dictee, setDictee] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,7 +122,10 @@ Renvoie un objet JSON avec ces clés :
     }
   };
 
-  const save = () => {
+  // Visite réussie : la fiche acquéreur part tout de suite, l'offre sera prête quand il se décidera
+  const ficheAcquereur = bien && rdv?.type === "visite" && contacts.length === 1 && (d.suite === "offre" || d.suite === "seconde_visite") ? `/biens/${bien.id}/fiche-acquereur?nouveau=1&contact=${contacts[0].id}` : null;
+
+  const save = (ensuite?: string) => {
     if (!rdv) return;
     const detail: CrDetail = { ...d, notes: [d.notes, dictee.trim() && !d.notes ? dictee.trim() : ""].filter(Boolean).join("\n") || undefined };
     const texte = texteCompteRendu(detail, note);
@@ -155,6 +160,7 @@ Renvoie un objet JSON avec ces clés :
       update("contacts", c.id, patch);
     });
     onClose();
+    if (ensuite) router.push(ensuite);
   };
 
   return (
@@ -173,7 +179,12 @@ Renvoie un objet JSON avec ces clés :
           <button className="btn-ghost" onClick={onClose}>
             Annuler
           </button>
-          <button className="btn-primary" onClick={save}>
+          {ficheAcquereur && (
+            <button className="btn-secondary" title="Enregistrer, puis envoyer la fiche acquéreur" onClick={() => save(ficheAcquereur)}>
+              <Send size={16} /> + Fiche acquéreur
+            </button>
+          )}
+          <button className="btn-primary" onClick={() => save()}>
             <Check size={16} /> Enregistrer
           </button>
         </>

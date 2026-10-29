@@ -7,7 +7,7 @@ import { depotFiches, empreinte, ENTETES, nouveauJeton, type FicheServeur } from
    Une fiche est visible par le conseiller qui l'a créée, le titulaire et le
    responsable ; jamais par les autres collègues.
    GET  ?bien=<id>&kind=vendeur|acquereur : fiches du bien, avec les réponses.
-   POST { action } : creer, lien, fermer, controler (évaluation du risque par l'agence), pieces (documents demandés et reçus), supprimer. */
+   POST { action } : creer, lien, fermer, controler (évaluation du risque par l'agence), pieces (documents demandés et reçus), completer (fiche avant estimation → fiche complète), supprimer. */
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,8 @@ function contexteDe(v: unknown, kind: KindFiche): ContextePublic | null {
     photo: photo && /^https:\/\//.test(photo) ? photo : undefined,
     pieces,
     recues: recues?.length ? recues : undefined,
+    // Fiche vendeur courte, avant l'estimation
+    mode: kind === "vendeur" && s.mode === "estimation" ? "estimation" : undefined,
     conseiller: c && texte(c.nom, 80) ? { nom: texte(c.nom, 80)!, tel: texte(c.tel, 24), mail: texte(c.mail, 120) } : undefined,
   };
 }
@@ -118,6 +120,12 @@ export async function POST(req: Request) {
       const recues = piecesDe(corps.recues, f.kind) ?? f.contexte.recues;
       const contexte = { ...f.contexte, pieces, recues: recues?.length ? recues : undefined };
       await d.maj(f.id, { contexte });
+      return NextResponse.json({ contexte }, { headers: ENTETES });
+    }
+    if (corps.action === "completer") {
+      // Après l'estimation : le même lien ouvre toute la fiche (identité, régime, vérifications légales)
+      const { mode: _m, ...contexte } = f.contexte;
+      await d.maj(f.id, { contexte, statut: f.statut === "termine" ? "en_cours" : undefined, expire: prolonger(), ferme: false });
       return NextResponse.json({ contexte }, { headers: ENTETES });
     }
     if (corps.action === "supprimer") {
