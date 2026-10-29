@@ -52,7 +52,7 @@ export const NAV_VENTE = [
 ];
 export const NAV_LOCATION = [
   { href: "/", label: "Accueil", icon: Home },
-  { href: "/biens", label: "Biens à louer", icon: Building2 },
+  { href: "/biens", label: "Biens à louer", court: "À louer", icon: Building2 },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/echeancier", label: "Échéancier", icon: CalendarClock },
