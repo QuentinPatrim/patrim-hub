@@ -1,6 +1,6 @@
 import { lireMailPortail } from "@/lib/leadsPortails";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { cleServiceSupabase, secretSynchro } from "@/lib/env";
 import { notifier } from "@/lib/push-server";
 import { RDV_TYPE } from "@/lib/format";
@@ -27,6 +27,12 @@ export type EvtAgenda = { id: string; titre: string; debut: string; fin?: string
 export type Payload = { compte?: string; brouillonsCrees?: string[]; leads?: Lead[]; reponses?: Reponse[]; agenda?: { de: string; a: string; evenements: EvtAgenda[] } };
 
 type Row = { id: string; kind: string; data: Record<string, unknown> };
+
+/** Id fixe (au format uuid) de la trace du passage du script Google pour un compte. */
+export function idTraceScript(user: string) {
+  const h = createHash("sha1").update(`script-google:${user}`).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
 
 export type ResultatSynchro = { status: number; body: Record<string, unknown> };
 

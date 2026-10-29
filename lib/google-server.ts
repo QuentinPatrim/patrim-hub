@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lireMailPortail, lireSeLoger } from "./leadsPortails";
-import { traiterSynchro, type EvtAgenda, type Lead } from "./synchro";
+import { idTraceScript, traiterSynchro, type EvtAgenda, type Lead } from "./synchro";
 
 /* Connexion Google de chaque utilisateur (Réglages > « Connecter mon compte Google ») :
    brouillons Gmail, leads des portails relevés dans sa boîte et Google Agenda ↔ Hub.
@@ -274,7 +274,7 @@ export async function synchroGoogle(db: SupabaseClient, userId: string) {
   const aCreer = (r.body.aCreer as { hubId: string; titre: string; debut: string; fin: string; lieu?: string; description?: string }[] | undefined) ?? [];
   const deja = evts.map((e) => e.description ?? "").join("\n");
   // Si le script Google du même compte tourne (passage il y a moins de 15 min), c'est lui qui crée les événements
-  const { data: script } = await db.from("hub_docs").select("data").eq("id", `script-google-${userId}`).maybeSingle();
+  const { data: script } = await db.from("hub_docs").select("data").eq("id", idTraceScript(userId)).maybeSingle();
   const le = (script as { data?: { le?: string } } | null)?.data?.le;
   const scriptActif = !!le && Date.now() - new Date(le).getTime() < 15 * 60_000;
   let crees = 0;

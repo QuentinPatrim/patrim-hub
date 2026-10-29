@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cleServiceSupabase, secretSynchro } from "@/lib/env";
-import { traiterSynchro, trouverUtilisateur, type Payload } from "@/lib/synchro";
+import { idTraceScript, traiterSynchro, trouverUtilisateur, type Payload } from "@/lib/synchro";
 
 /* POST /api/sync : reçoit ce que le script Google (Gmail + Agenda) du titulaire envoie.
    Le traitement lui-même est dans lib/synchro.ts. Protégé par un secret partagé (en-tête x-hub-secret).
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Aucun compte dans l'appli" }, { status: 404 });
 
   // Trace du passage du script : la connexion Google du même compte lui laisse alors la création des événements
-  await db.from("hub_docs").upsert({ id: `script-google-${user}`, kind: "synchro_script", user_id: user, data: { le: new Date().toISOString() }, updated_at: new Date().toISOString() });
+  await db.from("hub_docs").upsert({ id: idTraceScript(user), kind: "synchro_script", user_id: user, data: { le: new Date().toISOString() }, updated_at: new Date().toISOString() });
   const r = await traiterSynchro(db, user, p);
   return NextResponse.json(r.body, { status: r.status });
 }
