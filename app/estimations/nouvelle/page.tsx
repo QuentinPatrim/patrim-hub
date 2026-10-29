@@ -534,8 +534,8 @@ function Parcours() {
                   </div>
 
                   <div>
-                    <span className="label">Nombre de pièces</span>
-                    <Choix value={s.pieces} onChange={(v) => setS({ pieces: v })} allowEmpty options={[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: n === 7 ? "7 +" : `T${n}` }))} />
+                    <span className="label">Nombre de pièces {!s.pieces && <span className="font-normal text-muted">· touche le nombre</span>}</span>
+                    <Choix value={s.pieces} onChange={(v) => setS({ pieces: v })} allowEmpty options={[1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: n === 7 ? "7 et +" : s.type === "maison" ? `${n} p.` : `T${n}` }))} />
                   </div>
 
                   {s.type === "appartement" && (

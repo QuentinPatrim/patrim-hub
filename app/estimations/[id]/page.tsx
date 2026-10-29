@@ -117,7 +117,7 @@ export default function EstimationPage() {
       : [
     ["Type", typeLabel(e.type)],
     ["Surface", `${e.surface.toLocaleString("fr-FR")} m²`],
-    ["Pièces", e.pieces ?? "—"],
+    ["Pièces", e.pieces ?? <Link key="pieces" href={`/estimations/nouvelle?id=${e.id}`} className="text-accent underline">À renseigner</Link>],
     ...(p.surfaceTerrain ? ([["Terrain", `${p.surfaceTerrain.toLocaleString("fr-FR")} m²`]] as [string, React.ReactNode][]) : []),
     ...(e.type === "appartement" ? ([["Étage", etageLabel(e.etage, e.ascenseur) ?? "—"]] as [string, React.ReactNode][]) : []),
     ["Extérieur", e.exterieur || "Aucun"],
