@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Thème clair par défaut, sombre via [data-theme="dark"] (valeurs R G B) */
+/* Thème clair par défaut, sombre via [data-theme="dark"], verre dépoli via [data-theme="dashboard"] (valeurs R G B) */
 :root {
   --bg: 247 245 241;
   --surface: 255 255 255;
@@ -31,8 +31,24 @@
   --shadow: 0 0 0;
   color-scheme: dark;
 }
+/* Dashboard : sombre chaud, cartes en verre posées sur la photo de fond (components/Fond.tsx) */
+[data-theme="dashboard"] {
+  --bg: 20 10 12;
+  --surface: 34 20 23;
+  --surface-2: 48 31 34;
+  --line: 92 66 69;
+  --fg: 247 242 240;
+  --muted: 204 190 190;
+  --accent: 255 138 115;
+  --ok: 74 222 128;
+  --warn: 251 191 106;
+  --danger: 255 120 105;
+  --shadow: 0 0 0;
+  color-scheme: dark;
+}
 
 html, body { background: rgb(var(--bg)); color: rgb(var(--fg)); }
+[data-theme="dashboard"] body { background: transparent; }
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -80,6 +96,42 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .safe-top { padding-top: env(safe-area-inset-top); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* ---- Thème Dashboard ---- */
+[data-theme="dashboard"] .card,
+[data-theme="dashboard"] .glass {
+  background-color: rgb(22 12 14 / 0.46);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-color: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 20px 40px -20px rgb(0 0 0 / 0.6);
+}
+[data-theme="dashboard"] .btn-secondary { background-color: rgb(255 255 255 / 0.07); border-color: rgb(255 255 255 / 0.14); }
+[data-theme="dashboard"] .btn-secondary:hover { background-color: rgb(255 255 255 / 0.12); }
+[data-theme="dashboard"] .btn-primary { background-image: linear-gradient(180deg, #e8442a, #b8262b); box-shadow: 0 10px 24px -10px rgb(232 68 42 / 0.9); }
+[data-theme="dashboard"] .input { background-color: rgb(12 6 8 / 0.45); border-color: rgb(255 255 255 / 0.14); }
+[data-theme="dashboard"] .chip { background-color: rgb(255 255 255 / 0.08); border-color: rgb(255 255 255 / 0.12); }
+/* Chiffres et titres en Barlow Condensed (charte PATRIM) */
+[data-theme="dashboard"] .font-serif { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: 0.005em; }
+[data-theme="dashboard"] .h-title { text-transform: uppercase; font-size: 36px; line-height: 1; }
+@media (min-width: 640px) { [data-theme="dashboard"] .h-title { font-size: 44px; } }
+/* En-tête, barre latérale et bandeau d'accueil transparents ; barre d'onglets en pilule flottante */
+[data-theme="dashboard"] .app-header { background-color: rgb(20 8 10 / 0.3); border-color: transparent; }
+[data-theme="dashboard"] .app-aside { background-color: rgb(14 6 8 / 0.55); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); border-right: 1px solid rgb(255 255 255 / 0.08); }
+[data-theme="dashboard"] .app-aside > [aria-hidden] { display: none; }
+[data-theme="dashboard"] .hero-accueil { background: rgb(22 12 14 / 0.3); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1); }
+[data-theme="dashboard"] .hero-accueil > [aria-hidden] { display: none; }
+[data-theme="dashboard"] .hero-accueil h1 { text-transform: uppercase; }
+@media (max-width: 1023px) {
+  [data-theme="dashboard"] .app-tabbar {
+    left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); padding-bottom: 0;
+    border-radius: 9999px; border: 1px solid rgb(255 255 255 / 0.12);
+    background-color: rgb(22 12 14 / 0.55); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 16px 32px -12px rgb(0 0 0 / 0.7);
+  }
+  [data-theme="dashboard"] .app-tabbar a[aria-current="page"] > span,
+  [data-theme="dashboard"] .app-tabbar .on > span { background-color: rgb(255 255 255 / 0.14); }
+  [data-theme="dashboard"] .app-tabbar a[aria-current="page"] { color: #fff; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

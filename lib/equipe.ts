@@ -123,7 +123,7 @@ export function useEquipe() {
 export function viderAppareil() {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith("patrim-hub:") && k !== "patrim-hub:theme")
+      .filter((k) => k.startsWith("patrim-hub:") && k !== "patrim-hub:theme" && !k.startsWith("patrim-hub:fond"))
       .forEach((k) => localStorage.removeItem(k));
   } catch {}
 }
