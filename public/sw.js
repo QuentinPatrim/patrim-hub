@@ -1,6 +1,6 @@
 // Service worker PATRIM Hub : appli installable + pages déjà vues disponibles hors connexion.
-const CACHE = "patrim-hub-v2";
-const SHELL = ["/", "/logo.png", "/emblem.png", "/icons/icon-192.png"];
+const CACHE = "patrim-hub-v3";
+const SHELL = ["/", "/logo.png", "/emblem.png", "/icons/icon-192.png", "/icons/badge-96.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -38,7 +38,7 @@ self.addEventListener("push", (e) => {
     self.registration.showNotification(n.titre || "PATRIM Hub", {
       body: n.texte || "",
       icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png", // Android : silhouette blanche sur fond transparent (sinon carré blanc)
       tag: n.tag,
       renotify: !!n.tag && !n.discret,
       silent: !!n.discret,
