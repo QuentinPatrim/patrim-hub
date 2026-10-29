@@ -187,6 +187,15 @@ export function refreshAll() {
   (Object.keys(listeners) as Kind[]).forEach((k) => void pull(k));
 }
 
+/** Recharge depuis Supabase ce qui est affiché (après une synchro Google faite par le serveur). */
+export function rechargerAffiche() {
+  (Object.keys(listeners) as Kind[]).forEach((k) => {
+    if (!listeners[k]?.size) return;
+    loaded[k] = false;
+    void pull(k);
+  });
+}
+
 /* Quand l'appli revient au premier plan (téléphone déverrouillé, onglet rouvert),
    on recharge ce qui est affiché : les leads et RDV arrivés de Gmail apparaissent. */
 let dernierRetour = 0;
