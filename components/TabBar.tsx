@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { vibrer } from "@/lib/haptique";
 
-type Onglet = { href: string; label: string; icon: LucideIcon };
+// court : libellé de la barre du bas quand le nom complet ne tient pas sur une ligne
+type Onglet = { href: string; label: string; court?: string; icon: LucideIcon };
 
 /**
  * Barre d'onglets du téléphone. Une pastille unique glisse d'un onglet à l'autre :
@@ -43,18 +44,18 @@ export function TabBar({ onglets, actif, plusActif, onPlus }: { onglets: Onglet[
           transition: `left ${bord(versDroite)}, right ${bord(!versDroite)}, opacity 200ms`,
         };
 
-  const classe = (on: boolean) => clsx("relative z-[1] flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors duration-300 active:scale-[.94] [transition-property:color,transform]", on ? "text-accent" : "text-muted");
+  const classe = (on: boolean) => clsx("relative z-[1] flex min-w-0 flex-col items-center justify-center gap-1 text-[10.5px] font-semibold transition-colors duration-300 active:scale-[.94] [transition-property:color,transform]", on ? "text-accent" : "text-muted");
 
   return (
     <nav className="app-tabbar lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl backdrop-saturate-150 shadow-nav safe-bottom no-print" aria-label="Navigation principale">
       <div className="relative grid grid-cols-5 h-[62px] px-1">
         <span aria-hidden className="tab-pastille absolute top-[7px] bottom-[7px] rounded-full bg-accent/10" style={pastille} />
-        {onglets.map(({ href, label, icon: Icon }, k) => {
+        {onglets.map(({ href, label, court, icon: Icon }, k) => {
           const on = k === i;
           return (
             <Link key={href} href={href} onClick={() => toucher(k)} aria-current={actif(href) ? "page" : undefined} className={classe(on)}>
               <Icon size={21} strokeWidth={on ? 2.2 : 1.8} />
-              {label}
+              <span className="max-w-full truncate px-0.5">{court ?? label}</span>
             </Link>
           );
         })}
