@@ -1,3 +1,4 @@
+import { lireMailPortail } from "@/lib/leadsPortails";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
@@ -17,7 +18,8 @@ import type { Bien, BienType, Contact, Rdv, RdvType, Source, Tache } from "@/lib
 export const maxDuration = 60;
 
 type Lead = {
-  nom?: string; email?: string; telephone?: string; portail?: string; type?: "bien" | "projet";
+  nom?: string; email?: string; telephone?: string; portail?: string; type?: "bien" | "projet" | "estimation";
+  adresse?: string; brut?: string; sujet?: string; // brut : texte d'un mail de portail que le script n'a pas su lire
   reference?: string; prix?: number; ville?: string; cp?: string; typeBien?: string; pieces?: number; surface?: string | number;
   message?: string; criteres?: Record<string, string>; recuLe?: string; sousOffre?: boolean;
 };
@@ -54,7 +56,7 @@ export async function POST(req: Request) {
   const s = new Etat(rows ?? []);
   const bilan = { contactsCrees: 0, contactsMisAJour: 0, rdvs: 0, rdvsAnnules: 0, taches: 0 };
 
-  for (const l of p.leads ?? []) traiterLead(s, l, bilan);
+  for (const l of p.leads ?? []) traiterLead(s, l.type && (l.email || l.telephone) ? l : { ...l, ...(lireMailPortail(l.brut ?? "", l.sujet) ?? {}) }, bilan);
   for (const r of p.reponses ?? []) traiterReponse(s, r, bilan);
   if (p.agenda) traiterAgenda(s, p.agenda, bilan);
 
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
   if (nouveaux.length)
     await notifier(db, user, {
       titre: nouveaux.length > 1 ? `${nouveaux.length} nouveaux leads` : `Nouveau lead : ${[nouveaux[0].prenom, nouveaux[0].nom].filter(Boolean).join(" ")}`,
-      texte: nouveaux.length > 1 ? nouveaux.map((c) => [c.prenom, c.nom].filter(Boolean).join(" ")).join(", ") : (nouveaux[0].historique?.[0]?.texte ?? "").split("\n")[0] + " · Brouillon prêt dans Gmail",
+      texte: nouveaux.length > 1 ? nouveaux.map((c) => [c.prenom, c.nom].filter(Boolean).join(" ")).join(", ") : (nouveaux[0].historique?.[0]?.texte ?? "").split("\n")[0] + (nouveaux[0].roles.includes("acquereur") ? " · Brouillon prêt dans Gmail" : ""),
       url: nouveaux.length > 1 ? "/a-envoyer" : `/contacts/${nouveaux[0].id}`,
       tag: "lead",
     }).catch(() => 0);
@@ -189,12 +191,15 @@ function parEmail(s: Etat, email?: string) {
 }
 
 function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
-  if (!l.email && !l.telephone) return;
+  if (!l.type || (!l.email && !l.telephone)) return;
+  const vendeur = l.type === "estimation";
   const date = l.recuLe ? new Date(l.recuLe).toISOString() : new Date().toISOString();
   const portail = l.portail || "portail";
   const bien = l.reference ? s.liste<Bien>("biens").find((b) => b.ref && b.ref.toLowerCase() === l.reference!.toLowerCase()) : undefined;
   const quoi =
-    l.type === "projet"
+    vendeur
+      ? `demande d'estimation, ${[l.typeBien, l.pieces && `${l.pieces} p.`, l.surface && `${l.surface} m²`, l.adresse, l.ville].filter(Boolean).join(", ")}`
+      : l.type === "projet"
       ? `projet de recherche${l.criteres?.["Type de bien"] ? " (" + l.criteres["Type de bien"] + ")" : ""}`
       : [l.typeBien, l.pieces && `${l.pieces} p.`, l.surface && `${l.surface} m²`, l.ville, l.prix && `${l.prix.toLocaleString("fr-FR")} €`, l.reference && `réf. ${l.reference}`].filter(Boolean).join(", ");
   const texte = `Lead ${portail} : ${quoi}${l.sousOffre ? " (bien sous offre)" : ""}${l.message ? `\n« ${l.message.slice(0, 600)} »` : ""}`;
@@ -207,7 +212,9 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
     s.maj(existant.id, {
       historique: [...(existant.historique ?? []), entree],
       dernierContact: date,
-      ...(recent ? { dateRelance: jour(), prochaineAction: `Rappeler : nouveau lead ${portail}` } : {}),
+      ...(recent ? { dateRelance: jour(), prochaineAction: vendeur ? `Rappeler : demande d'estimation ${portail}` : `Rappeler : nouveau lead ${portail}` } : {}),
+      roles: vendeur && !existant.roles.some((r) => r === "vendeur" || r === "prospect_vendeur") ? [...existant.roles, "prospect_vendeur"] : existant.roles,
+      adresse: existant.adresse || (vendeur ? [l.adresse, l.cp, l.ville].filter(Boolean).join(" ") : undefined),
       bienOrigineId: existant.bienOrigineId ?? bien?.id,
       tel: existant.tel || l.telephone,
       synchro: "gmail",
@@ -225,15 +232,16 @@ function traiterLead(s: Etat, l: Lead, bilan: Record<string, number>) {
     nom: nom || l.email || "Lead",
     email: l.email,
     tel: l.telephone,
-    roles: ["acquereur"],
+    roles: vendeur ? ["prospect_vendeur"] : ["acquereur"],
     source: source(portail),
-    etape: "nouveau",
+    etape: vendeur ? undefined : "nouveau",
+    adresse: vendeur ? [l.adresse, l.cp, l.ville].filter(Boolean).join(" ") || undefined : undefined,
     chaleur: 2,
-    criteres: { types: t ? [t] : undefined, budgetMax: budget, piecesMin: pieces, remarques: l.type === "projet" ? Object.entries(l.criteres ?? {}).map(([k, v]) => `${k} : ${v}`).join(" · ") : undefined },
+    criteres: vendeur ? undefined : { types: t ? [t] : undefined, budgetMax: budget, piecesMin: pieces, remarques: l.type === "projet" ? Object.entries(l.criteres ?? {}).map(([k, v]) => `${k} : ${v}`).join(" · ") : undefined },
     bienOrigineId: bien?.id,
     biensProposes: bien ? [bien.id] : undefined,
     dateRelance: recent ? jour() : undefined,
-    prochaineAction: recent ? `Rappeler : lead ${portail} du ${dateFr(date)}` : `Lead ${portail} du ${dateFr(date)} : faire le point`,
+    prochaineAction: recent ? (vendeur ? `Rappeler : demande d'estimation ${portail} du ${dateFr(date)}` : `Rappeler : lead ${portail} du ${dateFr(date)}`) : `Lead ${portail} du ${dateFr(date)} : faire le point`,
     dernierContact: date,
     historique: [entree],
     synchro: "gmail",
