@@ -9,7 +9,7 @@ export function Fond() {
   const fond = useFond();
   if (theme !== "dashboard") return null;
   return (
-    <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden bg-[#140a0c] no-print">
+    <div aria-hidden className="fond-dashboard fixed inset-x-0 top-0 z-0 overflow-hidden bg-[#140a0c] no-print">
       {fond.image ? (
         <div className="absolute -inset-8 bg-cover bg-center blur-[4px] scale-105" style={{ backgroundImage: `url("${fond.image}")` }} />
       ) : (
