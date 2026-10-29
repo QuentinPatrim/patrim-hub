@@ -56,7 +56,7 @@ export function RenseignementsCarte({ b }: { b: Bien }) {
       <p className="text-sm text-muted">
         {dossiers?.length
           ? `${dossiers.length} dossier${dossiers.length > 1 ? "s" : ""} · ${recues} fiche${recues > 1 ? "s" : ""} reçue${recues > 1 ? "s" : ""}`
-          : "Envoyez la fiche de renseignements par lien : le candidat la remplit sur son téléphone, avec ses colocataires et ses garants."}
+          : "Envoyez la fiche de renseignements par lien : le candidat la remplit en ligne, sur téléphone ou ordinateur, avec ses colocataires et ses garants."}
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <Link href={`/biens/${b.id}/renseignements?nouveau=1`} className="btn-primary !h-11">
@@ -124,7 +124,7 @@ export function DossiersBien({ b }: { b: Bien }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted animate-fade-up">
-        Le candidat reçoit un lien personnel, remplit sa fiche sur son téléphone, puis ajoute lui-même son conjoint, ses colocataires et ses garants. Chacun a son propre lien et ne voit que sa fiche.
+        Le candidat reçoit un lien personnel, remplit sa fiche en ligne (téléphone ou ordinateur), puis ajoute lui-même son conjoint, ses colocataires et ses garants. Chacun a son propre lien et ne voit que sa fiche.
       </p>
       <button type="button" className="btn-primary w-full !h-12" onClick={() => setNouveau(true)}>
         <UserPlus size={17} /> Nouveau candidat

@@ -21,7 +21,10 @@ import {
   SITUATIONS,
   TITRE_FICHE,
   avecAutres,
+  composerAdresse,
+  decouperAdresse,
   groupesReponses,
+  piecesDemandees,
   manquantsReponses,
   type KindFiche,
   type Personne,
@@ -30,6 +33,7 @@ import {
   type VuePublique,
 } from "./fiche";
 import { useEtapesHistorique } from "@/lib/retour";
+import { ChampsAdresse } from "./Adresse";
 
 /* ============================================================
    Page publique de la fiche vendeur ou acquéreur, ouverte depuis
@@ -42,10 +46,43 @@ const eur = (n?: number) => (n == null ? "" : `${n.toLocaleString("fr-FR", { max
 const dateFr = (ymd?: string) => (ymd ? new Date(ymd + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "");
 
 type Ecran = "accueil" | "fiche" | "merci";
+
+/** Ancienne adresse d'un seul tenant : répartie dans les trois champs. */
+const enParts = <T extends Personne>(p: T): T => (p.adresse && !p.adresseRue && !p.adresseCp && !p.adresseVille ? { ...p, ...decouperAdresse(p.adresse) } : p);
+function preparer(r: Reponses): Reponses {
+  const out = enParts(r);
+  if (out.autres) out.autres = out.autres.map(enParts);
+  if (out.bienAdresse && !out.bienRue && !out.bienCp && !out.bienVille) {
+    const d = decouperAdresse(out.bienAdresse);
+    Object.assign(out, { bienRue: d.adresseRue, bienCp: d.adresseCp, bienVille: d.adresseVille });
+  }
+  return out;
+}
+
+/** Interface client toujours claire, fond blanc, quel que soit le thème de l'appareil. */
+function useClair() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const avant = { dark: html.classList.contains("dark"), theme: html.dataset.theme, fond: document.body.style.background };
+    html.classList.remove("dark");
+    html.dataset.theme = "light";
+    document.body.style.background = "#fff";
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const couleur = meta?.getAttribute("content");
+    meta?.setAttribute("content", "#ffffff");
+    return () => {
+      html.classList.toggle("dark", avant.dark);
+      if (avant.theme) html.dataset.theme = avant.theme;
+      document.body.style.background = avant.fond;
+      if (couleur) meta?.setAttribute("content", couleur);
+    };
+  }, []);
+}
 type SetR = (f: (r: Reponses) => Reponses) => void;
 type P = { r: Reponses; setR: SetR; kind: KindFiche };
 
 export function ParcoursFiche({ jeton }: { jeton: string }) {
+  useClair();
   const [vue, setVue] = useState<VuePublique | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [ecran, setEcran] = useState<Ecran>("accueil");
@@ -81,7 +118,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
     appeler()
       .then((v) => {
         setVue(v);
-        setR({ residenceFiscale: "France", nationalite: "Française", ...v.reponses });
+        setR(preparer({ residenceFiscale: "France", nationalite: "Française", ...v.reponses }));
       })
       .catch((e: Error) => setErreur(e.message));
   }, [appeler]);
@@ -134,7 +171,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
   if (ecran === "fiche")
     return (
       <Cadre>
-        <div className="sticky top-0 z-10 -mx-4 bg-bg/90 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
+        <div className="sticky top-0 z-10 -mx-4 bg-white/95 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] backdrop-blur">
           <div className="flex items-center gap-3">
             <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller(etape ? etape - 1 : "accueil")}>
               <ArrowLeft size={18} />
@@ -212,19 +249,27 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
             Revenir à ma fiche
           </button>
         </div>
-        <Pieces kind={kind} />
+        <Pieces vue={vue} />
       </Cadre>
     );
 
   /* ---------- Accueil ---------- */
+  const v0 = vue.reponses ?? {};
+  const salut = v0.nom && v0.civilite ? `${v0.civilite === "M." ? "Monsieur" : "Madame"} ${v0.nom.toUpperCase()}` : vue.prenom;
+  const dejaRempli = vue.statut === "a_remplir" && Object.keys(v0).length > 0;
   return (
     <Cadre>
       <Entete vue={vue} />
       <div className="mt-5 space-y-3 animate-fade-up">
         <p className="text-sm text-muted">
-          Bonjour{vue.prenom ? ` ${vue.prenom}` : ""}, cette fiche réunit en une fois tout ce qu&apos;il faut pour {kind === "vendeur" ? "rédiger votre mandat de vente" : "rédiger votre offre d'achat"}, ainsi que les
-          vérifications que la loi impose aux agences immobilières. Comptez une dizaine de minutes, depuis votre téléphone.
+          Bonjour{salut ? ` ${salut}` : ""}, cette fiche réunit en une fois tout ce qu&apos;il faut pour {kind === "vendeur" ? "rédiger votre mandat de vente" : "rédiger votre offre d'achat"}, ainsi que les
+          vérifications que la loi impose aux agences immobilières. Comptez une dizaine de minutes, sur téléphone ou sur ordinateur.
         </p>
+        {dejaRempli && (
+          <p className="flex gap-2 rounded-2xl bg-brand/[0.06] px-4 py-3 text-sm text-fg/85">
+            <Check size={16} className="mt-0.5 shrink-0 text-brand" /> Votre conseiller a déjà indiqué les informations dont il dispose : il vous suffit de les vérifier et de compléter le reste.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -242,7 +287,7 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
           <ArrowRight size={18} className="shrink-0 text-muted" />
         </button>
       </div>
-      <Pieces kind={kind} />
+      <Pieces vue={vue} />
       <Confidentialite vue={vue} />
     </Cadre>
   );
@@ -251,47 +296,42 @@ export function ParcoursFiche({ jeton }: { jeton: string }) {
 /* ---------- Mise en page ---------- */
 
 function Cadre({ children }: { children: ReactNode }) {
-  return <main className="mx-auto min-h-dvh w-full max-w-lg bg-bg px-4 pb-10">{children}</main>;
+  return <main className="mx-auto min-h-dvh w-full max-w-lg bg-white px-4 pb-10 text-fg">{children}</main>;
 }
 
 function Entete({ vue }: { vue: VuePublique }) {
   const c = vue.contexte;
   return (
-    <header className="-mx-4 overflow-hidden bg-ink text-white sm:mt-4 sm:rounded-3xl">
-      <div className="relative isolate px-5 pb-6 pt-[max(20px,env(safe-area-inset-top))]">
-        {c.photo && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.photo} alt="" referrerPolicy="no-referrer" className="absolute inset-0 -z-20 size-full object-cover opacity-30" />
-        )}
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-ink via-ink/80 to-ink/40" />
-        <div className="flex items-center gap-2.5">
-          <Image src="/emblem.png" alt="" width={34} height={34} className="rounded-lg ring-1 ring-white/15" />
-          <div className="text-[13px] font-semibold tracking-[0.24em]">PATRIM</div>
-        </div>
-        <div className="mt-6 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
-          <span className="h-px w-5 bg-coral" /> {TITRE_FICHE[vue.kind]}
-        </div>
-        <h1 className="mt-2 font-serif text-[26px] font-semibold leading-tight">{c.titre}</h1>
-        {c.ville && <div className="mt-1 text-sm text-white/70">{c.ville}</div>}
-        {c.prix != null && (
-          <div className="mt-4 inline-block rounded-xl bg-white/[0.08] px-3 py-2 ring-1 ring-inset ring-white/10">
-            <div className="text-[10px] text-white/60">Prix affiché, honoraires inclus</div>
-            <div className="mt-0.5 font-semibold tabular-nums">{eur(c.prix)}</div>
-          </div>
-        )}
+    <header className="pt-[max(20px,env(safe-area-inset-top))]">
+      <div className="flex items-center gap-2.5">
+        <Image src="/emblem.png" alt="" width={34} height={34} className="rounded-lg" />
+        <div className="text-[13px] font-semibold tracking-[0.24em] text-brand">PATRIM</div>
       </div>
+      {c.photo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={c.photo} alt="" referrerPolicy="no-referrer" className="mt-5 aspect-[16/9] w-full rounded-3xl bg-surface-2 object-cover" />
+      )}
+      <div className="mt-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
+        <span className="h-px w-5 bg-coral" /> {TITRE_FICHE[vue.kind]}
+      </div>
+      <h1 className="mt-2 font-serif text-[26px] font-semibold leading-tight">{c.titre}</h1>
+      {c.ville && <div className="mt-1 text-sm text-muted">{c.ville}</div>}
+      {c.prix != null && (
+        <div className="mt-3 inline-block rounded-xl border border-line px-3 py-2">
+          <div className="text-[10px] text-muted">Prix affiché, honoraires inclus</div>
+          <div className="mt-0.5 font-semibold tabular-nums">{eur(c.prix)}</div>
+        </div>
+      )}
     </header>
   );
 }
 
-function Pieces({ kind }: { kind: KindFiche }) {
-  const liste =
-    kind === "vendeur"
-      ? ["Pièce d'identité en cours de validité de chaque propriétaire (recto verso)", "Titre de propriété", "Dernier avis de taxe foncière", "Diagnostics déjà réalisés", "Copropriété : 3 derniers procès-verbaux d'assemblée et appels de charges", "Bien loué : le bail en cours"]
-      : ["Pièce d'identité en cours de validité de chaque acquéreur (recto verso)", "Justificatif de l'apport (relevé, attestation de la banque)", "Accord de principe ou simulation de la banque, si vous l'avez"];
+function Pieces({ vue }: { vue: VuePublique }) {
+  const liste = piecesDemandees(vue.kind, vue.contexte);
+  if (!liste.length) return null;
   return (
     <div className="card card-pad mt-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Pièces à préparer</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Documents à préparer</div>
       <ul className="mt-2 space-y-1.5 text-sm">
         {liste.map((p) => (
           <li key={p} className="flex gap-2">
@@ -421,7 +461,11 @@ function Identite({ p, set }: { p: Personne; set: (x: Partial<Personne>) => void
 function Coordonnees({ p, set }: { p: Personne; set: (x: Partial<Personne>) => void }) {
   return (
     <>
-      <Saisie label="Adresse actuelle" multi value={p.adresse} onChange={(v) => set({ adresse: v })} placeholder="Numéro, rue, code postal, ville" />
+      <ChampsAdresse
+        label="Adresse actuelle"
+        value={{ rue: p.adresseRue, cp: p.adresseCp, ville: p.adresseVille }}
+        onChange={(a) => set({ adresseRue: a.rue, adresseCp: a.cp, adresseVille: a.ville, adresse: composerAdresse(a.rue?.trim(), a.cp, a.ville?.trim()) })}
+      />
       <Saisie label="Portable" type="tel" inputMode="tel" autoComplete="tel" value={p.tel} onChange={(v) => set({ tel: v })} placeholder="06 12 34 56 78" hint="Personnel : il reçoit le code de la signature électronique." />
       <Saisie label="E-mail" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={p.email} onChange={(v) => set({ email: v })} hint="Personnel : il reçoit le document à signer." />
     </>
@@ -554,7 +598,12 @@ function EtapeBien({ r, setR }: P) {
   const copro = r.bienNature === "Appartement" || r.bienNature === "Garage" || r.bienNature === "Local" || !!r.lots;
   return (
     <>
-      <Saisie label="Adresse du bien" multi value={r.bienAdresse} onChange={(v) => set({ bienAdresse: v })} placeholder="Numéro, rue, bâtiment, étage, porte, code postal, ville" />
+      <ChampsAdresse
+        label="Adresse du bien"
+        value={{ rue: r.bienRue, cp: r.bienCp, ville: r.bienVille }}
+        onChange={(a) => set({ bienRue: a.rue, bienCp: a.cp, bienVille: a.ville, bienAdresse: composerAdresse(a.rue?.trim(), a.cp, a.ville?.trim()) })}
+        hint="Ajoutez si besoin le bâtiment, l'étage et la porte après la rue."
+      />
       <div>
         <span className="label">Nature du bien</span>
         <Choix items={NATURES.map((n) => ({ v: n, label: n }))} value={r.bienNature} onChange={(v) => set({ bienNature: v })} />

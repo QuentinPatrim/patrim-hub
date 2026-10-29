@@ -8,5 +8,11 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  // Toujours en clair pour le client, avant même le premier affichage
+  return (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: 'try{var h=document.documentElement;h.classList.remove("dark");h.dataset.theme="light";document.body.style.background="#fff"}catch(e){}' }} />
+      {children}
+    </>
+  );
 }

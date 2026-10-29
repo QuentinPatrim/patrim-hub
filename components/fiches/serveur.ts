@@ -55,7 +55,7 @@ export interface DepotFiches {
   parEmpreinte(h: string): Promise<FicheServeur | null>;
   fiche(id: string): Promise<FicheServeur | null>;
   duBien(bienId: string, kind?: KindFiche): Promise<FicheServeur[]>;
-  creer(x: { userId: string; bienId: string; kind: KindFiche; contexte: ContextePublic; prenom: string; empreinte: string; expire: string }): Promise<string>;
+  creer(x: { userId: string; bienId: string; kind: KindFiche; contexte: ContextePublic; prenom: string; reponses?: Reponses; empreinte: string; expire: string }): Promise<string>;
   maj(id: string, patch: { reponses?: Reponses; controle?: Controle; statut?: StatutFiche; prenom?: string; empreinte?: string; ferme?: boolean; expire?: string }): Promise<void>;
   supprimer(id: string): Promise<void>;
   purger(): Promise<void>;
@@ -104,7 +104,7 @@ function depotSupabase(url: string, cle: string): DepotFiches {
       const r = ok(
         await db
           .from(T)
-          .insert({ user_id: x.userId, bien_id: x.bienId, kind: x.kind, contexte: x.contexte, prenom: x.prenom, token_hash: x.empreinte, expires_at: x.expire })
+          .insert({ user_id: x.userId, bien_id: x.bienId, kind: x.kind, contexte: x.contexte, prenom: x.prenom, reponses: x.reponses ?? {}, token_hash: x.empreinte, expires_at: x.expire })
           .select("id")
           .single()
       ) as { id: string };
@@ -151,7 +151,7 @@ function depotMemoire(): DepotFiches {
         kind: x.kind,
         contexte: x.contexte,
         prenom: x.prenom,
-        reponses: {},
+        reponses: x.reponses ?? {},
         statut: "a_remplir",
         ferme: false,
         created_at: now(),

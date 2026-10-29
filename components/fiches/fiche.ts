@@ -38,7 +38,11 @@ export interface Personne {
   lieuNaissance?: string;
   nationalite?: string;
   profession?: string;
+  /** Adresse complète, recomposée à partir des trois champs ci-dessous. */
   adresse?: string;
+  adresseRue?: string;
+  adresseCp?: string;
+  adresseVille?: string;
   tel?: string;
   email?: string;
   /** Autre personne : lien avec le signataire (conjoint, frère, indivisaire…). */
@@ -70,6 +74,9 @@ export interface Reponses extends Personne {
 
   /* ---- Vendeur : le bien ---- */
   bienAdresse?: string;
+  bienRue?: string;
+  bienCp?: string;
+  bienVille?: string;
   bienNature?: Nature;
   lots?: string;
   carrez?: string;
@@ -128,6 +135,8 @@ export interface ContextePublic {
   /** Fiche acquéreur : prix affiché, honoraires inclus. */
   prix?: number;
   photo?: string;
+  /** Documents demandés (le conseiller a peut-être déjà les autres). Absent : toute la liste. */
+  pieces?: string[];
   conseiller?: { nom: string; tel?: string; mail?: string };
 }
 
@@ -254,6 +263,35 @@ export const DIAGNOSTICS = [
   "Audit énergétique",
   "Bornage",
 ] as const;
+
+/** Documents à préparer, cochés par le conseiller à la création du lien. */
+export const PIECES: Record<KindFiche, string[]> = {
+  vendeur: [
+    "Pièce d'identité en cours de validité de chaque propriétaire (recto verso)",
+    "Titre de propriété",
+    "Dernier avis de taxe foncière",
+    "Diagnostics déjà réalisés",
+    "Copropriété : 3 derniers procès-verbaux d'assemblée et appels de charges",
+    "Bien loué : le bail en cours",
+  ],
+  acquereur: [
+    "Pièce d'identité en cours de validité de chaque acquéreur (recto verso)",
+    "Justificatif de l'apport (relevé, attestation de la banque)",
+    "Accord de principe ou simulation de la banque, si vous l'avez",
+  ],
+};
+export const piecesDemandees = (kind: KindFiche, c: ContextePublic) => (c.pieces ? PIECES[kind].filter((x) => c.pieces!.includes(x)) : PIECES[kind]);
+
+/** « 12 rue X, 31000 Toulouse » à partir des trois champs. */
+export const composerAdresse = (rue?: string, cp?: string, ville?: string) => [rue, [cp, ville].filter(Boolean).join(" ")].filter(Boolean).join(", ") || undefined;
+
+/** « 12 rue X, 31000 Toulouse » → rue, code postal, ville (adresse saisie d'un seul tenant). */
+export function decouperAdresse(a?: string): Pick<Personne, "adresseRue" | "adresseCp" | "adresseVille"> {
+  const t = a?.replace(/\s+/g, " ").trim();
+  if (!t) return {};
+  const m = t.match(/^(.*?)[,\s]+(\d{5})\s+(.+)$/);
+  return m ? { adresseRue: m[1].replace(/,$/, "").trim(), adresseCp: m[2], adresseVille: m[3].trim() } : { adresseRue: t };
+}
 
 export const libelle = <T extends string>(liste: { v: T; label: string }[], v?: T) => liste.find((x) => x.v === v)?.label ?? "";
 export const TITRE_FICHE: Record<KindFiche, string> = { vendeur: "Fiche vendeur", acquereur: "Fiche acquéreur" };
@@ -455,6 +493,17 @@ const mail = (v: unknown) => {
 /** Supprime les clés vides, pour garder la base légère. */
 const sansVide = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && !(Array.isArray(v) && !v.length))) as T;
 
+const cp = (v: unknown) => {
+  const t = propre(v, 5);
+  return t && /^\d{5}$/.test(t) ? t : undefined;
+};
+/** Rue, code postal, ville, et l'adresse complète recomposée (ou l'ancienne adresse d'un seul tenant). */
+function adresseDe(rueV: unknown, cpV: unknown, villeV: unknown, entiere: unknown) {
+  const rue = propre(rueV, 160), code = cp(cpV), ville = propre(villeV, 80);
+  const adresse = rue || code || ville ? composerAdresse(rue, code, ville) : propre(entiere, 240);
+  return { adresse, adresseRue: rue, adresseCp: code, adresseVille: ville };
+}
+
 function nettoyerPersonne(src: Record<string, unknown>): Personne {
   return sansVide({
     civilite: choix(src.civilite, ["M.", "Mme"] as const),
@@ -465,7 +514,7 @@ function nettoyerPersonne(src: Record<string, unknown>): Personne {
     lieuNaissance: propre(src.lieuNaissance, 120),
     nationalite: propre(src.nationalite, 60),
     profession: propre(src.profession, 120),
-    adresse: propre(src.adresse, 240),
+    ...adresseDe(src.adresseRue, src.adresseCp, src.adresseVille, src.adresse),
     tel: tel(src.tel),
     email: mail(src.email),
     lien: propre(src.lien, 80),
@@ -514,7 +563,7 @@ export function nettoyerReponses(kind: KindFiche, entree: unknown): Reponses {
   const specifique =
     kind === "vendeur"
       ? {
-          bienAdresse: propre(s.bienAdresse, 240),
+          ...(({ adresse, adresseRue, adresseCp, adresseVille }) => ({ bienAdresse: adresse, bienRue: adresseRue, bienCp: adresseCp, bienVille: adresseVille }))(adresseDe(s.bienRue, s.bienCp, s.bienVille, s.bienAdresse)),
           bienNature: choix(s.bienNature, NATURES),
           lots: propre(s.lots, 200),
           carrez: propre(s.carrez, 40),
