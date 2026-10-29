@@ -29,13 +29,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { getAll } from "@/lib/store";
+import { getAll, rechargerAffiche } from "@/lib/store";
 import { nomComplet } from "@/lib/format";
 import { themeSuivant, useTheme } from "@/lib/theme";
 import { Fond } from "@/components/Fond";
 import { NOM_ESPACE, choisirEspace, useEspace } from "@/components/espace/espace";
 import { locationSeule } from "@/components/location/bienLocation";
 import { useSuiviRetour } from "@/lib/retour";
+import { synchroGoogle } from "@/lib/googleClient";
 
 export const NAV_VENTE = [
   { href: "/", label: "Accueil", icon: Home },
@@ -92,6 +93,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => setMore(false), [path]);
   useRetoursVisite();
+  // Compte Google connecté : Gmail (leads) et Agenda relus toutes les 5 minutes tant que l'appli est ouverte
+  useEffect(() => {
+    const tour = () => {
+      if (document.visibilityState !== "visible") return;
+      synchroGoogle()
+        .then((b) => b && (b.contactsCrees || b.contactsMisAJour || b.rdvs || b.rdvsAnnules) && rechargerAffiche())
+        .catch(() => 0);
+    };
+    tour();
+    const t = setInterval(tour, 5 * 60_000 + 5_000);
+    document.addEventListener("visibilitychange", tour);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tour);
+    };
+  }, []);
 
   if (path.startsWith("/connexion") || path.startsWith("/imprimer") || path.startsWith("/b/") || path.startsWith("/r/") || path.startsWith("/renseignements/") || path.startsWith("/informations/")) return <>{children}</>;
 
