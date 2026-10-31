@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { notifierCompte } from "@/lib/push-server";
-import { MAX_PERSONNES, manquantsReponses, nettoyerPrenom, nettoyerReponses, type VuePublique } from "@/components/renseignements/dossier";
+import { MAX_GARANTS, MAX_PERSONNES, manquantsReponses, nettoyerPrenom, nettoyerReponses, type VuePublique } from "@/components/renseignements/dossier";
 import { depot, empreinte, ENTETES, jetonValide, nouveauJeton, type DossierServeur, type PersonneServeur } from "@/components/renseignements/serveur";
 
 /* Adresse publique de la fiche de renseignements : ouverte sans compte, avec le
    jeton secret du lien. Elle ne donne accès qu'à UNE personne d'UN dossier :
-   ses propres réponses, le logement (sans le propriétaire) et, pour le
-   candidat principal, les prénoms et l'avancement des autres personnes de
-   son dossier (jamais leurs réponses). Aucune autre donnée du Hub n'est
-   accessible par ici. */
+   ses propres réponses, le logement (sans le propriétaire) et les prénoms et
+   l'avancement (jamais les réponses) : de tout le dossier pour le candidat
+   principal, de ses propres garants pour un colocataire. Aucune autre donnée
+   du Hub n'est accessible par ici. */
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +33,11 @@ function vue(dossier: DossierServeur, moi: PersonneServeur): VuePublique {
     moi: { id: moi.id, role: moi.role, principal: moi.principal, garantDe: moi.garantDe, prenom: moi.prenom, statut: moi.statut, reponses: moi.reponses },
     foyer: moi.principal
       ? dossier.personnes.map(({ id, role, principal, garantDe, prenom, statut }) => ({ id, role, principal, garantDe, prenom, statut }))
-      : // Un garant voit seulement le prénom de la personne qu'il garantit
-        dossier.personnes.filter((p) => p.id === moi.garantDe).map(({ id, role, principal, prenom, statut }) => ({ id, role, principal, prenom, statut })),
+      : moi.role === "colocataire"
+        ? // Un colocataire voit lui-même et ses garants
+          dossier.personnes.filter((p) => p.id === moi.id || p.garantDe === moi.id).map(({ id, role, principal, garantDe, prenom, statut }) => ({ id, role, principal, garantDe, prenom, statut }))
+        : // Un garant voit seulement le prénom de la personne qu'il garantit
+          dossier.personnes.filter((p) => p.id === moi.garantDe).map(({ id, role, principal, prenom, statut }) => ({ id, role, principal, prenom, statut })),
     expire: dossier.expire,
   };
 }
@@ -79,25 +82,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ jeton: 
       return NextResponse.json(maj ? vue(maj.dossier, maj.personne) : { ok: true }, { headers: ENTETES });
     }
 
-    // Le candidat principal organise son dossier : conjoint, colocataires, garants.
-    if (!moi.principal) return refus("Action réservée au candidat principal.", 403);
+    // Le candidat principal organise tout son dossier ; un colocataire, seulement ses propres garants.
+    if (!moi.principal && moi.role !== "colocataire") return refus("Action réservée aux locataires du dossier.", 403);
+    const aMoi = (p?: { id: string; garantDe?: string; principal: boolean }) => !!p && !p.principal && (moi.principal || p.garantDe === moi.id);
     const cible = typeof corps.personneId === "string" ? dossier.personnes.find((p) => p.id === corps.personneId) : undefined;
 
     if (action === "ajouter") {
-      const role = corps.role === "garant" ? "garant" : corps.role === "colocataire" ? "colocataire" : null;
+      const role = corps.role === "garant" ? "garant" : corps.role === "colocataire" && moi.principal ? "colocataire" : null;
       const prenom = nettoyerPrenom(corps.prenom);
       if (!role || !prenom) return refus("Indiquez le prénom de la personne.", 400);
       if (dossier.personnes.length >= MAX_PERSONNES) return refus(`Un dossier compte au plus ${MAX_PERSONNES} personnes.`, 400);
       let garantDe: string | undefined;
       if (role === "garant") {
-        garantDe = dossier.personnes.find((p) => p.id === corps.garantDe && p.role !== "garant")?.id;
+        garantDe = dossier.personnes.find((p) => p.id === corps.garantDe && p.role !== "garant" && (moi.principal || p.id === moi.id))?.id;
         if (!garantDe) return refus("Indiquez pour qui la personne se porte garante.", 400);
+        if (dossier.personnes.filter((p) => p.garantDe === garantDe).length >= MAX_GARANTS) return refus(`Au plus ${MAX_GARANTS} garants par locataire.`, 400);
       }
+      // Seulement civilité, prénom et nom : la personne remplit elle-même le reste
+      const r = nettoyerReponses(corps.reponses);
+      const reponses = Object.fromEntries(Object.entries({ civilite: r.civilite, prenom: r.prenom ?? prenom, nom: r.nom }).filter(([, v]) => v));
       const jeton = nouveauJeton();
-      const id = await d.ajouterPersonne({ dossierId: dossier.id, role, principal: false, garantDe, prenom, empreinte: empreinte(jeton) });
+      const id = await d.ajouterPersonne({ dossierId: dossier.id, role, principal: false, garantDe, prenom, reponses, empreinte: empreinte(jeton) });
       return NextResponse.json({ id, jeton }, { headers: ENTETES });
     }
-    if (!cible || cible.principal) return refus("Personne introuvable dans votre dossier.", 404);
+    if (!cible || !aMoi(cible)) return refus("Personne introuvable dans votre dossier.", 404);
     if (action === "lien") {
       const jeton = nouveauJeton();
       await d.majPersonne(cible.id, { empreinte: empreinte(jeton) });

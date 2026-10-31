@@ -15,7 +15,9 @@ import type { Bien, BienStatut } from "@/lib/types";
 
 type Filtre = "actifs" | "tous" | BienStatut;
 type Mode = "vente" | "location";
-type FiltreLoc = "tous" | StatutLocation;
+type FiltreLoc = "tous" | StatutLocation | "retires";
+/** Retiré de patrim.fr mais pas encore loué : le dossier du candidat se monte encore dans le Hub. */
+const retireDuSite = (b: Bien) => locationDe(b)?.statut === "a_louer" && locationDe(b)?.site?.enLigne === false;
 type Tri = "recent" | "prix_desc" | "prix_asc" | "pm2" | "anciens";
 
 const TRIS: { value: Tri; label: string }[] = [
@@ -73,8 +75,11 @@ export default function BiensPage() {
     return c;
   }, [biensVente]);
   const countsLoc = useMemo(() => {
-    const c: Record<FiltreLoc, number> = { tous: biensLoc.length, a_louer: 0, loue: 0, preavis: 0 };
-    biensLoc.forEach((b) => c[locationDe(b)!.statut]++);
+    const c: Record<FiltreLoc, number> = { tous: biensLoc.length, a_louer: 0, loue: 0, preavis: 0, retires: 0 };
+    biensLoc.forEach((b) => {
+      c[locationDe(b)!.statut]++;
+      if (retireDuSite(b)) c.retires++;
+    });
     return c;
   }, [biensLoc]);
 
@@ -84,7 +89,7 @@ export default function BiensPage() {
     const montant = (b: Bien) => (mode === "location" ? locationDe(b)?.loyer : b.prix);
     const base =
       mode === "location"
-        ? biensLoc.filter((b) => filtreLoc === "tous" || locationDe(b)!.statut === filtreLoc)
+        ? biensLoc.filter((b) => filtreLoc === "tous" || (filtreLoc === "retires" ? retireDuSite(b) : locationDe(b)!.statut === filtreLoc))
         : biensVente.filter((b) => (filtre === "tous" ? true : filtre === "actifs" ? ACTIFS.includes(b.statut) : b.statut === filtre));
     return base
       .filter((b) => !s || norm([b.titre, b.adresse, b.ville, b.quartier, b.codePostal, b.ref, b.mandat?.numero].filter(Boolean).join(" ")).includes(s))
@@ -119,6 +124,7 @@ export default function BiensPage() {
   const tabsLoc = [
     { value: "tous" as FiltreLoc, label: "Tous", count: countsLoc.tous },
     ...(["a_louer", "loue", "preavis"] as StatutLocation[]).map((v) => ({ value: v as FiltreLoc, label: STATUT_LOCATION[v].label, count: countsLoc[v] })),
+    ...(countsLoc.retires ? [{ value: "retires" as FiltreLoc, label: "Retirés du site", count: countsLoc.retires }] : []),
   ];
 
   return (
