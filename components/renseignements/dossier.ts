@@ -100,7 +100,9 @@ export interface VuePublique {
   expire: string;
 }
 
-export const MAX_PERSONNES = 8;
+/** Une colocation de quatre, chacun avec deux garants. */
+export const MAX_PERSONNES = 12;
+export const MAX_GARANTS = 2;
 export const DUREE_LIEN_JOURS = 30;
 /** Dossiers effacés trois mois après leur création (RGPD : candidature non retenue). */
 export const CONSERVATION_JOURS = 90;

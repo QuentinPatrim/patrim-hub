@@ -29,6 +29,10 @@ export function AccueilLocation() {
 
   const loc = useMemo(() => biens.filter(locationSeule), [biens]);
   const aLouer = loc.filter((b) => locationDe(b)?.statut === "a_louer" && locationDe(b)?.site?.enLigne !== false);
+  // Retirés de patrim.fr (souvent : candidat retenu) mais pas encore loués : on y monte encore le dossier
+  const retires = loc
+    .filter((b) => locationDe(b)?.statut === "a_louer" && locationDe(b)?.site?.enLigne === false)
+    .sort((a, b) => (locationDe(b)?.site?.vu ?? "").localeCompare(locationDe(a)?.site?.vu ?? ""));
   const loues = loc.filter((b) => locationDe(b)?.statut !== "a_louer").length;
   const gestion = loc.filter((b) => locationDe(b)?.gestion).length;
   const loyers = aLouer.reduce((s, b) => s + (locationDe(b)?.loyer ?? 0), 0);
@@ -90,6 +94,26 @@ export function AccueilLocation() {
           <p className="card card-pad text-sm text-muted">Aucun bien à louer pour l&apos;instant. Touchez « Actualiser » pour lire les annonces de patrim.fr.</p>
         )}
       </section>
+
+      {retires.length > 0 && (
+        <section>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="h-section">Retirés du site, pas encore loués</h2>
+            <span className="text-sm text-muted">{retires.length}</span>
+          </div>
+          <p className="mb-3 text-sm text-muted">L&apos;annonce n&apos;est plus sur patrim.fr, mais le bien reste ici pour monter le dossier : fiche de renseignements, bail, caution. Il passe en « Loué » tout seul quand le bail est signé dans le Hub.</p>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {retires.slice(0, 6).map((b, i) => (
+              <BienCard key={b.id} bien={b} matches={0} index={i} location />
+            ))}
+          </div>
+          {retires.length > 6 && (
+            <Link href="/biens" className="link mt-3 inline-flex text-sm">
+              Voir les {retires.length} biens retirés <ArrowRight size={14} />
+            </Link>
+          )}
+        </section>
+      )}
     </div>
   );
 }

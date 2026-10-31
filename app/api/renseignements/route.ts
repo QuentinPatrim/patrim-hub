@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { roleEquipe, utilisateur } from "@/lib/auth-server";
-import { DUREE_LIEN_JOURS, CONSERVATION_JOURS, MAX_PERSONNES, nettoyerPieces, nettoyerPrenom, nettoyerReponses, type LogementPublic, type Reponses } from "@/components/renseignements/dossier";
+import { DUREE_LIEN_JOURS, CONSERVATION_JOURS, MAX_GARANTS, MAX_PERSONNES, nettoyerPieces, nettoyerPrenom, nettoyerReponses, type LogementPublic, type Reponses } from "@/components/renseignements/dossier";
 import { depot, empreinte, ENTETES, nouveauJeton, type DossierServeur } from "@/components/renseignements/serveur";
 
 /* Dossiers de renseignements, côté conseiller (compte de l'équipe obligatoire).
@@ -121,6 +121,7 @@ export async function POST(req: Request) {
       if (dossier.personnes.length >= MAX_PERSONNES) return refus(`Un dossier compte au plus ${MAX_PERSONNES} personnes.`, 400);
       const garantDe = role === "garant" ? dossier.personnes.find((p) => p.id === corps.garantDe && p.role !== "garant")?.id : undefined;
       if (role === "garant" && !garantDe) return refus("Indiquez pour qui la personne se porte garante.", 400);
+      if (garantDe && dossier.personnes.filter((p) => p.garantDe === garantDe).length >= MAX_GARANTS) return refus(`Au plus ${MAX_GARANTS} garants par locataire.`, 400);
       const jeton = nouveauJeton();
       const id = await d.ajouterPersonne({ dossierId: dossier.id, role, principal: false, garantDe, prenom, reponses: prerempli(corps.reponses), empreinte: empreinte(jeton) });
       return NextResponse.json({ id, jeton }, { headers: ENTETES });

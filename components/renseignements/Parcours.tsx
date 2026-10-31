@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, FolderCheck, Lock, Phone, Plus, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Clock, FolderCheck, Home, Lock, PenLine, Phone, Plus, ShieldCheck, UserPlus, UserRound, Users, X } from "lucide-react";
 import { cx, Field } from "@/components/ui";
 import { PartageLien } from "./Partage";
 import {
@@ -34,7 +35,9 @@ const eur = (n?: number) => (n == null ? "" : `${n.toLocaleString("fr-FR", { max
 const dateFr = (ymd?: string) => (ymd ? new Date(ymd + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "");
 const CLE_LIENS = "patrim-renseignements:liens";
 
-type Ecran = "accueil" | "fiche" | "merci" | "foyer";
+type Ecran = "accueil" | "fiche" | "merci";
+/** Formulaire d'ajout ouvert sur l'accueil : un colocataire, un garant (pour qui), ou le choix des deux. */
+type Ajout = null | "choix" | "colocataire" | "garant";
 const ETAPES = ["Identité", "Coordonnées", "Situation", "Travail et revenus", "Vérification"] as const;
 
 function lireLiens(): Record<string, string> {
@@ -63,6 +66,7 @@ export function Parcours({ jeton }: { jeton: string }) {
     } else setEcran(p);
   });
   const [r, setR] = useState<Reponses>({});
+  const [ajout, setAjout] = useState<Ajout>(null);
   const [envoi, setEnvoi] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -154,6 +158,9 @@ export function Parcours({ jeton }: { jeton: string }) {
               </div>
               <div className="font-serif text-lg font-semibold leading-tight">{ETAPES[etape]}</div>
             </div>
+            <button type="button" className="btn-ghost btn-sm !h-10 shrink-0" onClick={() => aller("accueil")}>
+              <Home size={15} /> Mon dossier
+            </button>
           </div>
           <div className="mt-3 flex gap-1">
             {ETAPES.map((e, i) => (
@@ -202,54 +209,49 @@ export function Parcours({ jeton }: { jeton: string }) {
       </Cadre>
     );
 
+  // Le candidat principal organise tout le dossier ; un colocataire ajoute ses propres garants
+  const organise = moi.principal || moi.role === "colocataire";
+  const recharger = async () => setVue((await appeler()) as unknown as VuePublique);
+
   if (ecran === "merci")
     return (
       <Cadre>
+        <Retour />
         <div className="card card-pad mt-6 text-center animate-fade-up">
           <span className="mx-auto grid size-14 place-items-center rounded-full bg-ok/15 text-ok">
             <Check size={28} />
           </span>
           <h1 className="mt-4 font-serif text-2xl font-semibold">Merci {r.prenom || moi.prenom} !</h1>
           <p className="mt-2 text-sm text-muted">Votre fiche est bien arrivée chez votre conseiller PATRIM. Vous pourrez encore la corriger avec ce même lien.</p>
-          {moi.principal ? (
-            <div className="mt-5 space-y-2">
-              <button type="button" className="btn-primary w-full !h-12" onClick={() => aller("foyer")}>
-                <Users size={17} /> Ajouter conjoint, colocataire ou garant
+          <div className="mt-5 space-y-2">
+            {organise && (
+              <button
+                type="button"
+                className="btn-primary w-full !h-12"
+                onClick={() => {
+                  setAjout(moi.principal ? "choix" : "garant");
+                  aller("accueil");
+                }}
+              >
+                <Users size={17} /> {moi.principal ? "Ajouter un colocataire ou un garant" : "Ajouter mon garant"}
               </button>
-              <button type="button" className="btn-ghost w-full !h-11" onClick={() => aller("accueil")}>
-                Revenir à mon dossier
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="btn-secondary mt-5 w-full !h-11" onClick={() => aller("accueil")}>
-              Revenir à ma fiche
+            )}
+            <button type="button" className={cx("w-full !h-11", organise ? "btn-ghost" : "btn-secondary")} onClick={() => aller("accueil")}>
+              <Home size={16} /> Revenir à mon dossier
             </button>
-          )}
+          </div>
         </div>
         <Pieces vue={vue} />
       </Cadre>
     );
 
-  if (ecran === "foyer" && moi.principal)
-    return (
-      <Cadre>
-        <div className="flex items-center gap-3 pt-[max(12px,env(safe-area-inset-top))]">
-          <button type="button" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-muted" aria-label="Retour" onClick={() => aller("accueil")}>
-            <ArrowLeft size={18} />
-          </button>
-          <div className="font-serif text-xl font-semibold">Les personnes du dossier</div>
-        </div>
-        <Foyer vue={vue} appeler={appeler} recharger={async () => setVue((await appeler()) as unknown as VuePublique)} />
-      </Cadre>
-    );
-
-  /* ---------- Accueil ---------- */
-  const autres = foyer.filter((p) => p.id !== moi.id);
+  /* ---------- Accueil : ma fiche et toutes les personnes du dossier ---------- */
   const v0 = moi.reponses ?? {};
   const salut = v0.nom && v0.civilite ? `${v0.civilite === "M." ? "Monsieur" : "Madame"} ${v0.nom.toUpperCase()}` : v0.prenom || moi.prenom;
   const dejaRempli = moi.statut === "a_remplir" && Object.keys(v0).length > 0;
   return (
     <Cadre>
+      <Retour />
       <Entete vue={vue} />
       <div className="mt-5 space-y-3 animate-fade-up">
         <p className="text-sm text-muted">
@@ -262,26 +264,50 @@ export function Parcours({ jeton }: { jeton: string }) {
         )}
         <Tuile
           n={1}
-          titre={moi.principal ? "Vos renseignements" : `Vos renseignements · ${role}`}
-          texte={moi.statut === "termine" ? "Fiche envoyée. Touchez pour la corriger." : moi.statut === "en_cours" ? "Commencée : reprenez où vous en étiez." : "Identité, coordonnées, situation, revenus."}
+          titre={moi.principal ? "Ma fiche" : `Ma fiche · ${role}`}
+          texte={moi.statut === "termine" ? "Fiche envoyée. Touchez pour la relire ou la corriger." : moi.statut === "en_cours" ? "Commencée : reprenez où vous en étiez." : "Identité, coordonnées, situation, revenus."}
           statut={moi.statut}
           onClick={() => {
             aller(moi.statut === "termine" ? ETAPES.length - 1 : 0);
           }}
         />
-        {moi.principal && (
-          <Tuile
-            n={2}
-            titre="Conjoint, colocataires et garants"
-            texte={autres.length ? `${autres.length} personne${autres.length > 1 ? "s" : ""} ajoutée${autres.length > 1 ? "s" : ""} · ${autres.filter((p) => p.statut === "termine").length} fiche(s) reçue(s)` : "Chacun reçoit son propre lien et remplit sa fiche."}
-            statut={autres.length && autres.every((p) => p.statut === "termine") ? "termine" : autres.length ? "en_cours" : "a_remplir"}
-            onClick={() => aller("foyer")}
-          />
-        )}
       </div>
+      {organise && <Foyer vue={vue} appeler={appeler} recharger={recharger} ajout={ajout} setAjout={setAjout} />}
       <Pieces vue={vue} />
       <Confidentialite conseiller={vue.logement.conseiller} expire={vue.expire} />
     </Cadre>
+  );
+}
+
+/* ---------- Retour au dossier de départ ----------
+   « Remplir sa fiche ici » ouvre le lien d'une autre personne sur le même
+   appareil (un couple qui remplit ensemble) : un bandeau ramène au dossier
+   d'où l'on vient. */
+
+const CLE_RETOUR = "patrim-renseignements:retour";
+type RetourDossier = { jeton: string; prenom: string };
+function lireRetour(): RetourDossier | null {
+  try {
+    return JSON.parse(sessionStorage.getItem(CLE_RETOUR) ?? "null") as RetourDossier | null;
+  } catch {
+    return null;
+  }
+}
+function garderRetour(x: RetourDossier) {
+  try {
+    sessionStorage.setItem(CLE_RETOUR, JSON.stringify(x));
+  } catch {}
+}
+
+function Retour() {
+  const { jeton } = useParams<{ jeton: string }>();
+  const [r, setR] = useState<RetourDossier | null>(null);
+  useEffect(() => setR(lireRetour()), []);
+  if (!r || r.jeton === jeton) return null;
+  return (
+    <a href={`/renseignements/${r.jeton}`} className="-mx-4 flex min-h-12 items-center gap-2 bg-brand px-4 pt-[env(safe-area-inset-top)] text-sm font-medium text-white">
+      <ArrowLeft size={16} /> Revenir au dossier{r.prenom ? ` de ${r.prenom}` : ""}
+    </a>
   );
 }
 
@@ -596,21 +622,62 @@ function EtapeVerification({ r, setR, manque, allerA }: PropsEtape & { manque: s
   );
 }
 
-/* ---------- Conjoint, colocataires, garants (candidat principal) ---------- */
+/* ---------- Les personnes du dossier ----------
+   Sur l'accueil : chaque locataire avec ses garants, leur avancement, et
+   l'ajout en un geste (« + Garant pour Marie »). Le candidat principal voit
+   et organise tout le dossier ; un colocataire, lui-même et ses garants. */
 
-function Foyer({ vue, appeler, recharger }: { vue: VuePublique; appeler: (c?: unknown) => Promise<Record<string, unknown>>; recharger: () => Promise<void> }) {
+const MAX_GARANTS = 2;
+
+function Foyer({
+  vue,
+  appeler,
+  recharger,
+  ajout,
+  setAjout,
+}: {
+  vue: VuePublique;
+  appeler: (c?: unknown) => Promise<Record<string, unknown>>;
+  recharger: () => Promise<void>;
+  ajout: Ajout;
+  setAjout: (a: Ajout) => void;
+}) {
   const foyer = vue.foyer ?? [];
+  const moi = vue.moi;
+  const { jeton: monJeton } = useParams<{ jeton: string }>();
   const [liens, setLiens] = useState<Record<string, string>>({});
   const [ouvert, setOuvert] = useState<string | null>(null);
-  const [ajout, setAjout] = useState<"colocataire" | "garant" | null>(null);
-  const [prenom, setPrenom] = useState("");
   const [pour, setPour] = useState<string | undefined>();
+  const [civilite, setCivilite] = useState<Reponses["civilite"]>();
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => setLiens(lireLiens()), []);
 
+  const moiPrenom = moi.reponses?.prenom || moi.prenom;
   const locataires = foyer.filter((p) => p.role !== "garant");
-  const moiPrenom = vue.moi.reponses?.prenom || vue.moi.prenom;
+  const garantsDe = (id: string) => foyer.filter((g) => g.role === "garant" && g.garantDe === id);
+  const peutGarant = (l: { id: string }) => (moi.principal || l.id === moi.id) && garantsDe(l.id).length < MAX_GARANTS;
+
+  // Formulaire ouvert depuis l'écran « Merci » : on descend jusqu'aux personnes du dossier
+  useEffect(() => {
+    if (ajout === "garant" && !pour) setPour(moi.principal && locataires.length > 1 ? undefined : moi.id);
+    if (!ajout) return;
+    const t = setTimeout(() => document.getElementById("personnes-dossier")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ajout]);
+
+  const fermer = () => {
+    setAjout(null);
+    setPour(undefined);
+    setCivilite(undefined);
+    setPrenom("");
+    setNom("");
+    setErr(null);
+  };
+
   const action = async (corps: Record<string, unknown>) => {
     setBusy(true);
     setErr(null);
@@ -631,9 +698,8 @@ function Foyer({ vue, appeler, recharger }: { vue: VuePublique; appeler: (c?: un
     }
   };
 
-  const groupes = locataires.map((l) => ({ l, garants: foyer.filter((g) => g.role === "garant" && g.garantDe === l.id) }));
-  const ligne = (p: Omit<PersonneDossier, "reponses">) => {
-    const estMoi = p.id === vue.moi.id;
+  const ligne = (p: Omit<PersonneDossier, "reponses">, garant = false) => {
+    const estMoi = p.id === moi.id;
     const jeton = liens[p.id];
     const url = jeton ? `${window.location.origin}/renseignements/${jeton}` : "";
     const de = foyer.find((x) => x.id === p.garantDe)?.prenom;
@@ -643,43 +709,39 @@ function Foyer({ vue, appeler, recharger }: { vue: VuePublique; appeler: (c?: un
         ? `Pour notre dossier de location auprès de l'agence PATRIM, peux-tu remplir ta fiche de garant${de ? ` (pour ${de})` : ""} ici :`
         : "Pour notre dossier de location auprès de l'agence PATRIM, peux-tu remplir ta fiche de renseignements ici :",
       url,
-      "C'est rapide et sécurisé. Merci !",
+      "C'est rapide, sur téléphone ou ordinateur. Merci !",
       moiPrenom,
     ].join("\n");
     return (
-      <div key={p.id} className={cx("py-3", p.role === "garant" && "pl-4")}>
+      <div key={p.id} className={cx("py-3", garant && "ml-5 border-l-2 border-line pl-4")}>
         <div className="flex items-center gap-3">
-          <span className={cx("grid size-9 shrink-0 place-items-center rounded-full text-xs font-semibold", p.role === "garant" ? "bg-accent/10 text-accent" : "bg-brand/10 text-brand")}>
-            {p.role === "garant" ? <ShieldCheck size={16} /> : (p.prenom[0] ?? "?").toUpperCase()}
+          <span className={cx("grid size-9 shrink-0 place-items-center rounded-full text-xs font-semibold", garant ? "bg-accent/10 text-accent" : "bg-brand/10 text-brand")}>
+            {garant ? <ShieldCheck size={16} /> : (p.prenom[0] ?? "?").toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{estMoi ? `${p.prenom || "Vous"} (vous)` : p.prenom}</div>
-            <div className="text-xs text-muted">{rolePersonne(p, foyer)}</div>
+            <div className="truncate font-medium">{estMoi ? `${moiPrenom || "Vous"} (vous)` : p.prenom}</div>
+            <div className="text-xs text-muted">{garant ? "Garant" : p.principal ? "Locataire" : "Conjoint ou colocataire"}</div>
           </div>
           <Statut s={p.statut} />
         </div>
-        {!estMoi && (
+        {!estMoi && p.statut !== "termine" && (
           <div className="mt-2 flex flex-wrap gap-2 pl-12">
-            {p.statut !== "termine" && (
-              <button type="button" className="btn-secondary btn-sm !h-9" disabled={busy} onClick={() => (jeton ? setOuvert(ouvert === p.id ? null : p.id) : action({ action: "lien", personneId: p.id }))}>
-                {jeton ? "Envoyer son lien" : "Créer son lien"}
-              </button>
-            )}
-            {jeton && p.statut !== "termine" && (
-              <a className="btn-ghost btn-sm !h-9" href={`/renseignements/${jeton}`}>
-                Remplir sa fiche ici
+            <button type="button" className="btn-secondary btn-sm !h-9" disabled={busy} onClick={() => (jeton ? setOuvert(ouvert === p.id ? null : p.id) : action({ action: "lien", personneId: p.id }))}>
+              {jeton ? "Envoyer son lien" : "Créer son lien"}
+            </button>
+            {jeton && (
+              <a className="btn-ghost btn-sm !h-9" href={`/renseignements/${jeton}`} onClick={() => garderRetour({ jeton: monJeton, prenom: moiPrenom })}>
+                <PenLine size={14} /> Remplir sa fiche ici
               </a>
             )}
-            {p.statut !== "termine" && (
-              <button type="button" className="btn-ghost btn-sm !h-9 text-muted" disabled={busy} onClick={() => confirm(`Retirer ${p.prenom} du dossier ?`) && action({ action: "retirer", personneId: p.id })}>
-                <X size={14} /> Retirer
-              </button>
-            )}
+            <button type="button" className="btn-ghost btn-sm !h-9 text-muted" disabled={busy} onClick={() => confirm(`Retirer ${p.prenom} du dossier ?`) && action({ action: "retirer", personneId: p.id })}>
+              <X size={14} /> Retirer
+            </button>
           </div>
         )}
         {ouvert === p.id && jeton && (
           <div className="mt-3 rounded-2xl bg-surface-2 p-3 animate-fade-up">
-            <p className="mb-2 text-xs text-muted">Envoyez ce lien à {p.prenom} : il est personnel et ne montre que sa propre fiche.</p>
+            <p className="mb-2 text-xs text-muted">Envoyez ce lien à {p.prenom} : il est personnel et ne montre que sa propre fiche. Ou remplissez-la ici avec lui.</p>
             <PartageLien texte={texte} sujet="Fiche de renseignements PATRIM" url={url} />
           </div>
         )}
@@ -687,77 +749,105 @@ function Foyer({ vue, appeler, recharger }: { vue: VuePublique; appeler: (c?: un
     );
   };
 
+  const formulaire = (role: "colocataire" | "garant") => (
+    <div className="card card-pad space-y-3 animate-fade-up">
+      <div className="font-semibold">{role === "garant" ? `Ajouter un garant${pour ? ` pour ${pour === moi.id ? "vous" : foyer.find((x) => x.id === pour)?.prenom}` : ""}` : "Ajouter un conjoint ou colocataire"}</div>
+      {role === "garant" && !pour && (
+        <div>
+          <span className="label">Garant de</span>
+          <Choix items={locataires.filter(peutGarant).map((l) => ({ v: l.id, label: l.id === moi.id ? `${moiPrenom || "Vous"} (vous)` : l.prenom }))} value={pour} onChange={setPour} />
+        </div>
+      )}
+      <Choix items={[{ v: "Mme" as const, label: "Madame" }, { v: "M." as const, label: "Monsieur" }]} value={civilite} onChange={setCivilite} />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Prénom">
+          <input className="input !h-12 !text-base" value={prenom} onChange={(e) => setPrenom(e.target.value)} autoComplete="off" />
+        </Field>
+        <Field label="Nom">
+          <input className="input !h-12 !text-base" value={nom} onChange={(e) => setNom(e.target.value)} autoComplete="off" />
+        </Field>
+      </div>
+      {err && <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{err}</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn-ghost flex-1 !h-11" onClick={fermer}>
+          Annuler
+        </button>
+        <button
+          type="button"
+          className="btn-primary flex-1 !h-11"
+          disabled={busy || !prenom.trim() || (role === "garant" && !pour)}
+          onClick={async () => {
+            const ok = await action({ action: "ajouter", role, prenom, garantDe: role === "garant" ? pour : undefined, reponses: { civilite, prenom: prenom.trim(), nom: nom.trim() || undefined } });
+            if (ok) fermer();
+          }}
+        >
+          <Plus size={16} /> Ajouter
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="mt-4 space-y-4 animate-fade-up">
-      <p className="text-sm text-muted">Chaque personne reçoit son propre lien et remplit sa fiche en ligne, sur téléphone ou ordinateur. Vous voyez ici qui a terminé, jamais leurs réponses.</p>
-      <div className="card card-pad !py-1 divide-y divide-line/70">
-        {groupes.map(({ l, garants }) => (
-          <div key={l.id}>
+    <section id="personnes-dossier" className="mt-6 scroll-mt-4 animate-fade-up">
+      <div className="mb-2 flex items-end justify-between gap-3">
+        <h2 className="font-serif text-lg font-semibold">{moi.principal ? "Les personnes du dossier" : "Mes garants"}</h2>
+        <span className="text-xs text-muted">
+          {foyer.filter((p) => p.statut === "termine").length}/{foyer.length} fiche{foyer.length > 1 ? "s" : ""} reçue{foyer.length > 1 ? "s" : ""}
+        </span>
+      </div>
+      <p className="mb-3 text-sm text-muted">
+        {moi.principal
+          ? "Chaque colocataire et chaque garant reçoit son propre lien et remplit sa fiche. Vous voyez ici qui a terminé, jamais leurs réponses."
+          : "Chaque garant reçoit son propre lien et remplit sa fiche. Vous voyez ici s'il a terminé, jamais ses réponses."}
+      </p>
+      <div className="space-y-3">
+        {locataires.map((l) => (
+          <div key={l.id} className="card card-pad !py-1">
             {ligne(l)}
-            {garants.map(ligne)}
+            {garantsDe(l.id).map((g) => ligne(g, true))}
+            {peutGarant(l) && ajout !== "garant" && (
+              <button
+                type="button"
+                className="mb-2 ml-5 flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-accent hover:bg-surface-2"
+                onClick={() => {
+                  setPour(l.id);
+                  setAjout("garant");
+                }}
+              >
+                <ShieldCheck size={15} /> {garantsDe(l.id).length ? "Un second garant" : "Ajouter un garant"} pour {l.id === moi.id ? "vous" : l.prenom}
+              </button>
+            )}
           </div>
         ))}
       </div>
-      {err && <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{err}</p>}
-
-      {ajout ? (
-        <div className="card card-pad space-y-3 animate-fade-up">
-          <div className="font-semibold">{ajout === "garant" ? "Ajouter un garant" : "Ajouter un conjoint ou colocataire"}</div>
-          <Field label="Son prénom">
-            <input className="input !h-12 !text-base" value={prenom} onChange={(e) => setPrenom(e.target.value)} autoFocus />
-          </Field>
-          {ajout === "garant" && (
-            <div>
-              <span className="label">Garant de</span>
-              <Choix items={locataires.map((l) => ({ v: l.id, label: l.id === vue.moi.id ? `${l.prenom || "Vous"} (vous)` : l.prenom }))} value={pour} onChange={setPour} />
-            </div>
-          )}
-          <div className="flex gap-2">
-            <button type="button" className="btn-ghost flex-1 !h-11" onClick={() => setAjout(null)}>
-              Annuler
+      <div className="mt-3">
+        {ajout === "garant" ? (
+          formulaire("garant")
+        ) : ajout === "colocataire" ? (
+          formulaire("colocataire")
+        ) : moi.principal ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" className="btn-secondary !h-12" onClick={() => setAjout("colocataire")}>
+              <UserPlus size={17} /> Conjoint ou colocataire
             </button>
             <button
               type="button"
-              className="btn-primary flex-1 !h-11"
-              disabled={busy || !prenom.trim() || (ajout === "garant" && !pour)}
-              onClick={async () => {
-                if (await action({ action: "ajouter", role: ajout, prenom, garantDe: pour })) {
-                  setAjout(null);
-                  setPrenom("");
-                }
+              className="btn-secondary !h-12"
+              disabled={!locataires.some(peutGarant)}
+              onClick={() => {
+                setPour(locataires.filter(peutGarant).length === 1 ? locataires.find(peutGarant)!.id : undefined);
+                setAjout("garant");
               }}
             >
-              <Plus size={16} /> Ajouter
+              <ShieldCheck size={17} /> Garant
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            className="btn-secondary !h-12"
-            onClick={() => {
-              setAjout("colocataire");
-              setPour(undefined);
-            }}
-          >
-            <Users size={17} /> Conjoint ou colocataire
-          </button>
-          <button
-            type="button"
-            className="btn-secondary !h-12"
-            onClick={() => {
-              setAjout("garant");
-              setPour(locataires.length === 1 ? locataires[0].id : undefined);
-            }}
-          >
-            <ShieldCheck size={17} /> Garant
-          </button>
-        </div>
-      )}
-      <p className="flex items-center gap-1.5 text-xs text-muted">
+        ) : null}
+      </div>
+      {err && !ajout && <p className="mt-3 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">{err}</p>}
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
         <Clock size={12} /> Un lien perdu ? « Créer son lien » en fait un nouveau, l&apos;ancien ne marche plus.
       </p>
-    </div>
+    </section>
   );
 }
