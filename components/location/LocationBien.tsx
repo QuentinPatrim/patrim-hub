@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Building2, ClipboardList, KeyRound, Pencil, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Building2, ClipboardList, FolderKanban, KeyRound, Pencil, ShieldCheck, UserPlus, X } from "lucide-react";
 import { ContactPicker } from "@/components/estimations/blocks";
 import { Badge, Card, Field, Sheet } from "@/components/ui";
 import { NumInput } from "@/components/contacts/CriteresEditor";
@@ -39,7 +39,10 @@ export function LocationBien({ b }: { b: Bien }) {
         <ShieldCheck size={16} /> Caution
       </Link>
       <Link href={`/biens/${b.id}/gestion`} className="btn-secondary !h-11 !justify-start">
-        <Building2 size={16} /> Gestion
+        <Building2 size={16} /> Mandat de gestion
+      </Link>
+      <Link href={`/gestion/${b.id}`} className="btn-secondary !h-11 !justify-start col-span-2">
+        <FolderKanban size={16} /> Relocation : du préavis à la caution
       </Link>
     </div>
   );

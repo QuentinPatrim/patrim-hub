@@ -8,6 +8,7 @@ import { useCollection } from "@/lib/store";
 import { dateLongue, eur } from "@/lib/format";
 import { useMoi } from "@/lib/equipe";
 import { ActualiserLocations } from "./Actualiser";
+import { ResumeGestion } from "@/components/relocation/ResumeGestion";
 import { locationDe, locationSeule } from "./bienLocation";
 
 /* Accueil du Hub Location : biens à louer (communs à toute l'équipe), actualisation depuis patrim.fr, raccourcis. */
@@ -63,6 +64,8 @@ export function AccueilLocation() {
           </div>
         </div>
       </section>
+
+      <ResumeGestion biens={biens} />
 
       <ActualiserLocations />
 
