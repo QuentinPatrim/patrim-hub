@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { roleEquipe, utilisateur } from "@/lib/auth-server";
 import { cleServiceSupabase } from "@/lib/env";
 import { photosDansPage } from "@/lib/patrim-site";
-import { bienDepuisAnnonce, horsLigne, refSite, type AnnonceLocation, type BilanActualisation } from "@/components/location/site";
+import { bienDepuisAnnonce, horsLigne, memeLogement, refSite, type AnnonceLocation, type BilanActualisation } from "@/components/location/site";
 import type { BienLocation } from "@/components/location/bienLocation";
 import type { BienType, ClasseDpe } from "@/lib/types";
 
@@ -108,7 +108,9 @@ async function synchroniser(): Promise<NextResponse> {
   if (!proprio) return NextResponse.json({ error: "Aucun titulaire dans l'équipe" }, { status: 500 });
 
   const existants = new Map<string, { id: string; user_id: string; data: BienLocation }>();
+  const sansAnnonce = new Map<string, { id: string; user_id: string; data: BienLocation }>();
   for (const r of (rows ?? []) as { id: string; user_id: string; data: BienLocation }[]) {
+    if (!refSite(r.data)) sansAnnonce.set(r.id, r);
     const ref = refSite(r.data);
     if (ref) existants.set(ref, r);
   }
@@ -116,7 +118,15 @@ async function synchroniser(): Promise<NextResponse> {
   const bilan: BilanActualisation = { ajoutes: 0, misAJour: 0, horsLigne: 0, total: annonces.length };
   const ecrire: { id: string; user_id: string; kind: string; data: BienLocation; updated_at: string }[] = [];
   for (const a of annonces) {
-    const avant = existants.get(a.ref);
+    // Même référence, sinon le même logement suivi avant sa mise en ligne (liste loc, Gestion)
+    let avant = existants.get(a.ref);
+    if (!avant) {
+      const m = memeLogement(a, [...sansAnnonce.values()].map((r) => ({ ...r.data, id: r.id })));
+      if (m) {
+        avant = sansAnnonce.get(m.id);
+        sansAnnonce.delete(m.id);
+      }
+    }
     const id = avant?.id ?? crypto.randomUUID();
     const data = { ...bienDepuisAnnonce(a, avant?.data, now), id, createdAt: avant?.data.createdAt ?? now, updatedAt: now } as BienLocation;
     ecrire.push({ id, user_id: avant?.user_id ?? proprio, kind: "biens", data, updated_at: now });

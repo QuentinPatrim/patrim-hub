@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, Building2, FileSignature, KeyRound, Megaphone, Plus, Search, X } from "lucide-react";
-import { Empty, PageHeader, Tabs } from "@/components/ui";
+import { Empty, PageHeader, Tabs, cx } from "@/components/ui";
+import { GROUPES_TYPE, groupeType, type GroupeType } from "@/components/relocation/relocation";
 import { BienCard, BienCardSkeleton } from "@/components/biens/BienCard";
 import { STATUTS, acquereursCompatibles, prixM2 } from "@/components/biens/utils";
 import { STATUT_LOCATION, locationDe, locationSeule, type StatutLocation } from "@/components/location/bienLocation";
@@ -16,6 +17,7 @@ import type { Bien, BienStatut } from "@/lib/types";
 type Filtre = "actifs" | "tous" | BienStatut;
 type Mode = "vente" | "location";
 type FiltreLoc = "tous" | StatutLocation | "retires";
+type FiltreType = "tous" | GroupeType;
 /** Retiré de patrim.fr mais pas encore loué : le dossier du candidat se monte encore dans le Hub. */
 const retireDuSite = (b: Bien) => locationDe(b)?.statut === "a_louer" && locationDe(b)?.site?.enLigne === false;
 type Tri = "recent" | "prix_desc" | "prix_asc" | "pm2" | "anciens";
@@ -39,6 +41,7 @@ export default function BiensPage() {
   const [tri, setTri] = useState<Tri>("recent");
   const mode: Mode = useEspace() === "location" ? "location" : "vente";
   const [filtreLoc, setFiltreLoc] = useState<FiltreLoc>("tous");
+  const [typeLoc, setTypeLoc] = useState<FiltreType>("tous");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -48,13 +51,14 @@ export default function BiensPage() {
       if (saved.filtre) setFiltre(saved.filtre);
       if (saved.tri) setTri(saved.tri);
       if (saved.filtreLoc) setFiltreLoc(saved.filtreLoc);
+      if (saved.typeLoc) setTypeLoc(saved.typeLoc);
     } catch {}
   }, []);
   useEffect(() => {
     try {
-      sessionStorage.setItem("patrim-hub:biens-vue", JSON.stringify({ filtre, tri, filtreLoc }));
+      sessionStorage.setItem("patrim-hub:biens-vue", JSON.stringify({ filtre, tri, filtreLoc, typeLoc }));
     } catch {}
-  }, [filtre, tri, filtreLoc]);
+  }, [filtre, tri, filtreLoc, typeLoc]);
 
   // Hub Transaction : les biens en vente. Hub Location : les biens à louer, communs à toute l'équipe.
   const biensVente = useMemo(() => biens.filter((b) => !locationSeule(b)), [biens]);
@@ -75,7 +79,7 @@ export default function BiensPage() {
     return c;
   }, [biensVente]);
   const countsLoc = useMemo(() => {
-    const c: Record<FiltreLoc, number> = { tous: biensLoc.length, a_louer: 0, loue: 0, preavis: 0, retires: 0 };
+    const c: Record<FiltreLoc, number> = { tous: biensLoc.length, a_louer: 0, en_attente: 0, loue: 0, preavis: 0, retires: 0 };
     biensLoc.forEach((b) => {
       c[locationDe(b)!.statut]++;
       if (retireDuSite(b)) c.retires++;
@@ -89,7 +93,9 @@ export default function BiensPage() {
     const montant = (b: Bien) => (mode === "location" ? locationDe(b)?.loyer : b.prix);
     const base =
       mode === "location"
-        ? biensLoc.filter((b) => filtreLoc === "tous" || (filtreLoc === "retires" ? retireDuSite(b) : locationDe(b)!.statut === filtreLoc))
+        ? biensLoc
+            .filter((b) => filtreLoc === "tous" || (filtreLoc === "retires" ? retireDuSite(b) : locationDe(b)!.statut === filtreLoc))
+            .filter((b) => typeLoc === "tous" || groupeType(b) === typeLoc)
         : biensVente.filter((b) => (filtre === "tous" ? true : filtre === "actifs" ? ACTIFS.includes(b.statut) : b.statut === filtre));
     return base
       .filter((b) => !s || norm([b.titre, b.adresse, b.ville, b.quartier, b.codePostal, b.ref, b.mandat?.numero].filter(Boolean).join(" ")).includes(s))
@@ -107,7 +113,13 @@ export default function BiensPage() {
             return b.createdAt.localeCompare(a.createdAt);
         }
       });
-  }, [biensVente, biensLoc, mode, q, filtre, filtreLoc, tri]);
+  }, [biensVente, biensLoc, mode, q, filtre, filtreLoc, typeLoc, tri]);
+
+  // Types présents parmi les biens à louer (selon l'onglet de statut choisi)
+  const typesLoc = useMemo(() => {
+    const base = biensLoc.filter((b) => filtreLoc === "tous" || (filtreLoc === "retires" ? retireDuSite(b) : locationDe(b)!.statut === filtreLoc));
+    return GROUPES_TYPE.map((g) => ({ g, n: base.filter((b) => groupeType(b) === g).length })).filter((x) => x.n);
+  }, [biensLoc, filtreLoc]);
 
   const enVente = biensVente.filter((b) => b.statut === "en_vente" || b.statut === "mandat_signe");
   const valeur = enVente.reduce((s, b) => s + (b.prix ?? 0), 0);
@@ -120,10 +132,10 @@ export default function BiensPage() {
   ];
 
   const enGestion = biensLoc.filter((b) => locationDe(b)!.gestion).length;
-  const loyersGeres = biensLoc.filter((b) => locationDe(b)!.gestion && locationDe(b)!.statut !== "a_louer").reduce((s, b) => s + (locationDe(b)!.loyer ?? 0), 0);
+  const loyersGeres = biensLoc.filter((b) => locationDe(b)!.gestion && ["loue", "preavis"].includes(locationDe(b)!.statut)).reduce((s, b) => s + (locationDe(b)!.loyer ?? 0), 0);
   const tabsLoc = [
     { value: "tous" as FiltreLoc, label: "Tous", count: countsLoc.tous },
-    ...(["a_louer", "loue", "preavis"] as StatutLocation[]).map((v) => ({ value: v as FiltreLoc, label: STATUT_LOCATION[v].label, count: countsLoc[v] })),
+    ...(["a_louer", "en_attente", "preavis", "loue"] as StatutLocation[]).filter((v) => v !== "en_attente" || countsLoc.en_attente).map((v) => ({ value: v as FiltreLoc, label: STATUT_LOCATION[v].label, count: countsLoc[v] })),
     ...(countsLoc.retires ? [{ value: "retires" as FiltreLoc, label: "Retirés du site", count: countsLoc.retires }] : []),
   ];
 
@@ -199,6 +211,15 @@ export default function BiensPage() {
             </label>
           </div>
           {mode === "location" ? <Tabs value={filtreLoc} onChange={setFiltreLoc} items={tabsLoc} /> : <Tabs value={filtre} onChange={setFiltre} items={tabs} />}
+          {mode === "location" && typesLoc.length > 1 && (
+            <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 pt-1">
+              {[{ g: "tous" as FiltreType, n: typesLoc.reduce((s, x) => s + x.n, 0) }, ...typesLoc].map(({ g, n }) => (
+                <button key={g} onClick={() => setTypeLoc(g)} className={cx("chip !h-9 shrink-0", typeLoc === g && "!bg-brand !text-white")}>
+                  {g === "tous" ? "Tous types" : g} <span className="opacity-70">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

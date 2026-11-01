@@ -178,7 +178,7 @@ function SaisieBail({ b, onClose }: { b: Bien; onClose: () => void }) {
 
   function enregistrer() {
     const g = locationDe(b)!;
-    update("biens", b.id, { location: { ...g, statut: g.statut === "a_louer" ? "loue" : g.statut, loyer: x.loyer, bailEnCours: x } } as Partial<Bien>);
+    update("biens", b.id, { location: { ...g, statut: g.statut === "a_louer" || g.statut === "en_attente" ? "loue" : g.statut, loyer: x.loyer, bailEnCours: x } } as Partial<Bien>);
     onClose();
   }
 

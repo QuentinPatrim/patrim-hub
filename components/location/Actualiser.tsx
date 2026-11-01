@@ -6,7 +6,7 @@ import { cx } from "@/components/ui";
 import { authHeaders } from "@/lib/ai";
 import { create, getAll, refreshAll, update } from "@/lib/store";
 import { ilya } from "@/lib/format";
-import { bienDepuisAnnonce, horsLigne, refSite, type AnnonceLocation, type BilanActualisation } from "./site";
+import { bienDepuisAnnonce, horsLigne, memeLogement, refSite, type AnnonceLocation, type BilanActualisation } from "./site";
 import type { BienLocation } from "./bienLocation";
 import type { Bien } from "@/lib/types";
 
@@ -24,7 +24,7 @@ function rangerLocalement(annonces: AnnonceLocation[]): BilanActualisation {
   const parRef = new Map(biens.filter(refSite).map((b) => [refSite(b)!, b]));
   const bilan: BilanActualisation = { ajoutes: 0, misAJour: 0, horsLigne: 0, total: annonces.length };
   for (const a of annonces) {
-    const avant = parRef.get(a.ref);
+    const avant = parRef.get(a.ref) ?? memeLogement(a, getAll("biens") as BienLocation[]);
     const data = bienDepuisAnnonce(a, avant, now);
     if (avant) {
       update("biens", avant.id, data as Partial<Bien>);

@@ -50,7 +50,7 @@ export default function GestionPage() {
   const depart = () => {
     const x = gestionInitiale(b!, proprietaires());
     const loc = locationDe(b!);
-    if (loc) Object.assign(x, { vacant: loc.statut === "a_louer", meuble: loc.meuble, loyerSouhaite: loc.loyer, chargesSouhaitees: loc.charges });
+    if (loc) Object.assign(x, { vacant: loc.statut === "a_louer" || loc.statut === "en_attente", meuble: loc.meuble, loyerSouhaite: loc.loyer, chargesSouhaitees: loc.charges });
     return x;
   };
 

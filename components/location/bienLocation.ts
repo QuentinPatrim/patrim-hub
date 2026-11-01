@@ -3,10 +3,12 @@ import type { Tone } from "@/lib/format";
 
 /* Location d'un bien : rangée à côté des champs de vente, sans modifier lib/types.ts. */
 
-export type StatutLocation = "a_louer" | "loue" | "preavis";
+/** « En attente » : logement vide mais pas encore proposé (travaux, propriétaire qui hésite, pub à faire…). */
+export type StatutLocation = "a_louer" | "en_attente" | "loue" | "preavis";
 
 export const STATUT_LOCATION: Record<StatutLocation, { label: string; tone: Tone }> = {
   a_louer: { label: "À louer", tone: "ok" },
+  en_attente: { label: "En attente", tone: "neutral" },
   loue: { label: "Loué", tone: "brand" },
   preavis: { label: "En préavis", tone: "warn" },
 };

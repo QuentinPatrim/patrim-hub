@@ -34,7 +34,7 @@ export function AccueilLocation() {
   const retires = loc
     .filter((b) => locationDe(b)?.statut === "a_louer" && locationDe(b)?.site?.enLigne === false)
     .sort((a, b) => (locationDe(b)?.site?.vu ?? "").localeCompare(locationDe(a)?.site?.vu ?? ""));
-  const loues = loc.filter((b) => locationDe(b)?.statut !== "a_louer").length;
+  const loues = loc.filter((b) => locationDe(b)?.statut === "loue" || locationDe(b)?.statut === "preavis").length;
   const gestion = loc.filter((b) => locationDe(b)?.gestion).length;
   const loyers = aLouer.reduce((s, b) => s + (locationDe(b)?.loyer ?? 0), 0);
   const candidats = contacts.filter((c) => c.roles?.includes("locataire")).length;

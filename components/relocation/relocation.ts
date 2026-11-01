@@ -569,6 +569,9 @@ export function fusionner(avant: Relocation | undefined, l: LigneListe, auj: str
   return r;
 }
 
+/** Statut du bien d'après la liste : occupé → « En préavis », vide → « En attente » (il passe « À louer » quand son annonce paraît sur patrim.fr). */
+export const statutDepuisListe = (l: Pick<LigneListe, "vacant" | "sortie">, auj: string): "preavis" | "en_attente" => (l.vacant || (l.sortie && l.sortie <= auj) ? "en_attente" : "preavis");
+
 /** Titre d'un bien créé depuis la liste loc (« T2 meublé · Carmes »). */
 export function titreDepuisLigne(l: LigneListe) {
   const base = l.typeBien === "local" ? "Local commercial" : l.pieces ? `T${l.pieces}${l.meuble ? " meublé" : ""}` : propre(l.typeTexte) || "Logement";
