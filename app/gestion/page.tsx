@@ -45,6 +45,16 @@ export default function Gestion() {
   const auj = today();
 
   const dossiers = useMemo(() => biensEnRelocation(biens.filter(locationSeule)), [biens]);
+
+  // Biens importés de la liste loc avant le 01/11 mis « À louer » sans annonce en ligne : ils repassent « En attente » (ou « En préavis »).
+  useEffect(() => {
+    dossiers.forEach((b) => {
+      const loc = locationDe(b)!;
+      const r = relocationDe(b)!;
+      if (loc.statut === "a_louer" && !loc.site?.ref && r.importeLe && !r.fermeeLe)
+        update("biens", b.id, patchRelocation(b, r, { statut: r.vacant || (r.sortie && r.sortie <= today()) ? "en_attente" : "preavis" }));
+    });
+  }, [dossiers]);
   const ouverts = dossiers
     .filter((b) => !relocationDe(b)!.fermeeLe)
     .filter((b) => !q.trim() || correspond(b, q))

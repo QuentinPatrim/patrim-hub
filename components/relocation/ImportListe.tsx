@@ -6,7 +6,7 @@ import { Badge, Sheet } from "@/components/ui";
 import { create, getAll, update, useCollection } from "@/lib/store";
 import { nomComplet, today } from "@/lib/format";
 import { locationSeule, type BienLocation, type InfosLocation } from "@/components/location/bienLocation";
-import { candidats, fusionner, jourJ, lireListe, relocationDe, sansAccent, titreDepuisLigne, type InfosRelocation, type LigneListe } from "./relocation";
+import { candidats, fusionner, statutDepuisListe, jourJ, lireListe, relocationDe, sansAccent, titreDepuisLigne, type InfosRelocation, type LigneListe } from "./relocation";
 import type { Bien } from "@/lib/types";
 
 /* ============================================================
@@ -60,7 +60,8 @@ export function ImportListe({ open, onClose }: { open: boolean; onClose: () => v
     lignes.forEach((l, i) => {
       const c = cible(i);
       if (c === IGNORER) return;
-      const statut: InfosLocation["statut"] = l.vacant || (l.sortie && l.sortie <= auj) ? "a_louer" : "preavis";
+      // Vide → « En attente » tant que l'annonce n'est pas sur patrim.fr (travaux, pub à faire…) ; occupé → « En préavis ».
+      const statut: InfosLocation["statut"] = statutDepuisListe(l, auj);
       if (c === NOUVEAU) {
         const r = fusionner(undefined, l, auj);
         create("biens", {
@@ -92,7 +93,7 @@ export function ImportListe({ open, onClose }: { open: boolean; onClose: () => v
         codePostal: b.codePostal ?? l.codePostal,
         adresse: l.adresse || b.adresse,
         vendeurIds: b.vendeurIds?.length ? b.vendeurIds : proprietaireIds(l.proprietaire),
-        location: { ...(avant ?? {}), statut: avant?.statut === "a_louer" ? "a_louer" : statut, meuble: avant?.meuble ?? l.meuble, relocation: r },
+        location: { ...(avant ?? {}), statut: avant?.site?.enLigne && avant.statut === "a_louer" ? "a_louer" : avant?.statut === "loue" && statut === "en_attente" ? "en_attente" : statut, meuble: avant?.meuble ?? l.meuble, relocation: r },
       } as Partial<Bien>);
       maj++;
     });
