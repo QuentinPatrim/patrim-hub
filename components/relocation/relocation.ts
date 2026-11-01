@@ -12,6 +12,7 @@ import type { Bien, Rdv } from "@/lib/types";
 import type { Tone } from "@/lib/format";
 import { locationDe, type BienLocation, type InfosLocation } from "@/components/location/bienLocation";
 import type { BienActes } from "@/components/documents/archive";
+import { bailSuivi } from "@/components/gestion/echeancier";
 
 export type EtapeId = "preavis" | "diags" | "liste" | "pub" | "visites" | "dossier" | "bail" | "edl" | "ics" | "caution";
 export type Garantie = "gli" | "visale" | "goodloc" | "garant" | "autre";
@@ -20,6 +21,32 @@ export type Pub = "a_faire" | "prete" | "en_ligne";
 export interface Retenue {
   libelle: string;
   montant: number;
+}
+
+export type StatutCandidat = "nouveau" | "a_rappeler" | "visite" | "dossier" | "retenu" | "refuse";
+export const STATUTS_CANDIDAT: { v: StatutCandidat; label: string; tone: Tone }[] = [
+  { v: "nouveau", label: "Nouveau", tone: "info" },
+  { v: "a_rappeler", label: "À rappeler", tone: "warn" },
+  { v: "visite", label: "Visite prévue", tone: "brand" },
+  { v: "dossier", label: "Dossier en cours", tone: "brand" },
+  { v: "retenu", label: "Retenu", tone: "ok" },
+  { v: "refuse", label: "Pas retenu", tone: "neutral" },
+];
+
+/** Candidat locataire d'un logement : rangé sur le dossier, donc visible de toute l'équipe (comme la colonne « Prospects » de la liste loc). */
+export interface Candidat {
+  id: string;
+  nom: string;
+  tel?: string;
+  note?: string;
+  statut: StatutCandidat;
+  ajouteLe: string;
+  /** Dernier contact (AAAA-MM-JJ). */
+  contacteLe?: string;
+  /** Visite : date et heure (AAAA-MM-JJTHH:MM), et qui la fait. */
+  visite?: string;
+  visitePar?: string;
+  rdvId?: string;
 }
 
 export interface Relocation {
@@ -51,7 +78,8 @@ export interface Relocation {
   icsLe?: string;
   /** Restitution du dépôt de garantie du locataire sortant. */
   caution?: { montant?: number; conforme?: boolean; retenues?: Retenue[]; restitueLe?: string };
-  /** Étapes cochées à la main (date). */
+  candidats?: Candidat[];
+  /** Étapes cochées à la main (date), ou « na » : pas concerné pour ce logement. */
   etapes?: Partial<Record<EtapeId, string>>;
   fermeeLe?: string;
   /** Dernière mise à jour depuis la liste loc. */
@@ -144,7 +172,8 @@ const bailSigneDepuis = (b: Bien, depuis: string) =>
 
 /** Étapes faites : cochées à la main, ou déduites des informations du dossier. */
 export function etapesFaites(b: Bien, r: Relocation, rdvs: Rdv[], auj: string): Set<EtapeId> {
-  const f = new Set<EtapeId>(Object.keys(r.etapes ?? {}) as EtapeId[]);
+  const f = new Set<EtapeId>((Object.keys(r.etapes ?? {}) as EtapeId[]).filter((k) => r.etapes?.[k] !== "na"));
+  if ((r.candidats ?? []).some((c) => c.visite)) f.add("visites");
   if (r.preavis?.recuLe || r.sortie || r.vacant) f.add("preavis");
   if (r.dpeOk) f.add("diags");
   if (r.dpeOk !== undefined && r.gli !== undefined) f.add("liste");
@@ -158,7 +187,103 @@ export function etapesFaites(b: Bien, r: Relocation, rdvs: Rdv[], auj: string): 
   return f;
 }
 
-export const prochaineEtape = (faites: Set<EtapeId>) => ETAPES.find((e) => !faites.has(e.id));
+/** Étapes qui comptent pour ce logement : un logement déjà vide n'a pas de préavis, ni de caution à rendre s'il n'y avait personne. */
+export function etapesApplicables(r: Relocation, b?: Bien) {
+  const vide = r.vacant && !r.preavis?.recuLe;
+  const parking = b?.type === "parking";
+  return ETAPES.filter((e) => {
+    if (parking && e.id === "diags") return false;
+    if (r.etapes?.[e.id] === "na") return false;
+    if (vide && e.id === "preavis") return false;
+    if (vide && e.id === "caution" && !r.sortant?.nom && !r.edls) return false;
+    return true;
+  });
+}
+export const nonConcernees = (r: Relocation, b?: Bien) => ETAPES.filter((e) => !etapesApplicables(r, b).includes(e));
+
+export function avancement(b: Bien, r: Relocation, rdvs: Rdv[], auj: string) {
+  const faites = etapesFaites(b, r, rdvs, auj);
+  const liste = etapesApplicables(r, b);
+  return { faites, liste, fait: liste.filter((e) => faites.has(e.id)).length, total: liste.length, suite: liste.find((e) => !faites.has(e.id)) };
+}
+
+export const prochaineEtape = (faites: Set<EtapeId>, r?: Relocation) => (r ? etapesApplicables(r) : ETAPES).find((e) => !faites.has(e.id));
+
+/* ---------- Fiche d'appel : type, occupation, candidats, visites ---------- */
+
+export const GROUPES_TYPE = ["T1", "T2", "T3", "T4 et +", "Maison", "Parking / garage", "Local", "Autre"] as const;
+export type GroupeType = (typeof GROUPES_TYPE)[number];
+export function groupeType(b: Bien): GroupeType {
+  if (b.type === "parking") return "Parking / garage";
+  if (b.type === "maison") return "Maison";
+  if (b.type === "local" || b.type === "immeuble") return "Local";
+  if (b.type === "terrain") return "Autre";
+  const p = b.pieces;
+  if (!p) return "Autre";
+  return p >= 4 ? "T4 et +" : (`T${p}` as GroupeType);
+}
+
+/** Loué depuis : date d'effet du bail en cours (saisi dans l'échéancier ou signé dans le Hub). */
+export const loueDepuis = (b: Bien) => bailSuivi(b)?.debut ?? locationDe(b)?.debut;
+
+export const visitesPrevues = (r: Relocation, depuis: string) =>
+  (r.candidats ?? []).filter((c) => c.visite && c.visite.slice(0, 10) >= depuis && c.statut !== "refuse").sort((a, z) => a.visite!.localeCompare(z.visite!));
+
+export const heureVisite = (iso: string) => `${jourJ(iso.slice(0, 10))}${iso.length > 10 ? ` à ${iso.slice(11, 16).replace(":", "h")}` : ""}`;
+
+/** Texte cherché quand quelqu'un appelle : adresse, rue, quartier, type, loyer, propriétaire, locataire, candidats. */
+export function texteRecherche(b: Bien) {
+  const r = relocationDe(b);
+  return sansAccent(
+    [b.titre, b.adresse, b.quartier, b.ville, b.codePostal, b.ref, groupeType(b), locationDe(b)?.loyer, r?.loyerListe, r?.proprietaire, r?.sortant?.nom, r?.sortant?.tel, r?.etat, ...(r?.candidats ?? []).flatMap((c) => [c.nom, c.tel])]
+      .filter(Boolean)
+      .join(" ")
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ");
+}
+export function correspond(b: Bien, q: string) {
+  const t = texteRecherche(b);
+  const chiffres = q.replace(/\D/g, "");
+  if (chiffres.length >= 6 && t.replace(/ /g, "").includes(chiffres)) return true;
+  return sansAccent(q)
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((m) => t.includes(m));
+}
+
+const idCandidat = () => Math.random().toString(36).slice(2, 10);
+export const nouveauCandidat = (p: Omit<Candidat, "id" | "ajouteLe" | "statut"> & { statut?: StatutCandidat }, auj: string): Candidat => ({ id: idCandidat(), statut: "nouveau", ajouteLe: auj, ...p });
+
+/** Colonne « Prospects » de la liste loc → candidats (« M. ZAKHIAN 06,42,… M.VIDEAU 07,68,… »). */
+export function lireProspects(texte: string | undefined, auj: string): Candidat[] {
+  if (!texte) return [];
+  const re = /(?:\+33\s?|0)\d(?:[\s.,-]?\d{2}){4}/g;
+  const out: Candidat[] = [];
+  let debut = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(texte))) {
+    const avant = texte.slice(debut, m.index).replace(/^[\s,;/:-]+|[\s,;/:-]+$/g, "").trim();
+    const tel = m[0].replace(/\D/g, "").replace(/^33/, "0").replace(/(\d{2})(?=\d)/g, "$1 ");
+    debut = m.index + m[0].length;
+    const lignes = avant.split("\n").map((x) => x.trim()).filter(Boolean);
+    let nom = lignes.pop() ?? "";
+    let note: string | undefined;
+    const deux = nom.lastIndexOf(":");
+    if (deux > 0) {
+      note = nom.slice(0, deux).trim();
+      nom = nom.slice(deux + 1).trim();
+    }
+    if (lignes.length && out.length) out[out.length - 1].note = [out[out.length - 1].note, ...lignes].filter(Boolean).join(" ");
+    out.push(nouveauCandidat({ nom: nom || "Candidat", tel, note }, auj));
+  }
+  const reste = texte.slice(debut).replace(/^[\s,;/:-]+/, "").trim();
+  if (reste && out.length) out[out.length - 1].note = [out[out.length - 1].note, reste].filter(Boolean).join(" ");
+  if (!out.length && texte.trim()) out.push(nouveauCandidat({ nom: texte.trim().slice(0, 80) }, auj));
+  return out;
+}
 
 /** Où en est le logement, en une étiquette. */
 export function situation(r: Relocation, auj: string): { label: string; tone: Tone } {
@@ -432,6 +557,9 @@ export function fusionner(avant: Relocation | undefined, l: LigneListe, auj: str
   r.infos = l.infos;
   r.disponibilites = l.disponibilites;
   r.prospects = l.prospects;
+  const connus = new Set((r.candidats ?? []).map((c) => (c.tel ?? c.nom).replace(/\s/g, "").toLowerCase()));
+  const nouveaux = lireProspects(l.prospects, auj).filter((c) => !connus.has((c.tel ?? c.nom).replace(/\s/g, "").toLowerCase()));
+  if (nouveaux.length) r.candidats = [...(r.candidats ?? []), ...nouveaux];
   r.vacant = l.vacant || undefined;
   if (l.sortie) r.sortie = l.sortie;
   if (l.sortant || l.tel) r.sortant = { ...r.sortant, nom: l.sortant ?? r.sortant?.nom, tel: l.tel ?? r.sortant?.tel };

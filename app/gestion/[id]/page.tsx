@@ -13,12 +13,14 @@ import { update, useCollection, useDoc } from "@/lib/store";
 import { eur, today } from "@/lib/format";
 import { locationDe } from "@/components/location/bienLocation";
 import {
-  ETAPES,
   GARANTIES,
   PUBS,
   dateSortie,
   echeanceCaution,
   etapesFaites,
+  etapesApplicables,
+  loueDepuis,
+  nonConcernees,
   jourJ,
   patchRelocation,
   relocationDe,
@@ -27,6 +29,7 @@ import {
   type EtapeId,
   type Relocation,
 } from "@/components/relocation/relocation";
+import { Candidats } from "@/components/relocation/Candidats";
 import { FicheIcs, FicheImmoaccess, LettreCaution, bailDuBien } from "@/components/relocation/Fiches";
 import type { Bien } from "@/lib/types";
 
@@ -78,6 +81,17 @@ function Dossier({ b, r, rdvs }: { b: Bien; r: Relocation; rdvs: Parameters<type
     set({ etapes });
   };
   const auto = (e: EtapeId) => faites.has(e) && !d.etapes?.[e];
+  const concerne = (e: EtapeId, oui: boolean) => {
+    const etapes = { ...(d.etapes ?? {}) };
+    if (oui) delete etapes[e];
+    else etapes[e] = "na";
+    set({ etapes });
+    setOuverte(null);
+  };
+  const applicables = etapesApplicables(d, b);
+  const horsSujet = nonConcernees(d, b);
+  const depuis = loueDepuis(b);
+  const occupe = !d.vacant && !(d.sortie && d.sortie <= auj);
 
   const contenu: Record<EtapeId, ReactNode> = {
     preavis: (
@@ -156,7 +170,7 @@ function Dossier({ b, r, rdvs }: { b: Bien; r: Relocation; rdvs: Parameters<type
         <Field label="Disponibilités pour les visites">
           <textarea className="input min-h-[64px]" value={d.disponibilites ?? ""} onChange={(e) => set({ disponibilites: e.target.value }, false)} onBlur={quitter} />
         </Field>
-        <Field label="Prospects">
+        <Field label="Notes prospects (liste loc)" hint="Les candidats se gèrent dans « Candidats et visites », plus haut.">
           <textarea className="input min-h-[80px]" value={d.prospects ?? ""} onChange={(e) => set({ prospects: e.target.value }, false)} onBlur={quitter} />
         </Field>
         {d.sortant?.tel && (
@@ -261,6 +275,25 @@ function Dossier({ b, r, rdvs }: { b: Bien; r: Relocation; rdvs: Parameters<type
             <div>{loyer ? `${eur(loyer)} HC` : d.loyerListe ? `${eur(d.loyerListe)} (liste)` : "—"}</div>
           </div>
         </div>
+        <p className="rounded-xl bg-surface-2 px-3 py-2 text-[13px]">
+          {occupe ? (
+            <>
+              <b>Loué</b>
+              {depuis ? ` depuis le ${jourJ(depuis)}` : ""}
+              {d.sortant?.nom ? ` · ${d.sortant.nom}` : ""}
+              {d.sortie ? ` · part le ${jourJ(d.sortie)}` : ""}
+            </>
+          ) : (
+            <b>Logement vide</b>
+          )}
+          {d.disponibilites ? (
+            <>
+              <br />
+              {occupe ? "Dispos du locataire : " : "Visites : "}
+              {d.disponibilites}
+            </>
+          ) : null}
+        </p>
         <Field label="Infos">
           <textarea className="input min-h-[56px]" value={d.infos ?? ""} onChange={(e) => set({ infos: e.target.value }, false)} onBlur={quitter} />
         </Field>
@@ -269,8 +302,11 @@ function Dossier({ b, r, rdvs }: { b: Bien; r: Relocation; rdvs: Parameters<type
         </Link>
       </div>
 
+      <Candidats b={b} liste={d.candidats ?? []} onChange={(candidats) => set({ candidats })} />
+
+      <h2 className="h-section px-1 pt-1">Étapes</h2>
       <ol className="space-y-2">
-        {ETAPES.map((e, i) => {
+        {applicables.map((e, i) => {
           const fait = faites.has(e.id);
           const ouvert = ouverte === e.id;
           return (
@@ -290,11 +326,35 @@ function Dossier({ b, r, rdvs }: { b: Bien; r: Relocation; rdvs: Parameters<type
                 </button>
                 <ChevronDown size={18} className={cx("shrink-0 text-muted transition", ouvert && "rotate-180")} onClick={() => setOuverte(ouvert ? null : e.id)} />
               </div>
-              {ouvert && <div className="space-y-3 border-t border-line/60 p-3">{contenu[e.id]}</div>}
+              {ouvert && (
+                <div className="space-y-3 border-t border-line/60 p-3">
+                  {contenu[e.id]}
+                  <button className="btn-ghost btn-sm text-muted" onClick={() => concerne(e.id, false)}>
+                    Pas concerné pour ce logement
+                  </button>
+                </div>
+              )}
             </li>
           );
         })}
       </ol>
+      {horsSujet.length > 0 && (
+        <p className="px-1 text-[12px] text-muted">
+          Pas concerné :{" "}
+          {horsSujet.map((e, i) => (
+            <span key={e.id}>
+              {i ? ", " : ""}
+              {d.etapes?.[e.id] === "na" ? (
+                <button className="link" onClick={() => concerne(e.id, true)}>
+                  {e.label}
+                </button>
+              ) : (
+                e.label
+              )}
+            </span>
+          ))}
+        </p>
+      )}
 
       {d.fermeeLe ? (
         <button className="btn-secondary w-full !h-11" onClick={() => set({ fermeeLe: undefined })}>
